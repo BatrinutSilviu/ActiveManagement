@@ -27,7 +27,8 @@ function Statement({ e, split }) {
         <div><h2>Event statement</h2><p>{e.status === 'completed' ? 'Finalized — included in the funds' : 'Live — added to the funds when finalized'}</p></div>
       </div>
       <dl className="statement">
-        <dt>Income from fees <span className="muted">{e.participants} × {money(e.participation_fee)}</span></dt><dd>{money(e.fee_income)}</dd>
+        <dt>Income from fees <span className="muted">{e.participants} × {money(e.participation_fee)}</span></dt><dd>{money(e.fee_gross)}</dd>
+        {e.discounts > 0 && <><dt>Discounts <span className="muted">{e.discount_count} people paid less</span></dt><dd className="neg">−{money(e.discounts)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}
         <dt>Organizing costs <span className="muted">venues, trainers…</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
         <dt>Benefits offered <span className="muted">water, fruit, balls…</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
@@ -45,6 +46,107 @@ function Statement({ e, split }) {
         <dt><i className="swatch" style={{ background: c.sportfund }} />{e.type_name} reinvestment fund <span className="muted">{pctLabel(100 - split.generalShare)} of the {pctLabel(community)}</span></dt>
         <dd>{money(s.sport)}</dd>
       </dl>
+    </div>
+  );
+}
+
+const discountLabel = (d) => (d.kind === 'percent' ? `−${number(d.value)}%` : `−${money(d.value)}`);
+const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
+
+/** People who paid less (or nothing) at this event, with the discount they got. */
+function Discounts({ e, reload }) {
+  const { data: people, reload: reloadPeople } = useApi('/people');
+  const { data: discounts } = useApi('/discounts');
+  const [f, setF] = useState({ person_id: '', discount_id: '', amount: '' });
+  const [error, setError] = useState(null);
+  const run = async (fn) => { try { await fn(); setError(null); reload(); return true; } catch (err) { setError(err.message); return false; } };
+
+  const taken = new Set(e.discountList.map((d) => d.person_id));
+  const person = people?.find((p) => String(p.id) === String(f.person_id));
+  const applies = (d) => !d.sport_id || d.sport_id === e.type_id;
+  // The person's own discounts that apply to this sport, best first; then every other saved discount.
+  const own = (discounts || []).filter((d) => person?.discount_ids.includes(d.id) && applies(d))
+    .sort((a, b) => discountWorth(b, e.participation_fee) - discountWorth(a, e.participation_fee));
+  const others = (discounts || []).filter((d) => !own.includes(d) && applies(d));
+  const chosen = discounts?.find((d) => String(d.id) === String(f.discount_id));
+  const preview = f.discount_id === 'custom' ? Number(f.amount) || 0 : chosen ? discountWorth(chosen, e.participation_fee) : 0;
+
+  const pickPerson = async (value) => {
+    if (value === 'new') {
+      const name = window.prompt('Name of the new person');
+      if (!name?.trim()) return;
+      try {
+        const { id } = await api.post('/people', { name });
+        await reloadPeople();
+        setF({ person_id: String(id), discount_id: 'custom', amount: '' });
+      } catch (err) { setError(err.message); }
+      return;
+    }
+    const p = people.find((x) => String(x.id) === value);
+    const best = (discounts || []).filter((d) => p?.discount_ids.includes(d.id) && applies(d))
+      .sort((a, b) => discountWorth(b, e.participation_fee) - discountWorth(a, e.participation_fee))[0];
+    setF({ person_id: value, discount_id: best ? String(best.id) : 'custom', amount: '' });
+  };
+  const add = async (ev) => {
+    ev.preventDefault();
+    const body = f.discount_id === 'custom' ? { person_id: f.person_id, amount: f.amount } : { person_id: f.person_id, discount_id: f.discount_id };
+    if (await run(() => api.post(`/events/${e.id}/discounts`, body))) setF({ person_id: '', discount_id: '', amount: '' });
+  };
+
+  return (
+    <div className="card">
+      <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+        <div><h2>Discounted participants</h2><p>{e.discountList.length} of {e.participants} people paid less · fee {money(e.participation_fee)}</p></div>
+        {e.discounts > 0 && <span className="neg">−{money(e.discounts)}</span>}
+      </div>
+      {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
+      {e.discountList.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Person</th><th>Discount</th><th className="r">Paid</th><th className="r">Amount off</th><th /></tr></thead>
+            <tbody>
+              {e.discountList.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.person_name}</td>
+                  <td className="secondary">{d.discount_name || 'One-off'} <span className="muted">{discountLabel(d)}</span></td>
+                  <td className="r">{money(Math.max(e.participation_fee - d.amount, 0))}</td>
+                  <td className="r kind-expense">−{money(d.amount)}</td>
+                  <td className="r"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-discounts/${d.id}`))}><IconTrash /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <form className="inline-form" onSubmit={add}>
+        <select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
+          <option value="">Person…</option>
+          {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => (
+            <option key={p.id} value={p.id}>{p.name}{p.discount_ids.length ? ' ★' : ''}</option>
+          ))}
+          <option value="new">+ New person…</option>
+        </select>
+        <select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
+          <option value="">Discount…</option>
+          {own.length > 0 && (
+            <optgroup label={`${person.name}’s discounts`}>
+              {own.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}
+            </optgroup>
+          )}
+          {others.length > 0 && (
+            <optgroup label="Other discounts">
+              {others.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}
+            </optgroup>
+          )}
+          <option value="custom">One-off amount…</option>
+        </select>
+        {f.discount_id === 'custom' && (
+          <input className="select-sm num-input" type="number" min="0.01" step="0.01" placeholder="RON" value={f.amount}
+            onChange={(ev) => setF({ ...f, amount: ev.target.value })} required aria-label="Discount amount" />
+        )}
+        <button className="btn btn-sm" disabled={!person}>Add{preview ? ` · −${money(preview)}` : ''}</button>
+      </form>
+      {!e.participation_fee && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>This event has no participation fee, so discounts are worth 0.</p>}
     </div>
   );
 }
@@ -236,6 +338,7 @@ export default function EventDetail() {
                 empty="No costs recorded yet. Fee income comes from people × fee." />
             </div>
           </div>
+          <Discounts e={e} reload={reload} />
           <StockUsage e={e} reload={reload} />
           <Organizers e={e} reload={reload} />
         </div>

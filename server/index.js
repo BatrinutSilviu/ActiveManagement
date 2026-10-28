@@ -39,10 +39,23 @@ api.post('/auth/setup', (req, res) => {
   res.json({ ok: true });
 });
 
+// Brute-force protection: after too many wrong passwords from one IP (or for one email),
+// logins are refused for a while. Kept in memory; a restart clears it.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000, MAX_PER_IP = 10, MAX_PER_EMAIL = 5;
+const failures = new Map(); // key -> timestamps of recent failed attempts
+const recent = (key) => (failures.get(key) || []).filter((t) => Date.now() - t < LOGIN_WINDOW_MS);
+
 api.post('/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const u = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email || '').trim());
-  if (!u || !verifyPassword(String(password || ''), u.password_hash)) throw httpError(401, 'Wrong email or password');
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const keys = [[`ip:${req.ip}`, MAX_PER_IP], [`email:${email}`, MAX_PER_EMAIL]];
+  if (keys.some(([k, max]) => recent(k).length >= max))
+    throw httpError(429, 'Too many failed attempts — try again in 15 minutes');
+  const u = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  if (!u || !verifyPassword(String(req.body.password || ''), u.password_hash)) {
+    for (const [k] of keys) failures.set(k, [...recent(k), Date.now()]);
+    throw httpError(401, 'Wrong email or password');
+  }
+  for (const [k] of keys) failures.delete(k);
   createSession(res, u.id);
   res.json({ ok: true });
 });
@@ -165,8 +178,13 @@ api.get('/people', (req, res) => {
     SELECT p.*, (SELECT COUNT(*) FROM event_people ep WHERE ep.person_id = p.id) AS events,
       (SELECT COALESCE(SUM(ep.points), 0) FROM event_people ep WHERE ep.person_id = p.id) AS points,
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
-        WHERE h.person_id = p.id) AS stock_value
-    FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({ ...p, stock_value: toRon(p.stock_value) })));
+        WHERE h.person_id = p.id) AS stock_value,
+      (SELECT json_group_array(pd.discount_id) FROM person_discounts pd WHERE pd.person_id = p.id) AS discount_ids,
+      (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id) AS discounts_received,
+      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id) AS discounted_events
+    FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({
+    ...p, stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
+  })));
 });
 
 function readPerson(body) {
@@ -194,7 +212,100 @@ api.delete('/people/:id', (req, res) => {
     'This person still holds stock — move it to someone else first');
   need(!db.prepare('SELECT 1 FROM event_people WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
+  need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
+    'This person received discounts at events — mark them inactive instead, so that history is kept');
   db.prepare('DELETE FROM people WHERE id = ?').run(idParam(req));
+  res.json({ ok: true });
+});
+
+// Replace the set of discounts a person is entitled to.
+api.put('/people/:id/discounts', (req, res) => {
+  const ids = (req.body.discount_ids || []).map(Number).filter(Boolean);
+  tx(() => {
+    db.prepare('DELETE FROM person_discounts WHERE person_id = ?').run(idParam(req));
+    const ins = db.prepare('INSERT INTO person_discounts (person_id, discount_id) VALUES (?, ?)');
+    for (const d of ids) ins.run(idParam(req), d);
+  });
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------ discounts */
+
+const shapeDiscount = (d) => ({ ...d, value: d.kind === 'fixed' ? toRon(d.value) : d.value });
+
+api.get('/discounts', (req, res) => {
+  res.json(db.prepare(`
+    SELECT d.*, et.name AS sport_name,
+      (SELECT json_group_array(json_object('id', p.id, 'name', p.name)) FROM person_discounts pd
+        JOIN people p ON p.id = pd.person_id WHERE pd.discount_id = d.id) AS people,
+      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.discount_id = d.id) AS uses
+    FROM discounts d LEFT JOIN event_types et ON et.id = d.sport_id ORDER BY d.name`).all()
+    .map((d) => shapeDiscount({ ...d, people: JSON.parse(d.people) })));
+});
+
+function readDiscount(b) {
+  need(b.name?.trim(), 'Name is required');
+  need(['percent', 'fixed'].includes(b.kind), 'Choose a percentage or a fixed amount');
+  const v = Number(b.value);
+  need(Number.isFinite(v) && v > 0, 'The discount must be greater than 0');
+  need(b.kind !== 'percent' || v <= 100, 'A percentage discount can be at most 100%');
+  return [b.name.trim(), b.kind, b.kind === 'fixed' ? toBani(v) : v, b.sport_id ? Number(b.sport_id) : null];
+}
+
+api.post('/discounts', (req, res) => {
+  try {
+    const { lastInsertRowid } = db.prepare('INSERT INTO discounts (name, kind, value, sport_id) VALUES (?, ?, ?, ?)').run(...readDiscount(req.body));
+    res.json({ id: Number(lastInsertRowid) });
+  } catch (e) {
+    if (e.status) throw e;
+    throw httpError(400, 'A discount with this name already exists');
+  }
+});
+
+// Editing a discount only affects events it is added to from now on.
+api.put('/discounts/:id', (req, res) => {
+  db.prepare('UPDATE discounts SET name = ?, kind = ?, value = ?, sport_id = ? WHERE id = ?').run(...readDiscount(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+api.delete('/discounts/:id', (req, res) => {
+  db.prepare('DELETE FROM discounts WHERE id = ?').run(idParam(req));
+  res.json({ ok: true });
+});
+
+const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fee * value) / 100 : Math.min(value, fee));
+
+// Give a person a discount at an event: one of their saved discounts, or a one-off amount.
+api.post('/events/:id/discounts', (req, res) => {
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
+  if (!ev) throw httpError(404, 'Event not found');
+  const { person_id, discount_id, amount, note } = req.body;
+  need(person_id, 'Choose a person');
+  let kind, value;
+  if (discount_id) {
+    const d = db.prepare('SELECT * FROM discounts WHERE id = ?').get(discount_id);
+    need(d, 'Discount not found');
+    ({ kind, value } = d);
+  } else {
+    need(Number(amount) > 0, 'Enter the discount amount');
+    kind = 'fixed';
+    value = toBani(amount);
+  }
+  const given = db.prepare('SELECT COUNT(*) n FROM event_discounts WHERE event_id = ?').get(ev.id).n;
+  need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
+  try {
+    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(ev.id, Number(person_id), discount_id ? Number(discount_id) : null, kind, value,
+        discountAmount(kind, value, ev.participation_fee), note?.trim() || null);
+  } catch (e) {
+    if (e.status) throw e;
+    throw httpError(400, 'This person already has a discount at this event');
+  }
+  res.json({ ok: true });
+});
+
+api.delete('/event-discounts/:id', (req, res) => {
+  db.prepare('DELETE FROM event_discounts WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 
@@ -303,6 +414,9 @@ api.get('/events/:id', (req, res) => {
   if (!e) throw httpError(404, 'Event not found');
   e.people = db.prepare(`SELECT ep.*, p.name, p.is_founder FROM event_people ep JOIN people p ON p.id = ep.person_id
     WHERE ep.event_id = ? ORDER BY ep.role, p.name`).all(e.id);
+  e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
+    JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY p.name`)
+    .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
   e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
     .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: r2(s.qty * toRon(s.unit_price)) }));
@@ -333,6 +447,10 @@ api.put('/events/:id', (req, res) => {
   db.prepare(`
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
       participation_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
+  // A new fee changes what each discount is worth at this event.
+  const fee = db.prepare('SELECT participation_fee FROM events WHERE id = ?').get(idParam(req))?.participation_fee ?? 0;
+  for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req)))
+    db.prepare('UPDATE event_discounts SET amount = ? WHERE id = ?').run(discountAmount(d.kind, d.value, fee), d.id);
   res.json({ ok: true });
 });
 
@@ -639,7 +757,8 @@ api.get('/stats', (req, res) => {
   if (stockCost) expenseByCategory.push({ name: 'Products from stock', total: stockCost });
   const incomeByCategory = byCategory('income');
   const feeIncome = r2(held.reduce((s, e) => s + e.fee_income, 0));
-  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × fee)', total: feeIncome });
+  const discountsGiven = r2(held.reduce((s, e) => s + e.discounts, 0));
+  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × fee − discounts)', total: feeIncome });
   const merge = (list) => [...list.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + x.total), new Map())]
     .map(([name, total]) => ({ name, total: r2(total) })).sort((a, b) => b.total - a.total);
 
@@ -667,6 +786,8 @@ api.get('/stats', (req, res) => {
       avgParticipants: held.length ? participants / held.length : null,
       incomePerParticipant: participants ? totals.income / participants : null,
       costPerParticipant: participants ? totals.expenses / participants : null,
+      discounts: discountsGiven,
+      discountedEntries: held.reduce((s, e) => s + e.discount_count, 0),
     },
     periods,
     byType,

@@ -514,3 +514,6 @@ details summary { cursor: pointer; }
 .targets-total { margin-top: 8px; font-size: 13px; font-weight: 650; color: var(--text-2); }
 .section-link { font-size: 13px; font-weight: 600; margin-left: auto; letter-spacing: 0; }
 .section-head h2 .section-link { margin-left: 6px; }
+.check-list { display: flex; flex-direction: column; gap: 12px; }
+.check-list .check { align-items: flex-start; }
+.check-list .check input { margin-top: 2px; }

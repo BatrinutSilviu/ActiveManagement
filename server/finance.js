@@ -11,7 +11,9 @@ export const LIVE = 'planned';
 
 export const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, a.name AS activity_name,
-    e.participants * e.participation_fee AS fee_income,
+    e.participants * e.participation_fee AS fee_gross,
+    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id) AS discounts,
+    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id) AS discount_count,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.event_id = e.id AND t.kind = 'income') AS other_income,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND COALESCE(c.cost_group, 'organizing') = 'organizing') AS organizing,
@@ -34,7 +36,9 @@ export function splitProfit(profit, split = getSplit()) {
 }
 
 export function shapeEvent(e, split = getSplit()) {
-  const feeIncome = toRon(e.fee_income), otherIncome = toRon(e.other_income);
+  // Fee income = people × fee − discounts given at the event.
+  const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts);
+  const feeIncome = r2(feeGross - discounts), otherIncome = toRon(e.other_income);
   const organizing = toRon(e.organizing), stockCost = toRon(e.stock_cost);
   const benefits = r2(toRon(e.benefit_tx) + stockCost);
   const income = r2(feeIncome + otherIncome), expenses = r2(organizing + benefits);
@@ -42,7 +46,7 @@ export function shapeEvent(e, split = getSplit()) {
   const { benefit_tx, ...rest } = e;
   return {
     ...rest, budget: toRon(e.budget), participation_fee: toRon(e.participation_fee),
-    fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost,
+    fee_gross: feeGross, discounts, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }

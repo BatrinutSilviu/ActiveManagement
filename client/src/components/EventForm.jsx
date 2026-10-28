@@ -94,6 +94,7 @@ export default function EventForm({ event, onClose, onSaved }) {
         <div className="full fee-preview">
           Income from fees: <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({Number(f.participants) || 0} × {money(Number(f.participation_fee) || 0)})</span>
+          <span className="muted">{event?.discounts ? ` − ${money(event.discounts)} discounts` : ' · discounts are added on the event page'}</span>
         </div>
         <label className="field">Location
           <input value={f.location || ''} onChange={set('location')} placeholder="Venue" />

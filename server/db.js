@@ -183,6 +183,36 @@ CREATE TABLE IF NOT EXISTS month_splits (
   value TEXT NOT NULL
 );
 `);
+db.exec(`
+-- Reusable discounts, e.g. "Founders – Hyrox free" (100%, Hyrox) or "Student" (20%, any sport).
+CREATE TABLE IF NOT EXISTS discounts (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  kind TEXT NOT NULL CHECK (kind IN ('percent', 'fixed')),
+  value REAL NOT NULL,                     -- percent (0–100) or a fixed amount in bani
+  sport_id INTEGER REFERENCES event_types(id) ON DELETE CASCADE   -- NULL = any sport
+);
+-- Which discounts each person is entitled to.
+CREATE TABLE IF NOT EXISTS person_discounts (
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  discount_id INTEGER NOT NULL REFERENCES discounts(id) ON DELETE CASCADE,
+  PRIMARY KEY (person_id, discount_id)
+);
+-- A discount actually given at an event. The amount is fixed when added (recomputed only
+-- if the event's fee changes), so editing a discount later doesn't rewrite past events.
+CREATE TABLE IF NOT EXISTS event_discounts (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  person_id INTEGER NOT NULL REFERENCES people(id),
+  discount_id INTEGER REFERENCES discounts(id) ON DELETE SET NULL, -- NULL = one-off amount
+  kind TEXT NOT NULL CHECK (kind IN ('percent', 'fixed')),
+  value REAL NOT NULL,
+  amount INTEGER NOT NULL,                 -- in bani
+  note TEXT,
+  UNIQUE (event_id, person_id)
+);
+`);
+
 if (!columns('events').includes('activity_id'))
   db.exec('ALTER TABLE events ADD COLUMN activity_id INTEGER REFERENCES activities(id) ON DELETE SET NULL');
 
