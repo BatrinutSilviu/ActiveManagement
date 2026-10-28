@@ -98,7 +98,20 @@ sudo cp deploy/backup-docker.sh /usr/local/bin/active-backup && sudo chmod +x /u
 echo '30 3 * * * root /usr/local/bin/active-backup' | sudo tee /etc/cron.d/active-backup
 ```
 
-Updating later: `cd /opt/active-management && sudo git pull && sudo docker compose up -d --build`.
+Updating later: automatic — see "Automatic deployment" below. Manually: `git pull && docker compose up -d --build`.
+
+## Automatic deployment (GitHub Actions)
+
+Every push to `main` runs `.github/workflows/deploy.yml`: build check, then SSH to the server, which runs
+`/root/deploy-activemanagement.sh` (a copy is in `deploy/server-deploy.sh`). That script backs up the database
+(last 10 kept in `/data/backups` inside the container), pulls, rebuilds, and fails the run if the app isn't healthy.
+
+One-time setup:
+1. Create a key for GitHub: `ssh-keygen -t ed25519 -N "" -C github-actions-deploy-activemanagement -f ~/.ssh/github_actions_activemanagement`
+2. On the server, append to `/root/.ssh/authorized_keys` (one line, with the contents of the `.pub` file):
+   `command="/root/deploy-activemanagement.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA… github-actions-deploy-activemanagement`
+3. In GitHub → repo → Settings → Secrets and variables → Actions, add `VPS_HOST`, `VPS_USER` (root) and
+   `VPS_SSH_KEY` (the private key file's full contents).
 
 ## Deploying without Docker (Ubuntu/Debian VPS + Nginx)
 
