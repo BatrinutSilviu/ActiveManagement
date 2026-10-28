@@ -9,6 +9,7 @@ import {
 } from './finance.js';
 
 const app = express();
+app.set('trust proxy', 'loopback'); // behind Nginx on the same machine
 app.use(express.json({ limit: '10mb' }));
 
 const api = express.Router();
@@ -790,4 +791,5 @@ if (existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT || 3001);
-app.listen(port, () => console.log(`Active Management API on http://localhost:${port}`));
+const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse proxy
+app.listen(port, host, () => console.log(`Active Management on http://${host}:${port}`));
