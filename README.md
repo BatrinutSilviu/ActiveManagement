@@ -57,7 +57,50 @@ npm run import:sheet -- data/import/sheet-2026.mjs           # import (needs the
 It creates the founders, any missing sports/categories, the events (past ones finalized, the rest live)
 and fund movements as one import that can be undone from the Import page. Running it twice is refused.
 
-## Deploying (Ubuntu/Debian VPS)
+## Deploying with Docker + Traefik (management.activetimisoara.ro)
+
+The app ships as a Docker image (`Dockerfile`) and a compose file with Traefik labels (`docker-compose.yml`).
+The database lives in the `active-data` Docker volume.
+
+```bash
+# 0. DNS: an A record for management.activetimisoara.ro pointing at the server.
+
+# 1. Find your Traefik settings (run on the server)
+docker network ls                                  # the network Traefik is attached to, e.g. "traefik" or "proxy"
+docker inspect <traefik container> | grep -iE "entrypoints|certresolver|acme"
+#    → HTTPS entrypoint name (often "websecure") and certificate resolver name (often "letsencrypt")
+
+# 2. Get the code (one time)
+sudo git clone https://github.com/BatrinutSilviu/ActiveManagement.git /opt/active-management
+cd /opt/active-management
+
+# 3. If your values differ from the defaults (traefik / websecure / letsencrypt), put them in a .env file:
+#    TRAEFIK_NETWORK=proxy
+#    TRAEFIK_ENTRYPOINT=websecure
+#    TRAEFIK_CERTRESOLVER=letsencrypt
+
+# 4. Build and start
+sudo docker compose up -d --build
+sudo docker compose ps                               # should become "healthy"
+sudo docker compose logs -f                          # Ctrl+C to stop following
+
+# 5. Open https://management.activetimisoara.ro and create the first admin account.
+
+# 6. Import the spreadsheet data (file is not in git — copy it from your computer first)
+scp data/import/sheet-2026.mjs you@server:/tmp/      # on your computer
+sudo docker exec active-management mkdir -p /data/import
+sudo docker cp /tmp/sheet-2026.mjs active-management:/data/import/ && rm /tmp/sheet-2026.mjs
+sudo docker exec active-management node --disable-warning=ExperimentalWarning \
+  server/scripts/import-sheet.js /data/import/sheet-2026.mjs
+
+# 7. Daily backups to /var/backups/active-management (kept 30 days)
+sudo cp deploy/backup-docker.sh /usr/local/bin/active-backup && sudo chmod +x /usr/local/bin/active-backup
+echo '30 3 * * * root /usr/local/bin/active-backup' | sudo tee /etc/cron.d/active-backup
+```
+
+Updating later: `cd /opt/active-management && sudo git pull && sudo docker compose up -d --build`.
+
+## Deploying without Docker (Ubuntu/Debian VPS + Nginx)
 
 Files in `deploy/`: systemd unit, Nginx site, daily backup script, update script. Replace
 `admin.example.com` with your domain and point its DNS A record at the server first.

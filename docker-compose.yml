@@ -1,0 +1,31 @@
+# Runs the app behind an existing Traefik on the same Docker host.
+# Check these three values against your Traefik setup (see README → "Deploying with Traefik"):
+#   - the external network Traefik uses        (TRAEFIK_NETWORK, default: traefik)
+#   - the HTTPS entrypoint name                 (TRAEFIK_ENTRYPOINT, default: websecure)
+#   - the Let's Encrypt certificate resolver    (TRAEFIK_CERTRESOLVER, default: letsencrypt)
+services:
+  app:
+    build: .
+    image: active-management:latest
+    container_name: active-management
+    restart: unless-stopped
+    volumes:
+      - active-data:/data
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
+      - traefik.http.routers.active-management.rule=Host(`management.activetimisoara.ro`)
+      - traefik.http.routers.active-management.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.active-management.tls=true
+      - traefik.http.routers.active-management.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.active-management.loadbalancer.server.port=3001
+
+volumes:
+  active-data:
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true

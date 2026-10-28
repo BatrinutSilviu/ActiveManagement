@@ -9,7 +9,8 @@ import {
 } from './finance.js';
 
 const app = express();
-app.set('trust proxy', 'loopback'); // behind Nginx on the same machine
+// Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
+app.set('trust proxy', ['loopback', 'uniquelocal']);
 app.use(express.json({ limit: '10mb' }));
 
 const api = express.Router();
