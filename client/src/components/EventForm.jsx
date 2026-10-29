@@ -11,11 +11,11 @@ export const DEFAULT_POINTS = { organizer: 2, 'co-organizer': 1 };
 // costs, stock and extra organizers are managed on the event page.
 export default function EventForm({ event, onClose, onSaved }) {
   const { data: types } = useApi('/event-types');
-  const { data: people } = useApi(event ? null : '/people');
+  const { data: allPeople } = useApi(event ? null : '/people');
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => ({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    participants: '', participation_fee: '', budget: '', notes: '', ...(event || {}),
+    participants: '', participation_fee: '', venue_fee: '', budget: '', notes: '', ...(event || {}),
   }));
   const [org, setOrg] = useState({ organizer: '', organizerPoints: DEFAULT_POINTS.organizer, co: '', coPoints: DEFAULT_POINTS['co-organizer'] });
   const [error, setError] = useState(null);
@@ -28,13 +28,17 @@ export default function EventForm({ event, onClose, onSaved }) {
     setF({ ...next, activity_id: activityId });
     if (a && !event) setOrg((o) => ({ ...o, organizerPoints: a.organizer_points, coPoints: a.co_points }));
   };
+  // A new event also takes the sport's default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
   const changeSport = (e) => {
     const match = activities?.find((a) => String(a.sport_id) === e.target.value);
-    applyActivity(match ? match.id : '', { ...f, type_id: e.target.value });
+    const sport = types?.find((t) => String(t.id) === e.target.value);
+    const prices = !event && sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
+    applyActivity(match ? match.id : '', { ...f, ...prices, type_id: e.target.value });
   };
   const activity = activities?.find((x) => String(x.id) === String(f.activity_id));
-  const feeIncome = (Number(f.participants) || 0) * (Number(f.participation_fee) || 0);
-  const active = people?.filter((p) => p.active) || [];
+  const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
+  const feeIncome = people * fee;
+  const active = allPeople?.filter((p) => p.active) || [];
 
   const save = async () => {
     setSaving(true);
@@ -88,13 +92,20 @@ export default function EventForm({ event, onClose, onSaved }) {
         <label className="field">Number of people
           <input type="number" min="0" value={f.participants} onChange={set('participants')} placeholder="0" />
         </label>
-        <label className="field">Participation fee (RON / person)
+        <label className="field">Price (RON / person)
           <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
+        </label>
+        <label className="field">Venue’s part (RON / person)
+          <input type="number" min="0" step="0.01" max={fee || undefined} value={f.venue_fee} onChange={set('venue_fee')} placeholder="0" />
+          <span className="hint">Paid on to the venue for everyone. Members pay only this.</span>
         </label>
         <div className="full fee-preview">
           Income from fees: <strong>{money(feeIncome)}</strong>
-          <span className="muted"> ({Number(f.participants) || 0} × {money(Number(f.participation_fee) || 0)})</span>
-          <span className="muted">{event?.discounts ? ` − ${money(event.discounts)} discounts` : ' · discounts are added on the event page'}</span>
+          <span className="muted"> ({people} × {money(fee)})</span>
+          {venue > 0 && <> · venue: <strong>−{money(people * venue)}</strong><span className="muted"> ({people} × {money(venue)})</span></>}
+          <span className="muted">{event?.discounts || event?.member_discounts
+            ? ` · − ${money(event.discounts + event.member_discounts)} discounts & member prices`
+            : ' · members and discounts are added on the event page'}</span>
         </div>
         <label className="field">Location
           <input value={f.location || ''} onChange={set('location')} placeholder="Venue" />
@@ -135,7 +146,7 @@ export default function EventForm({ event, onClose, onSaved }) {
             <label className="field">Co-organiser points
               <input type="number" min="0" step="0.5" value={org.coPoints} onChange={(e) => setOrg({ ...org, coPoints: e.target.value })} />
             </label>
-            {people && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
+            {allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
           </>
         )}
         <label className="field full">Notes

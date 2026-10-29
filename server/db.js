@@ -240,6 +240,49 @@ if (!db.prepare('SELECT 1 FROM activities LIMIT 1').get()) {
   ].forEach(([name, op, omax, cp, cmax, s], i) => ins.run(name, op, omax, cp, cmax, sport(s), i));
 }
 
+/* -------------------------------------------------------- member prices */
+
+// Members — founders, premium people and anyone who has organised an event — pay only the venue's
+// part of an event's price; everyone else pays the full price (e.g. Hyrox: 50 RON, 40 to the venue).
+// A member attending is stored as an event_discounts row with member = 1, worth price − venue cost.
+if (!columns('people').includes('is_premium'))
+  db.exec('ALTER TABLE people ADD COLUMN is_premium INTEGER NOT NULL DEFAULT 0');
+if (!columns('event_types').includes('default_fee'))
+  db.exec(`ALTER TABLE event_types ADD COLUMN default_fee INTEGER NOT NULL DEFAULT 0;        -- bani per person
+    ALTER TABLE event_types ADD COLUMN default_venue_fee INTEGER NOT NULL DEFAULT 0;            -- bani per person`);
+if (!columns('events').includes('venue_fee'))
+  db.exec('ALTER TABLE events ADD COLUMN venue_fee INTEGER NOT NULL DEFAULT 0'); // bani per person, paid on to the venue
+if (!columns('event_discounts').includes('member'))
+  db.exec('ALTER TABLE event_discounts ADD COLUMN member INTEGER NOT NULL DEFAULT 0');
+
+export const memberReduction = (fee, venueFee) => Math.max(fee - venueFee, 0);
+
+export const IS_MEMBER_SQL = `(p.is_founder = 1 OR p.is_premium = 1
+  OR EXISTS (SELECT 1 FROM event_people ep WHERE ep.person_id = p.id))`;
+
+// Hyrox costs 50 RON a person, 40 of which goes to the venue. The spreadsheet recorded past sessions
+// as people × 10 (only our share); they become people × 50 with 40 a person to the venue, so their
+// profit stays the same. Discounts already given keep the amount they were worth.
+export function applyHyroxPricing() {
+  const hyrox = db.prepare("SELECT * FROM event_types WHERE name = 'Hyrox' COLLATE NOCASE").get();
+  if (!hyrox) return;
+  tx(() => {
+    if (!hyrox.default_fee) db.prepare('UPDATE event_types SET default_fee = 5000, default_venue_fee = 4000 WHERE id = ?').run(hyrox.id);
+    const ids = db.prepare('SELECT id FROM events WHERE type_id = ? AND participation_fee = 1000 AND venue_fee = 0').all(hyrox.id);
+    for (const { id } of ids) {
+      db.prepare("UPDATE event_discounts SET kind = 'fixed', value = amount WHERE event_id = ? AND kind = 'percent'").run(id);
+      // 10 RON off for a member is exactly the member price now.
+      db.prepare(`UPDATE event_discounts SET member = 1, discount_id = NULL WHERE event_id = ? AND amount = 1000
+        AND person_id IN (SELECT p.id FROM people p WHERE ${IS_MEMBER_SQL})`).run(id);
+      db.prepare('UPDATE events SET participation_fee = 5000, venue_fee = 4000 WHERE id = ?').run(id);
+    }
+  });
+}
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:hyrox-pricing'").get()) {
+  applyHyroxPricing();
+  db.prepare("INSERT INTO settings (key, value) VALUES ('migrated:hyrox-pricing', ?)").run(new Date().toISOString());
+}
+
 /* --------------------------------------------------------- profit split */
 
 // Percentages of profit: founders get `foundersStandard`% split equally, organisers get

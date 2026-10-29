@@ -15,7 +15,7 @@
 // import, so it can be undone from the Import page.
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { db, toBani, tx } from '../db.js';
+import { applyHyroxPricing, db, toBani, tx } from '../db.js';
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith('--'));
@@ -90,6 +90,8 @@ const result = tx(() => {
       f.fund === 'general' ? null : sport(f.fund), admin.id, importId);
   return { importId };
 });
+// The sheet records Hyrox as people × 10 (our share only); switch to full price + venue cost.
+applyHyroxPricing();
 
 console.log(`Imported ${events.length} events and ${fund.length} fund movements as import #${result.importId}.`);
 if (skipped.length) {

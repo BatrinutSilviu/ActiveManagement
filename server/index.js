@@ -2,7 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, getSplit, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, getSplit, IS_MEMBER_SQL, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
   computeFounders, computeFunds, computeSport, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
@@ -123,8 +123,9 @@ api.put('/settings/split', (req, res) => {
 
 api.get('/event-types', (req, res) => {
   res.json(db.prepare(`
-    SELECT et.id, et.name, COUNT(e.id) AS events FROM event_types et
-    LEFT JOIN events e ON e.type_id = et.id GROUP BY et.id ORDER BY et.name`).all());
+    SELECT et.id, et.name, et.default_fee, et.default_venue_fee, COUNT(e.id) AS events FROM event_types et
+    LEFT JOIN events e ON e.type_id = et.id GROUP BY et.id ORDER BY et.name`).all()
+    .map((t) => ({ ...t, default_fee: toRon(t.default_fee), default_venue_fee: toRon(t.default_venue_fee) })));
 });
 
 api.post('/event-types', (req, res) => {
@@ -137,9 +138,16 @@ api.post('/event-types', (req, res) => {
   res.json({ ok: true });
 });
 
+// Name and the default prices new events of this sport start with.
 api.put('/event-types/:id', (req, res) => {
-  need(req.body.name?.trim(), 'Name is required');
-  db.prepare('UPDATE event_types SET name = ? WHERE id = ?').run(req.body.name.trim(), idParam(req));
+  const t = db.prepare('SELECT * FROM event_types WHERE id = ?').get(idParam(req));
+  if (!t) throw httpError(404, 'Sport not found');
+  const { name = t.name, default_fee = toRon(t.default_fee), default_venue_fee = toRon(t.default_venue_fee) } = req.body;
+  need(String(name).trim(), 'Name is required');
+  need(Number(default_fee) >= 0 && Number(default_venue_fee) >= 0, 'Prices can’t be negative');
+  need(Number(default_venue_fee) <= Number(default_fee), 'The venue’s part can’t be more than the full price');
+  db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ? WHERE id = ?')
+    .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), idParam(req));
   res.json({ ok: true });
 });
 
@@ -185,13 +193,13 @@ api.delete('/categories/:id', (req, res) => {
 
 api.get('/people', (req, res) => {
   res.json(db.prepare(`
-    SELECT p.*, (SELECT COUNT(*) FROM event_people ep WHERE ep.person_id = p.id) AS events,
+    SELECT p.*, ${IS_MEMBER_SQL} AS is_member, (SELECT COUNT(*) FROM event_people ep WHERE ep.person_id = p.id) AS events,
       (SELECT COALESCE(SUM(ep.points), 0) FROM event_people ep WHERE ep.person_id = p.id) AS points,
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
         WHERE h.person_id = p.id) AS stock_value,
       (SELECT json_group_array(pd.discount_id) FROM person_discounts pd WHERE pd.person_id = p.id) AS discount_ids,
-      (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id) AS discounts_received,
-      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id) AS discounted_events
+      (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounts_received,
+      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounted_events
     FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({
     ...p, stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
   })));
@@ -199,12 +207,12 @@ api.get('/people', (req, res) => {
 
 function readPerson(body) {
   need(body.name?.trim(), 'Name is required');
-  return [body.name.trim(), body.is_founder ? 1 : 0, body.active === false || body.active === 0 ? 0 : 1];
+  return [body.name.trim(), body.is_founder ? 1 : 0, body.is_premium ? 1 : 0, body.active === false || body.active === 0 ? 0 : 1];
 }
 
 api.post('/people', (req, res) => {
   try {
-    const { lastInsertRowid } = db.prepare('INSERT INTO people (name, is_founder, active) VALUES (?, ?, ?)').run(...readPerson(req.body));
+    const { lastInsertRowid } = db.prepare('INSERT INTO people (name, is_founder, is_premium, active) VALUES (?, ?, ?, ?)').run(...readPerson(req.body));
     res.json({ id: Number(lastInsertRowid) });
   } catch (e) {
     if (e.status) throw e;
@@ -213,7 +221,7 @@ api.post('/people', (req, res) => {
 });
 
 api.put('/people/:id', (req, res) => {
-  db.prepare('UPDATE people SET name = ?, is_founder = ?, active = ? WHERE id = ?').run(...readPerson(req.body), idParam(req));
+  db.prepare('UPDATE people SET name = ?, is_founder = ?, is_premium = ?, active = ? WHERE id = ?').run(...readPerson(req.body), idParam(req));
   res.json({ ok: true });
 });
 
@@ -289,10 +297,16 @@ const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fe
 api.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
   if (!ev) throw httpError(404, 'Event not found');
-  const { person_id, discount_id, amount, note } = req.body;
+  const { person_id, discount_id, amount, note, member } = req.body;
   need(person_id, 'Choose a person');
   let kind, value;
-  if (discount_id) {
+  if (member) {
+    need(ev.venue_fee > 0, 'Set the venue cost per person on this event first — members pay only that');
+    need(db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(Number(person_id)),
+      'Only founders, premium people and organisers get the member price');
+    kind = 'fixed';
+    value = memberReduction(ev.participation_fee, ev.venue_fee);
+  } else if (discount_id) {
     const d = db.prepare('SELECT * FROM discounts WHERE id = ?').get(discount_id);
     need(d, 'Discount not found');
     ({ kind, value } = d);
@@ -304,12 +318,12 @@ api.post('/events/:id/discounts', (req, res) => {
   const given = db.prepare('SELECT COUNT(*) n FROM event_discounts WHERE event_id = ?').get(ev.id).n;
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
   try {
-    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(ev.id, Number(person_id), discount_id ? Number(discount_id) : null, kind, value,
-        discountAmount(kind, value, ev.participation_fee), note?.trim() || null);
+    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(ev.id, Number(person_id), !member && discount_id ? Number(discount_id) : null, kind, value,
+        discountAmount(kind, value, ev.participation_fee), note?.trim() || null, member ? 1 : 0);
   } catch (e) {
     if (e.status) throw e;
-    throw httpError(400, 'This person already has a discount at this event');
+    throw httpError(400, 'This person already pays a reduced price at this event');
   }
   res.json({ ok: true });
 });
@@ -396,14 +410,15 @@ api.post('/stock/transfer', (req, res) => {
 /* --------------------------------------------------------------- events */
 
 function readEvent(body) {
-  const { name, type_id, activity_id, date, end_date, location, status = LIVE, participants, participation_fee, budget, notes } = body;
+  const { name, type_id, activity_id, date, end_date, location, status = LIVE, participants, participation_fee, venue_fee, budget, notes } = body;
   need(name?.trim(), 'Event name is required');
   need(type_id, 'Sport is required');
   need(isDate(date), 'A valid date is required');
   need(!end_date || (isDate(end_date) && end_date >= date), 'End date must be after the start date');
   need(['planned', 'completed', 'cancelled'].includes(status), 'Invalid status');
+  need(toBani(venue_fee) >= 0 && toBani(venue_fee) <= toBani(participation_fee), 'The venue cost per person can’t be more than the price');
   return [name.trim(), Number(type_id), activity_id ? Number(activity_id) : null, date, end_date || null, location?.trim() || null,
-    status, Math.max(0, Number(participants) || 0), toBani(participation_fee), toBani(budget), notes?.trim() || null];
+    status, Math.max(0, Number(participants) || 0), toBani(participation_fee), toBani(venue_fee), toBani(budget), notes?.trim() || null];
 }
 
 api.get('/events', (req, res) => {
@@ -425,7 +440,7 @@ api.get('/events/:id', (req, res) => {
   e.people = db.prepare(`SELECT ep.*, p.name, p.is_founder FROM event_people ep JOIN people p ON p.id = ep.person_id
     WHERE ep.event_id = ? ORDER BY ep.role, p.name`).all(e.id);
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
-    JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY p.name`)
+    JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
   e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
@@ -445,8 +460,8 @@ const insertEventPeople = (eventId, people = []) => {
 api.post('/events', (req, res) => {
   const id = tx(() => {
     const id = Number(db.prepare(`
-      INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, budget, notes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
+      INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, budget, notes, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
     insertEventPeople(id, req.body.people);
     return id;
   });
@@ -456,11 +471,13 @@ api.post('/events', (req, res) => {
 api.put('/events/:id', (req, res) => {
   db.prepare(`
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
-      participation_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
-  // A new fee changes what each discount is worth at this event.
-  const fee = db.prepare('SELECT participation_fee FROM events WHERE id = ?').get(idParam(req))?.participation_fee ?? 0;
-  for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req)))
-    db.prepare('UPDATE event_discounts SET amount = ? WHERE id = ?').run(discountAmount(d.kind, d.value, fee), d.id);
+      participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
+  // A new price changes what each discount (and the member price) is worth at this event.
+  const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
+  for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {
+    const value = d.member ? memberReduction(fee, venue) : d.value;
+    db.prepare('UPDATE event_discounts SET value = ?, amount = ? WHERE id = ?').run(value, discountAmount(d.kind, value, fee), d.id);
+  }
   res.json({ ok: true });
 });
 
@@ -765,10 +782,12 @@ api.get('/stats', (req, res) => {
   const expenseByCategory = byCategory('expense');
   const stockCost = r2(held.reduce((s, e) => s + e.stock_cost, 0));
   if (stockCost) expenseByCategory.push({ name: 'Products from stock', total: stockCost });
+  const venueCost = r2(held.reduce((s, e) => s + e.venue_cost, 0));
+  if (venueCost) expenseByCategory.push({ name: 'Venue rental', total: venueCost });
   const incomeByCategory = byCategory('income');
   const feeIncome = r2(held.reduce((s, e) => s + e.fee_income, 0));
   const discountsGiven = r2(held.reduce((s, e) => s + e.discounts, 0));
-  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × fee − discounts)', total: feeIncome });
+  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × price − discounts)', total: feeIncome });
   const merge = (list) => [...list.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + x.total), new Map())]
     .map(([name, total]) => ({ name, total: r2(total) })).sort((a, b) => b.total - a.total);
 

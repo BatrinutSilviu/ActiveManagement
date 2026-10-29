@@ -35,7 +35,12 @@ Accounts created before roles existed are admins. The server enforces the roles;
 
 ## How the numbers are calculated
 
-- **Event profit** = participants × participation fee + other income − organizing costs − benefits offered.
+- **Event profit** = participants × price − discounts − member prices + other income − organizing costs − benefits offered.
+- **Member prices:** an event's price can include a *venue's part* per person (e.g. Hyrox: 50 RON, 40 to the venue).
+  Everyone's venue part (participants × venue part) is an organizing cost; members — founders, people marked Premium,
+  and anyone who has organised an event — pay only the venue part, so a Hyrox standard payer leaves 10 RON and a member 0.
+  Each sport has default prices (Settings → Sports) that new events start with. Past Hyrox sessions recorded as
+  people × 10 were converted once to people × 50 with 40 a person to the venue (same profit).
   Expense categories are tagged *organizing* (venue, trainers…) or *benefit* (drinks, food, prizes…);
   products taken from stock always count as benefits, at price × quantity (price frozen when used).
 - **Profit split** — default in Settings, overridable per month on the Payouts page:

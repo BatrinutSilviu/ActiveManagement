@@ -24,15 +24,23 @@ function Sports() {
   const [name, setName] = useState('');
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Sports</h2><p>Every event belongs to a sport, and each sport has its own reinvestment fund</p></div></div>
+      <div className="card-head"><div><h2>Sports</h2><p>Each sport has its own reinvestment fund, and default prices for new events: the full price, and the venue’s part of it — all that members pay</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
+          <thead><tr><th>Sport</th><th className="r">Price</th><th className="r">Venue</th><th className="r hide-sm">Events</th><th /></tr></thead>
           <tbody>
             {data?.map((t) => (
-              <tr key={t.id}>
+              <tr key={`${t.id}-${t.default_fee}-${t.default_venue_fee}`}>
                 <td>{t.name}</td>
-                <td className="r muted">{t.events} events</td>
+                {['default_fee', 'default_venue_fee'].map((k) => (
+                  <td className="r" key={k}>
+                    <input className="select-sm num-input" type="number" min="0" step="0.01" defaultValue={t[k] || ''} placeholder="—"
+                      aria-label={`${t.name} ${k === 'default_fee' ? 'price' : 'venue cost'} per person`}
+                      onBlur={(e) => Number(e.target.value) !== t[k] && run(() => api.put(`/event-types/${t.id}`, { [k]: Number(e.target.value) || 0 }))} />
+                  </td>
+                ))}
+                <td className="r muted hide-sm">{t.events}</td>
                 <td className="r">
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(t.name); if (n) run(() => api.put(`/event-types/${t.id}`, { name: n })); }}><IconEdit /></button>
                   <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(`sport “${t.name}”`) && run(() => api.del(`/event-types/${t.id}`))}><IconTrash /></button>
@@ -79,26 +87,27 @@ function People() {
   const { data: discounts, reload: reloadDiscounts } = useApi('/discounts');
   const [editing, setEditing] = useState(null);
   const [error, run] = useAction(reload);
-  const [f, setF] = useState({ name: '', is_founder: false });
+  const [f, setF] = useState({ name: '', is_founder: false, is_premium: false });
   const save = (p, patch) => run(() => api.put(`/people/${p.id}`, { ...p, ...patch }));
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>People</h2><p>Founders share the founders’ part equally; everyone earns organiser points and can hold stock</p></div></div>
+      <div className="card-head"><div><h2>People</h2><p>Founders share the founders’ part equally; everyone earns organiser points and can hold stock. Members — founders, premium people and anyone who has organised an event — pay only the venue’s part of an event’s price.</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
-          <thead><tr><th>Name</th><th>Founder</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
+          <thead><tr><th>Name</th><th>Founder</th><th>Premium</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
           <tbody>
             {data?.map((p) => (
               <tr key={p.id} className={p.active ? '' : 'row-off'}>
                 <td className="cell-wrap">
-                  {p.name}
+                  {p.name}{p.is_member ? <span className="badge" style={{ marginLeft: 6 }} title="Pays only the venue’s part of event prices">Member</span> : null}
                   <div className="row-sub show-sm">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => d.name).join(', ')}
                     {p.discount_ids.length ? ' · ' : ''}<button className="link-btn" onClick={() => setEditing(p)}>{p.discount_ids.length ? 'Edit discounts' : '+ Discount'}</button>
                   </div>
                 </td>
                 <td><input type="checkbox" checked={!!p.is_founder} onChange={(e) => save(p, { is_founder: e.target.checked })} aria-label="Founder" /></td>
+                <td><input type="checkbox" checked={!!p.is_premium} onChange={(e) => save(p, { is_premium: e.target.checked })} aria-label="Premium" /></td>
                 <td className="cell-wrap hide-sm">
                   <div className="holders">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => <span key={d.id} className="badge">{d.name}</span>)}
@@ -120,9 +129,10 @@ function People() {
         </table>
       </div>
       <form className="filters" style={{ margin: '14px 0 0' }}
-        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/people', f))) setF({ name: '', is_founder: false }); }}>
+        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/people', f))) setF({ name: '', is_founder: false, is_premium: false }); }}>
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Full name" required style={{ flex: 1 }} />
         <label className="check"><input type="checkbox" checked={f.is_founder} onChange={(e) => setF({ ...f, is_founder: e.target.checked })} />Founder</label>
+        <label className="check"><input type="checkbox" checked={f.is_premium} onChange={(e) => setF({ ...f, is_premium: e.target.checked })} />Premium</label>
         <button className="btn">Add person</button>
       </form>
       {editing && discounts && (

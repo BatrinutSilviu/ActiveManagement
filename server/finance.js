@@ -11,9 +11,11 @@ export const LIVE = 'planned';
 
 export const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, a.name AS activity_name,
-    e.participants * e.participation_fee AS fee_gross,
-    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id) AS discounts,
-    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id) AS discount_count,
+    e.participants * e.participation_fee AS fee_gross, e.participants * e.venue_fee AS venue_cost,
+    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0) AS discounts,
+    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0) AS discount_count,
+    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_discounts,
+    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_count,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.event_id = e.id AND t.kind = 'income') AS other_income,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND COALESCE(c.cost_group, 'organizing') = 'organizing') AS organizing,
@@ -36,17 +38,19 @@ export function splitProfit(profit, split = getSplit()) {
 }
 
 export function shapeEvent(e, split = getSplit()) {
-  // Fee income = people × fee − discounts given at the event.
-  const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts);
-  const feeIncome = r2(feeGross - discounts), otherIncome = toRon(e.other_income);
-  const organizing = toRon(e.organizing), stockCost = toRon(e.stock_cost);
+  // Fee income = people × fee − discounts − what members don't pay (they pay only the venue's part).
+  // The venue's part (people × venue fee) is an organizing cost.
+  const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts), memberDiscounts = toRon(e.member_discounts);
+  const feeIncome = r2(feeGross - discounts - memberDiscounts), otherIncome = toRon(e.other_income);
+  const venueCost = toRon(e.venue_cost), stockCost = toRon(e.stock_cost);
+  const organizing = r2(toRon(e.organizing) + venueCost);
   const benefits = r2(toRon(e.benefit_tx) + stockCost);
   const income = r2(feeIncome + otherIncome), expenses = r2(organizing + benefits);
   const profit = r2(income - expenses);
   const { benefit_tx, ...rest } = e;
   return {
-    ...rest, budget: toRon(e.budget), participation_fee: toRon(e.participation_fee),
-    fee_gross: feeGross, discounts, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost,
+    ...rest, budget: toRon(e.budget), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee),
+    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }
