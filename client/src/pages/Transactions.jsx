@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, qs } from '../api.js';
-import { useApi, usePersistentState } from '../hooks.js';
+import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { money0, MONTHS_LONG, signedMoney } from '../format.js';
 import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
@@ -9,6 +9,7 @@ import { confirmDelete } from '../components/Modal.jsx';
 import { IconDownload, IconPlus } from '../components/Icons.jsx';
 
 export default function Transactions() {
+  const { canEdit } = usePermissions();
   const [filters, setFilters] = usePersistentState('am-tx-filters',
     { year: String(new Date().getFullYear()), month: '', kind: '', event_id: '', category: '', q: '' });
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
@@ -36,7 +37,7 @@ export default function Transactions() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <a className="btn" href={`/api/export/transactions.csv${qs({ year: filters.year })}`}><IconDownload width="15" />Export CSV</a>
-          <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Add transaction</button>
+          {canEdit && <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Add transaction</button>}
         </div>
       </div>
 

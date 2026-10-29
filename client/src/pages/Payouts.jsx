@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, useChartColors } from '../hooks.js';
+import { useApi, useChartColors, usePermissions } from '../hooks.js';
 import { date, money, money0, number, signedMoney } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
@@ -27,6 +27,7 @@ function Targets({ month, split, onSaved }) {
   });
   const [f, setF] = useState(() => toForm(split));
   const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
   useEffect(() => setF(toForm(split)), [split]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const total = r2(Number(f.community) + Number(f.founders) + Number(f.organisers));
@@ -49,6 +50,7 @@ function Targets({ month, split, onSaved }) {
         {split.custom ? <span className="badge status-planned">Set for this month</span> : <span className="badge">Default</span>}
       </div>
       {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
+      <fieldset className="plain" disabled={!canEdit}>
       <div className="targets">
         <label className="field">Reinvest in community<div className="pct-input"><input type="number" min="0" max="100" step="0.5" value={f.community} onChange={set('community')} /><span>%</span></div></label>
         <label className="field">Founders (equal)<div className="pct-input"><input type="number" min="0" max="100" step="0.5" value={f.founders} onChange={set('founders')} /><span>%</span></div></label>
@@ -59,10 +61,13 @@ function Targets({ month, split, onSaved }) {
         <div className="pct-input"><input type="number" min="0" max="100" step="0.01" value={f.generalShare} onChange={set('generalShare')} /><span>%</span></div>
         <span className="hint">The rest goes to each event’s sport fund. ⅓ = 33.33</span>
       </label>
-      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" disabled={!dirty} onClick={save}>Save for {monthName(month)}</button>
-        {split.custom && <button className="btn" onClick={reset}>Use default</button>}
-      </div>
+      </fieldset>
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" disabled={!dirty} onClick={save}>Save for {monthName(month)}</button>
+          {split.custom && <button className="btn" onClick={reset}>Use default</button>}
+        </div>
+      )}
       <p className="hint" style={{ margin: '10px 0 0' }}>The default split is set in <Link to="/settings">Settings</Link>.</p>
     </div>
   );
@@ -124,6 +129,7 @@ export default function Payouts() {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { data: r, loading, reload } = useApi(`/payouts?month=${month}`);
   const [form, setForm] = useState(null);
+  const { canEdit } = usePermissions();
   if (!r) return null;
 
   const s = r.split;
@@ -195,17 +201,20 @@ export default function Payouts() {
               <div className="table-wrap">
                 {r.people.length ? (
                   <table>
-                    <thead><tr><th>Person</th><th className="r">Founder share</th><th className="r">Points</th><th className="r">Organiser share</th><th className="r">Total</th></tr></thead>
+                    <thead><tr><th>Person</th><th className="r hide-sm">Founder share</th><th className="r hide-sm">Points</th><th className="r hide-sm">Organiser share</th><th className="r">Total</th></tr></thead>
                     <tbody>
                       {r.people.map((p) => (
                         <tr key={p.id}>
-                          <td><strong>{p.name}</strong>{p.founder && <span className="badge" style={{ marginLeft: 6 }}>Founder</span>}</td>
-                          <td className="r">{money(p.standard)}</td>
-                          <td className="r">
+                          <td>
+                            <strong>{p.name}</strong>{p.founder && <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span>}
+                            <div className="row-sub show-sm">{money0(p.standard)} founder · {money0(p.pointsAmount)} organiser ({number(p.points)}p)</div>
+                          </td>
+                          <td className="r hide-sm">{money(p.standard)}</td>
+                          <td className="r hide-sm">
                             {number(p.points)}
                             {r.totalPoints > 0 && <span className="muted"> · {Math.round((p.points / r.totalPoints) * 100)}%</span>}
                           </td>
-                          <td className="r">{money(p.pointsAmount)}</td>
+                          <td className="r hide-sm">{money(p.pointsAmount)}</td>
                           <td className="r"><strong>{money(p.total)}</strong></td>
                         </tr>
                       ))}
@@ -225,29 +234,34 @@ export default function Payouts() {
           <div className="card-pad card-head" style={{ marginBottom: 0 }}>
             <div><h2>Points earned · {monthName(month)}</h2>
               <p>From finalized events’ organisers and contributions outside events{r.pendingPoints ? ` · ${number(r.pendingPoints)} more points on live events` : ''}</p></div>
-            <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Add points</button>
+            {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Add points</button>}
           </div>
           <div className="table-wrap">
             {r.ledger.length ? (
               <table>
-                <thead><tr><th>Date</th><th>Person</th><th>For</th><th>Activity</th><th>Role</th><th className="r">Points</th><th /></tr></thead>
+                <thead><tr><th className="hide-sm">Date</th><th>Person</th><th>For</th><th className="hide-sm">Activity</th><th className="hide-sm">Role</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
                 <tbody>
                   {r.ledger.map((l) => (
                     <tr key={`${l.source}-${l.id}`}>
-                      <td>{date(l.date)}</td>
+                      <td className="hide-sm">{date(l.date)}</td>
                       <td>{l.person_name}</td>
-                      <td className="cell-wrap">{l.event_id ? <Link to={`/events/${l.event_id}`}>{l.title}</Link> : l.title}</td>
-                      <td className="secondary">{l.activity_name || '—'}</td>
-                      <td className="secondary">{l.role === 'organizer' ? 'Organiser' : l.role === 'co-organizer' ? 'Co-organiser' : 'Contribution'}</td>
-                      <td className="r"><strong>{number(l.points)}</strong></td>
-                      <td className="r">
-                        {l.source === 'contribution' && (
-                          <>
-                            <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: l })}><IconEdit /></button>
-                            <button className="icon-btn" aria-label="Delete" onClick={() => delContribution(l)}><IconTrash /></button>
-                          </>
-                        )}
+                      <td className="cell-wrap">
+                        {l.event_id ? <Link to={`/events/${l.event_id}`}>{l.title}</Link> : l.title}
+                        <div className="row-sub show-sm">{date(l.date)}{l.activity_name ? ` · ${l.activity_name}` : ''}</div>
                       </td>
+                      <td className="secondary hide-sm">{l.activity_name || '—'}</td>
+                      <td className="secondary hide-sm">{l.role === 'organizer' ? 'Organiser' : l.role === 'co-organizer' ? 'Co-organiser' : 'Contribution'}</td>
+                      <td className="r"><strong>{number(l.points)}</strong></td>
+                      {canEdit && (
+                        <td className="r actions">
+                          {l.source === 'contribution' && (
+                            <>
+                              <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: l })}><IconEdit /></button>
+                              <button className="icon-btn" aria-label="Delete" onClick={() => delContribution(l)}><IconTrash /></button>
+                            </>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

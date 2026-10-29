@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, useChartColors } from '../hooks.js';
+import { useApi, useChartColors, usePermissions } from '../hooks.js';
 import { date, money, money0, MONTHS, signedMoney } from '../format.js';
 import Kpi from '../components/Kpi.jsx';
 import TxForm from '../components/TxForm.jsx';
@@ -18,6 +18,7 @@ export function SportsList() {
   const { data: sports, reload } = useApi('/sports/summary');
   const { data: funds, reload: reloadFunds } = useApi('/funds');
   const [form, setForm] = useState(null);
+  const { canEdit } = usePermissions();
   if (!sports || !funds) return null;
   const sorted = [...sports].sort((a, b) => b.totalEvents - a.totalEvents || a.name.localeCompare(b.name));
 
@@ -28,7 +29,7 @@ export function SportsList() {
           <h1>Sports</h1>
           <p>Each sport’s reinvestment fund: what its events earned for it, what was reinvested, and what is left.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setForm({ fund: 'general' })}><IconPlus width="16" />Record reinvestment</button>
+        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ fund: 'general' })}><IconPlus width="16" />Record reinvestment</button>}
       </div>
       <div className="stack">
         <div className="grid grid-kpi">
@@ -71,6 +72,7 @@ export function SportDetail() {
   const c = useChartColors();
   const { data: r, reload, error } = useApi(`/sports/${id}`);
   const [form, setForm] = useState(null);
+  const { canEdit } = usePermissions();
   if (error) return <div className="error-box">{error}</div>;
   if (!r) return null;
   const { sport, fund, months } = r;
@@ -91,10 +93,12 @@ export function SportDetail() {
           <p>{finalized.length} finalized events · {money0(finalized.reduce((s, e) => s + e.income, 0))} income ·
             {' '}{signedMoney(finalized.reduce((s, e) => s + e.profit, 0))} profit</p>
         </div>
-        <div className="page-actions">
-          <button className="btn" onClick={() => setForm({ kind: 'income' })}>Add money</button>
-          <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Record reinvestment</button>
-        </div>
+        {canEdit && (
+          <div className="page-actions">
+            <button className="btn" onClick={() => setForm({ kind: 'income' })}>Add money</button>
+            <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Record reinvestment</button>
+          </div>
+        )}
       </div>
 
       <div className="stack">
@@ -124,14 +128,14 @@ export function SportDetail() {
           <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Month by month</h2></div>
           <div className="table-wrap" style={{ maxHeight: 420 }}>
             <table>
-              <thead><tr><th>Month</th><th className="r">Events</th><th className="r">Income</th><th className="r">Profit</th><th className="r">Added to fund</th><th className="r">Reinvested</th><th className="r">Balance</th></tr></thead>
+              <thead><tr><th>Month</th><th className="r hide-sm">Events</th><th className="r hide-sm">Income</th><th className="r hide-sm">Profit</th><th className="r">Added to fund</th><th className="r">Reinvested</th><th className="r">Balance</th></tr></thead>
               <tbody>
                 {[...months].reverse().map((m) => (
                   <tr key={m.month}>
                     <td>{ymLabel(m.month)}</td>
-                    <td className="r">{m.events}</td>
-                    <td className="r">{money0(m.income)}</td>
-                    <td className={`r ${m.profit < 0 ? 'neg' : ''}`}>{signedMoney(m.profit)}</td>
+                    <td className="r hide-sm">{m.events}</td>
+                    <td className="r hide-sm">{money0(m.income)}</td>
+                    <td className={`r hide-sm ${m.profit < 0 ? 'neg' : ''}`}>{signedMoney(m.profit)}</td>
                     <td className="r">{money0(m.allocated + m.topups)}</td>
                     <td className="r">{m.reinvested ? `−${money0(m.reinvested)}` : '—'}</td>
                     <td className={`r ${m.balance < 0 ? 'neg' : ''}`}><strong>{money0(m.balance)}</strong></td>
@@ -154,15 +158,18 @@ export function SportDetail() {
           <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Events</h2></div>
           <div className="table-wrap" style={{ maxHeight: 480 }}>
             <table>
-              <thead><tr><th>Date</th><th>Event</th><th>Status</th><th className="r">People</th><th className="r">Income</th><th className="r">Profit</th><th className="r">To this fund</th></tr></thead>
+              <thead><tr><th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Status</th><th className="r hide-sm">People</th><th className="r hide-sm">Income</th><th className="r">Profit</th><th className="r">To this fund</th></tr></thead>
               <tbody>
                 {r.events.map((e) => (
                   <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
-                    <td>{date(e.date)}</td>
-                    <td>{e.name}</td>
-                    <td><StatusBadge status={e.status} /></td>
-                    <td className="r">{e.participants}</td>
-                    <td className="r">{money0(e.income)}</td>
+                    <td className="hide-sm">{date(e.date)}</td>
+                    <td className="cell-wrap">
+                      {e.name}
+                      <div className="row-sub show-sm">{date(e.date)}{e.status !== 'completed' && <> · <StatusBadge status={e.status} /></>}</div>
+                    </td>
+                    <td className="hide-sm"><StatusBadge status={e.status} /></td>
+                    <td className="r hide-sm">{e.participants}</td>
+                    <td className="r hide-sm">{money0(e.income)}</td>
                     <td className={`r ${e.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(e.profit)}</td>
                     <td className="r">{money0(e.split.sport)}</td>
                   </tr>

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, getSplit, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
-import { createSession, currentUser, destroySession, hashPassword, requireAuth, verifyPassword } from './auth.js';
+import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
   computeFounders, computeFunds, computeSport, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
@@ -65,22 +65,32 @@ api.post('/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-api.use(requireAuth);
+api.use(requireAuth, checkRole);
 
-/* --------------------------------------------------------------- admins */
+/* ------------------------------------------------------------- accounts */
 
 api.get('/users', (req, res) => {
-  res.json(db.prepare('SELECT id, name, email, created_at FROM users ORDER BY name').all());
+  res.json(db.prepare('SELECT id, name, email, role, created_at FROM users ORDER BY name').all());
 });
 
 api.post('/users', (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role = 'viewer' } = req.body;
   need(name && email && password?.length >= 8, 'Name, email and a password of at least 8 characters are required');
+  need(ROLES.includes(role), 'Invalid role');
   try {
-    db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)').run(name.trim(), email.trim(), hashPassword(password));
+    db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
+      .run(name.trim(), email.trim(), hashPassword(password), role);
   } catch {
-    throw httpError(400, 'An admin with this email already exists');
+    throw httpError(400, 'An account with this email already exists');
   }
+  res.json({ ok: true });
+});
+
+// Admins can't change their own role, so there is always at least one admin left.
+api.put('/users/:id/role', (req, res) => {
+  need(ROLES.includes(req.body.role), 'Invalid role');
+  need(idParam(req) !== req.user.id, "You can't change your own role");
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(req.body.role, idParam(req));
   res.json({ ok: true });
 });
 

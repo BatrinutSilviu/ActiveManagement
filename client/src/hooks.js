@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api.js';
+
+export const UserContext = createContext(null);
+
+export const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+
+/** What the signed-in user may do: viewers only read, editors change data, admins also manage accounts. */
+export function usePermissions() {
+  const role = useContext(UserContext)?.role;
+  return { canEdit: role === 'admin' || role === 'editor', isAdmin: role === 'admin' };
+}
 
 export function useApi(url) {
   const [data, setData] = useState(null);

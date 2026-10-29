@@ -118,6 +118,10 @@ if (!columns('transactions').includes('import_id'))
   db.exec('ALTER TABLE transactions ADD COLUMN import_id INTEGER REFERENCES imports(id) ON DELETE SET NULL');
 if (!columns('events').includes('import_id'))
   db.exec('ALTER TABLE events ADD COLUMN import_id INTEGER REFERENCES imports(id) ON DELETE SET NULL');
+// admin: everything, incl. accounts and imports · editor: events and money · viewer: read-only.
+// Accounts that existed before roles were added stay admins.
+if (!columns('users').includes('role'))
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'editor', 'viewer'))");
 if (!columns('events').includes('participation_fee'))
   db.exec('ALTER TABLE events ADD COLUMN participation_fee INTEGER NOT NULL DEFAULT 0'); // in bani, per person
 // Transactions without an event move money in/out of a fund: a sport's fund, or the general fund when NULL.

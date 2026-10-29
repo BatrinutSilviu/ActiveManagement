@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, useChartColors } from '../hooks.js';
+import { useApi, useChartColors, usePermissions } from '../hooks.js';
 import { date, money, money0, number, signedMoney } from '../format.js';
 import EventForm, { DEFAULT_POINTS } from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
@@ -59,6 +59,7 @@ function Discounts({ e, reload }) {
   const { data: discounts } = useApi('/discounts');
   const [f, setF] = useState({ person_id: '', discount_id: '', amount: '' });
   const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); return true; } catch (err) { setError(err.message); return false; } };
 
   const taken = new Set(e.discountList.map((d) => d.person_id));
@@ -103,22 +104,22 @@ function Discounts({ e, reload }) {
       {e.discountList.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Person</th><th>Discount</th><th className="r">Paid</th><th className="r">Amount off</th><th /></tr></thead>
+            <thead><tr><th>Person</th><th className="hide-sm">Discount</th><th className="r hide-sm">Paid</th><th className="r">Amount off</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.discountList.map((d) => (
                 <tr key={d.id}>
-                  <td>{d.person_name}</td>
-                  <td className="secondary">{d.discount_name || 'One-off'} <span className="muted">{discountLabel(d)}</span></td>
-                  <td className="r">{money(Math.max(e.participation_fee - d.amount, 0))}</td>
+                  <td>{d.person_name}<div className="row-sub show-sm">{d.discount_name || 'One-off'} · paid {money(Math.max(e.participation_fee - d.amount, 0))}</div></td>
+                  <td className="secondary hide-sm">{d.discount_name || 'One-off'} <span className="muted">{discountLabel(d)}</span></td>
+                  <td className="r hide-sm">{money(Math.max(e.participation_fee - d.amount, 0))}</td>
                   <td className="r kind-expense">−{money(d.amount)}</td>
-                  <td className="r"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-discounts/${d.id}`))}><IconTrash /></button></td>
+                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-discounts/${d.id}`))}><IconTrash /></button></td>}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <form className="inline-form" onSubmit={add}>
+      {canEdit && <form className="inline-form" onSubmit={add}>
         <select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
           <option value="">Person…</option>
           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => (
@@ -145,8 +146,8 @@ function Discounts({ e, reload }) {
             onChange={(ev) => setF({ ...f, amount: ev.target.value })} required aria-label="Discount amount" />
         )}
         <button className="btn btn-sm" disabled={!person}>Add{preview ? ` · −${money(preview)}` : ''}</button>
-      </form>
-      {!e.participation_fee && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>This event has no participation fee, so discounts are worth 0.</p>}
+      </form>}
+      {canEdit && !e.participation_fee && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>This event has no participation fee, so discounts are worth 0.</p>}
     </div>
   );
 }
@@ -161,6 +162,7 @@ function Organizers({ e, reload }) {
   const role = f.role || (hasOrganizer ? 'co-organizer' : 'organizer');
   const points = f.points === '' ? pointsFor(role) : f.points;
   const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (err) { setError(err.message); } };
   const taken = new Set(e.people.map((p) => p.person_id));
   return (
@@ -172,30 +174,39 @@ function Organizers({ e, reload }) {
       {e.people.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Person</th><th>Role</th><th className="r">Points</th><th /></tr></thead>
+            <thead><tr><th>Person</th><th>Role</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.people.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.name}{p.is_founder ? <span className="badge" style={{ marginLeft: 6 }}>Founder</span> : null}</td>
-                  <td>
-                    <select className="select-sm" value={p.role} style={{ width: 140 }}
-                      onChange={(ev) => run(() => api.put(`/event-people/${p.id}`, { role: ev.target.value, points: p.points }))}>
-                      <option value="organizer">Organiser</option>
-                      <option value="co-organizer">Co-organiser</option>
-                    </select>
-                  </td>
-                  <td className="r">
-                    <input className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={p.points}
-                      onBlur={(ev) => Number(ev.target.value) !== p.points && run(() => api.put(`/event-people/${p.id}`, { role: p.role, points: ev.target.value }))} />
-                  </td>
-                  <td className="r"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-people/${p.id}`))}><IconTrash /></button></td>
+                  <td>{p.name}{p.is_founder ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span> : null}</td>
+                  {canEdit ? (
+                    <>
+                      <td>
+                        <select className="select-sm role-select" value={p.role}
+                          onChange={(ev) => run(() => api.put(`/event-people/${p.id}`, { role: ev.target.value, points: p.points }))}>
+                          <option value="organizer">Organiser</option>
+                          <option value="co-organizer">Co-organiser</option>
+                        </select>
+                      </td>
+                      <td className="r">
+                        <input className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={p.points}
+                          onBlur={(ev) => Number(ev.target.value) !== p.points && run(() => api.put(`/event-people/${p.id}`, { role: p.role, points: ev.target.value }))} />
+                      </td>
+                      <td className="r actions"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-people/${p.id}`))}><IconTrash /></button></td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="secondary">{p.role === 'organizer' ? 'Organiser' : 'Co-organiser'}</td>
+                      <td className="r">{number(p.points)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <form className="inline-form" onSubmit={(ev) => { ev.preventDefault(); run(() => api.post(`/events/${e.id}/people`, { person_id: f.person_id, role, points })).then(() => setF({ person_id: '', role: '', points: '' })); }}>
+      {canEdit && <form className="inline-form" onSubmit={(ev) => { ev.preventDefault(); run(() => api.post(`/events/${e.id}/people`, { person_id: f.person_id, role, points })).then(() => setF({ person_id: '', role: '', points: '' })); }}>
         <select className="select-sm" value={f.person_id} onChange={(ev) => setF({ ...f, person_id: ev.target.value })} required>
           <option value="">Add person…</option>
           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -206,7 +217,7 @@ function Organizers({ e, reload }) {
         </select>
         <input className="select-sm num-input" type="number" min="0" step="0.5" value={points} onChange={(ev) => setF({ ...f, points: ev.target.value })} aria-label="Points" />
         <button className="btn btn-sm">Add</button>
-      </form>
+      </form>}
     </div>
   );
 }
@@ -215,6 +226,7 @@ function StockUsage({ e, reload }) {
   const { data: stock, reload: reloadStock } = useApi('/stock');
   const [f, setF] = useState({ item_id: '', person_id: '', qty: '' });
   const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
   const item = stock?.find((i) => String(i.id) === String(f.item_id));
   const holder = item?.holdings.find((h) => String(h.person_id) === String(f.person_id));
   const cost = item && Number(f.qty) > 0 ? item.unit_price * Number(f.qty) : 0;
@@ -237,26 +249,28 @@ function StockUsage({ e, reload }) {
       {e.stock.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Product</th><th>Taken from</th><th className="r">Qty</th><th className="r">Price</th><th className="r">Cost</th><th /></tr></thead>
+            <thead><tr><th>Product</th><th className="hide-sm">Taken from</th><th className="r hide-sm">Qty</th><th className="r hide-sm">Price</th><th className="r">Cost</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.stock.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.item_name}</td>
-                  <td className="secondary">{s.person_name || '—'}</td>
-                  <td className="r">{number(s.qty)} {s.unit}</td>
-                  <td className="r">{money(s.unit_price)}</td>
+                  <td>{s.item_name}<div className="row-sub show-sm">{number(s.qty)} {s.unit} × {money(s.unit_price)} · from {s.person_name || '—'}</div></td>
+                  <td className="secondary hide-sm">{s.person_name || '—'}</td>
+                  <td className="r hide-sm">{number(s.qty)} {s.unit}</td>
+                  <td className="r hide-sm">{money(s.unit_price)}</td>
                   <td className="r kind-expense">−{money(s.cost)}</td>
-                  <td className="r">
-                    <button className="icon-btn" aria-label="Remove and return to stock" title="Remove and return to stock"
-                      onClick={() => confirmDelete(`this line (${number(s.qty)} ${s.unit} go back to ${s.person_name || 'stock'})`) && run(() => api.del(`/event-stock/${s.id}`))}><IconTrash /></button>
-                  </td>
+                  {canEdit && (
+                    <td className="r actions">
+                      <button className="icon-btn" aria-label="Remove and return to stock" title="Remove and return to stock"
+                        onClick={() => confirmDelete(`this line (${number(s.qty)} ${s.unit} go back to ${s.person_name || 'stock'})`) && run(() => api.del(`/event-stock/${s.id}`))}><IconTrash /></button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <form className="inline-form" onSubmit={add}>
+      {canEdit && <form className="inline-form" onSubmit={add}>
         <select className="select-sm" value={f.item_id} onChange={(ev) => setF({ item_id: ev.target.value, person_id: '', qty: '' })} required>
           <option value="">Product…</option>
           {stock?.map((i) => <option key={i.id} value={i.id} disabled={!i.qty}>{i.name} · {money(i.unit_price)}/{i.unit} ({number(i.qty)} left)</option>)}
@@ -268,8 +282,8 @@ function StockUsage({ e, reload }) {
         <input className="select-sm num-input" type="number" min="0.01" step="any" max={holder?.qty} placeholder="Qty" value={f.qty}
           onChange={(ev) => setF({ ...f, qty: ev.target.value })} required aria-label="Quantity" />
         <button className="btn btn-sm" disabled={!item}>Add{cost ? ` · ${money(cost)}` : ''}</button>
-      </form>
-      {stock && !stock.length && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>No products yet — add them on the <Link to="/stock">Stock</Link> page.</p>}
+      </form>}
+      {canEdit && stock && !stock.length && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>No products yet — add them on the <Link to="/stock">Stock</Link> page.</p>}
     </div>
   );
 }
@@ -283,6 +297,7 @@ export default function EventDetail() {
   const split = monthSplit?.split;
   const [editing, setEditing] = useState(false);
   const [txForm, setTxForm] = useState(null); // { kind } | { tx }
+  const { canEdit } = usePermissions();
 
   if (error) return <div className="error-box">{error}</div>;
   if (!e || !txs || !split) return null;
@@ -315,12 +330,12 @@ export default function EventDetail() {
             <span>· {e.participants} people × {money0(e.participation_fee)}</span>
           </p>
         </div>
-        <div className="page-actions">
+        {canEdit && <div className="page-actions">
           {e.status === 'planned' && <button className="btn btn-primary" onClick={() => setStatus('completed')}><IconCheck width="16" />Finalize event</button>}
           {e.status === 'completed' && <button className="btn" onClick={() => setStatus('planned')}>Reopen as live</button>}
           <button className="btn" onClick={() => setEditing(true)}><IconEdit width="15" />Edit</button>
           <button className="btn btn-danger" onClick={del}><IconTrash width="15" />Delete</button>
-        </div>
+        </div>}
       </div>
 
       <div className="grid grid-3-1" style={{ alignItems: 'start' }}>
@@ -328,10 +343,12 @@ export default function EventDetail() {
           <div className="card">
             <div className="card-pad card-head" style={{ marginBottom: 0 }}>
               <div><h2>Costs &amp; extra income</h2><p>Categories decide whether a cost is organizing or a benefit</p></div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'expense' })}><IconPlus width="14" />Cost</button>
-                <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'income' })}><IconPlus width="14" />Income</button>
-              </div>
+              {canEdit && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'expense' })}><IconPlus width="14" />Cost</button>
+                  <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'income' })}><IconPlus width="14" />Income</button>
+                </div>
+              )}
             </div>
             <div className="table-wrap">
               <TxTable rows={txs} showEvent={false} showGroup compact onEdit={(t) => setTxForm({ tx: t })} onDelete={delTx}

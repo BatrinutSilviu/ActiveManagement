@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api.js';
+import { ROLE_LABELS, UserContext } from './hooks.js';
 import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconLogout, IconMenu, IconReport, IconSettings, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -22,7 +23,7 @@ const NAV = [
   { to: '/sports', label: 'Sports', icon: IconTrophy },
   { to: '/stock', label: 'Stock', icon: IconBox },
   { to: '/transactions', label: 'Transactions', icon: IconWallet },
-  { to: '/import', label: 'Import', icon: IconUpload },
+  { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -65,24 +66,28 @@ export default function App() {
   if (!auth.user) return <Login needsSetup={auth.needsSetup} onDone={refresh} />;
 
   const logout = async () => { await api.post('/auth/logout'); refresh(); };
+  const isAdmin = auth.user.role === 'admin';
+  const nav = NAV.filter((n) => !n.adminOnly || isAdmin);
 
   return (
+    <UserContext.Provider value={auth.user}>
     <div className="shell">
       <div className="mobile-bar">
         <button className="icon-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu"><IconMenu /></button>
         Active Management
       </div>
+      {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
           <span className="brand-mark"><IconActivity width="19" height="19" color="#fff" /></span>
           <div>Active<small>Community admin</small></div>
         </div>
         <div className="nav-section">Overview</div>
-        {NAV.slice(0, 5).map(({ to, label, icon: Icon, end }) => (
+        {nav.slice(0, 5).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
         <div className="nav-section">Manage</div>
-        {NAV.slice(5).map(({ to, label, icon: Icon, end }) => (
+        {nav.slice(5).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
         <div className="sidebar-foot">
@@ -91,7 +96,7 @@ export default function App() {
             <span className="avatar">{initials(auth.user.name)}</span>
             <div className="who">
               <div>{auth.user.name}</div>
-              <span>{auth.user.email}</span>
+              <span>{ROLE_LABELS[auth.user.role]} · {auth.user.email}</span>
             </div>
             <button className="icon-btn" onClick={logout} aria-label="Sign out" title="Sign out"><IconLogout /></button>
           </div>
@@ -108,11 +113,12 @@ export default function App() {
           <Route path="/sports" element={<SportsList />} />
           <Route path="/sports/:id" element={<SportDetail />} />
           <Route path="/stock" element={<Stock />} />
-          <Route path="/import" element={<Import />} />
+          {isAdmin && <Route path="/import" element={<Import />} />}
           <Route path="/settings" element={<Settings user={auth.user} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
     </div>
+    </UserContext.Provider>
   );
 }

@@ -91,21 +91,24 @@ export default function Monthly() {
           <div className="table-wrap">
             {monthEvents.length ? (
               <table>
-                <thead><tr><th>Date</th><th>Event</th><th>Status</th><th className="r">Fees</th><th className="r">Organizing</th><th className="r">Benefits</th>
-                  <th className="r">Profit</th><th className="r">Founders</th><th className="r">General</th><th className="r">Sport fund</th></tr></thead>
+                <thead><tr><th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Status</th><th className="r hide-sm">Fees</th><th className="r hide-sm">Organizing</th><th className="r hide-sm">Benefits</th>
+                  <th className="r">Profit</th><th className="r">Founders</th><th className="r hide-sm">General</th><th className="r hide-sm">Sport fund</th></tr></thead>
                 <tbody>
                   {monthEvents.map((e) => (
                     <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
-                      <td>{date(e.date)}</td>
-                      <td><div className="row-title">{e.name}</div><div className="row-sub">{e.type_name}</div></td>
-                      <td>{e.status === 'completed' ? 'Finalized' : <span className="badge status-planned"><span className="dot" />Live</span>}</td>
-                      <td className="r">{money0(e.fee_income)}</td>
-                      <td className="r">{money0(e.organizing)}</td>
-                      <td className="r">{money0(e.benefits)}</td>
+                      <td className="hide-sm">{date(e.date)}</td>
+                      <td className="cell-wrap">
+                        <div className="row-title">{e.name}</div>
+                        <div className="row-sub"><span className="show-sm">{date(e.date)} · </span>{e.type_name}{e.status !== 'completed' && <span className="show-sm"> · Live</span>}</div>
+                      </td>
+                      <td className="hide-sm">{e.status === 'completed' ? 'Finalized' : <span className="badge status-planned"><span className="dot" />Live</span>}</td>
+                      <td className="r hide-sm">{money0(e.fee_income)}</td>
+                      <td className="r hide-sm">{money0(e.organizing)}</td>
+                      <td className="r hide-sm">{money0(e.benefits)}</td>
                       <td className={`r ${e.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(e.profit)}</td>
                       <td className="r">{money0(e.split.founders)}</td>
-                      <td className="r">{money0(e.split.general)}</td>
-                      <td className="r">{money0(e.split.sport)}</td>
+                      <td className="r hide-sm">{money0(e.split.general)}</td>
+                      <td className="r hide-sm">{money0(e.split.sport)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,28 +121,28 @@ export default function Monthly() {
           <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Monthly statement · {year}</h2></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Month</th><th className="r">Events</th><th className="r">Income</th><th className="r">Costs</th><th className="r">Profit</th>
-                <th className="r">Founders & org.</th><th className="r">Sport funds</th><th className="r">General fund</th><th className="r">Reinvested</th></tr></thead>
+              <thead><tr><th>Month</th><th className="r hide-sm">Events</th><th className="r">Income</th><th className="r hide-sm">Costs</th><th className="r">Profit</th>
+                <th className="r hide-sm">Founders & org.</th><th className="r hide-sm">Sport funds</th><th className="r hide-sm">General fund</th><th className="r hide-sm">Reinvested</th></tr></thead>
               <tbody>
                 {y.months.map((x) => (
                   <tr key={x.month} className={`clickable ${x.month === month ? 'row-selected' : ''}`} onClick={() => setMonth(x.month)}>
                     <td>{MONTHS_LONG[x.month - 1]}{x.live ? <span className="muted"> · {x.live} live</span> : ''}</td>
-                    <td className="r">{x.events}</td>
+                    <td className="r hide-sm">{x.events}</td>
                     <td className="r">{money0(x.income)}</td>
-                    <td className="r">{money0(x.expenses)}</td>
+                    <td className="r hide-sm">{money0(x.expenses)}</td>
                     <td className={`r ${x.profit > 0 ? 'pos' : x.profit < 0 ? 'neg' : ''}`}>{signedMoney(x.profit)}</td>
-                    <td className="r">{money0(x.founders)}</td>
-                    <td className="r">{money0(x.sport)}</td>
-                    <td className="r">{money0(x.general)}</td>
-                    <td className="r">{money0(x.reinvestedSport + x.reinvestedGeneral)}</td>
+                    <td className="r hide-sm">{money0(x.founders)}</td>
+                    <td className="r hide-sm">{money0(x.sport)}</td>
+                    <td className="r hide-sm">{money0(x.general)}</td>
+                    <td className="r hide-sm">{money0(x.reinvestedSport + x.reinvestedGeneral)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td>Total</td><td className="r">{sum('events')}</td><td className="r">{money0(sum('income'))}</td><td className="r">{money0(sum('expenses'))}</td>
-                  <td className="r">{signedMoney(sum('profit'))}</td><td className="r">{money0(sum('founders'))}</td><td className="r">{money0(sum('sport'))}</td>
-                  <td className="r">{money0(sum('general'))}</td><td className="r">{money0(sum('reinvestedSport') + sum('reinvestedGeneral'))}</td>
+                  <td>Total</td><td className="r hide-sm">{sum('events')}</td><td className="r">{money0(sum('income'))}</td><td className="r hide-sm">{money0(sum('expenses'))}</td>
+                  <td className="r">{signedMoney(sum('profit'))}</td><td className="r hide-sm">{money0(sum('founders'))}</td><td className="r hide-sm">{money0(sum('sport'))}</td>
+                  <td className="r hide-sm">{money0(sum('general'))}</td><td className="r hide-sm">{money0(sum('reinvestedSport') + sum('reinvestedGeneral'))}</td>
                 </tr>
               </tfoot>
             </table>

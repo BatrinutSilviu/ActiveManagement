@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { qs } from '../api.js';
-import { useApi, usePersistentState } from '../hooks.js';
+import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money0, number, signedMoney } from '../format.js';
 import EventForm, { STATUS_LABELS } from '../components/EventForm.jsx';
 import { IconPlus } from '../components/Icons.jsx';
@@ -18,6 +18,7 @@ export default function Events() {
   const { data: years } = useApi('/stats/years');
   const { data: types } = useApi('/event-types');
   const [creating, setCreating] = useState(false);
+  const { canEdit } = usePermissions();
 
   const list = events || [];
   const sum = (k) => list.reduce((s, e) => s + e[k], 0);
@@ -29,7 +30,7 @@ export default function Events() {
           <h1>Events</h1>
           <p>Every event with its fees, costs and profit. Live events don’t count towards the funds until finalized.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>}
       </div>
 
       <div className="filters">
@@ -55,36 +56,38 @@ export default function Events() {
           <table>
             <thead>
               <tr>
-                <th>Date</th><th>Event</th><th>Sport</th><th>Status</th><th className="r">People</th>
-                <th className="r">Income</th><th className="r">Costs</th><th className="r">Profit</th><th className="r">Sport fund</th>
+                <th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Sport</th><th className="hide-sm">Status</th><th className="r hide-sm">People</th>
+                <th className="r hide-sm">Income</th><th className="r hide-sm">Costs</th><th className="r">Profit</th><th className="r hide-sm">Sport fund</th>
               </tr>
             </thead>
             <tbody>
               {list.map((e) => (
                 <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
-                  <td>{date(e.date)}</td>
-                  <td>
+                  <td className="hide-sm">{date(e.date)}</td>
+                  <td className="cell-wrap">
                     <div className="row-title">{e.name}</div>
-                    <div className="row-sub">{e.location}</div>
+                    <div className="row-sub hide-sm">{e.location}</div>
+                    <div className="row-sub show-sm">{date(e.date)} · {e.type_name}{e.status !== 'completed' && <> · <StatusBadge status={e.status} /></>}</div>
                   </td>
-                  <td><span className="badge">{e.type_name}</span></td>
-                  <td><StatusBadge status={e.status} /></td>
-                  <td className="r">{number(e.participants)}</td>
-                  <td className="r">{money0(e.income)}</td>
-                  <td className="r">{money0(e.expenses)}</td>
+                  <td className="hide-sm"><span className="badge">{e.type_name}</span></td>
+                  <td className="hide-sm"><StatusBadge status={e.status} /></td>
+                  <td className="r hide-sm">{number(e.participants)}</td>
+                  <td className="r hide-sm">{money0(e.income)}</td>
+                  <td className="r hide-sm">{money0(e.expenses)}</td>
                   <td className={`r ${e.profit > 0 ? 'pos' : e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</td>
-                  <td className="r secondary">{e.status === 'cancelled' ? '—' : signedMoney(e.split.sport)}</td>
+                  <td className="r secondary hide-sm">{e.status === 'cancelled' ? '—' : signedMoney(e.split.sport)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4}>{list.length} events</td>
-                <td className="r">{number(sum('participants'))}</td>
-                <td className="r">{money0(sum('income'))}</td>
-                <td className="r">{money0(sum('expenses'))}</td>
+                <td colSpan={4} className="hide-sm">{list.length} events</td>
+                <td className="show-sm">{list.length} events</td>
+                <td className="r hide-sm">{number(sum('participants'))}</td>
+                <td className="r hide-sm">{money0(sum('income'))}</td>
+                <td className="r hide-sm">{money0(sum('expenses'))}</td>
                 <td className={`r ${sum('profit') >= 0 ? 'pos' : 'neg'}`}>{signedMoney(sum('profit'))}</td>
-                <td />
+                <td className="hide-sm" />
               </tr>
             </tfoot>
           </table>

@@ -196,7 +196,7 @@ kbd {
 .mobile-bar { display: none; }
 
 @media (max-width: 900px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { display: none; position: fixed; inset: 0 auto 0 0; width: min(280px, 82vw); z-index: 40; height: 100%; box-shadow: var(--shadow-lg); }
   .sidebar.open { display: flex; animation: slide-in .18s ease-out; }
   .mobile-bar {
@@ -204,6 +204,7 @@ kbd {
     position: sticky; top: 0; z-index: 30; font-weight: 700;
   }
   .mobile-bar .icon-btn { color: #fff; }
+  .sidebar-backdrop { position: fixed; inset: 0; z-index: 35; background: rgba(10, 12, 16, 0.45); animation: fade .15s ease-out; }
   .main { padding: 20px 16px 48px; }
   h1 { font-size: 22px; }
 }
@@ -517,3 +518,60 @@ details summary { cursor: pointer; }
 .check-list { display: flex; flex-direction: column; gap: 12px; }
 .check-list .check { align-items: flex-start; }
 .check-list .check input { margin-top: 2px; }
+
+fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+.link-btn { font: inherit; font-weight: 600; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
+.role-select { width: 140px; }
+
+/* ---------- phones */
+/* Tables mark secondary columns `hide-sm`; what they hold moves into a `show-sm` line under the row title. */
+.show-sm { display: none; }
+@media (max-width: 640px) {
+  .hide-sm { display: none; }
+  .show-sm { display: revert; }
+
+  /* 16px stops iOS from zooming in when a field gets focus */
+  input, select, textarea, select.select-sm, input.select-sm { font-size: 16px; }
+  input, select { height: 42px; }
+  select.select-sm, input.select-sm { height: 38px; }
+  .btn { height: 42px; }
+  .btn-sm { height: 36px; }
+  .icon-btn { padding: 9px; }
+
+  th, td { padding: 10px 8px; }
+  th { white-space: normal; }
+  td .row-sub { white-space: normal; }
+  .num-input { width: 64px; }
+  .role-select { width: 118px; }
+  .filters input[type='search'] { flex-basis: 100%; }
+  thead th:first-child, tbody td:first-child, tfoot td:first-child { padding-left: 16px; }
+  th:last-child, td:last-child { padding-right: 16px; }
+  td.actions { padding-left: 0; padding-right: 8px; }
+  .cell-wrap { min-width: 0; }
+
+  .card-pad { padding: 16px; }
+  .inline-form { padding: 12px 16px 16px; }
+  .page-head { margin-bottom: 18px; }
+  .page-actions .btn, .page-head > .btn { flex: 1 1 auto; }
+  .page-head > .btn, .page-head > .page-actions { width: 100%; }
+  .stack { gap: 14px; }
+  .grid { gap: 14px; }
+  .grid-kpi { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .kpi { padding: 14px 16px; }
+  .kpi-value { font-size: 22px; }
+  .profit-hero strong { font-size: 32px; }
+  .section-head h2 { font-size: 17px; }
+  .chart { height: 240px; }
+
+  /* modals become bottom sheets */
+  .modal-backdrop { place-items: end center; padding: 0; }
+  .modal { width: 100%; max-height: 92vh; border-radius: var(--radius) var(--radius) 0 0; animation: sheet .2s ease-out; }
+  .modal-head, .modal-body { padding-left: 16px; padding-right: 16px; }
+  .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-radius: 0; }
+  .modal-foot .btn { flex: 1; }
+
+  .auth-card { padding: 24px; }
+  .month-nav { width: 100%; }
+  .month-nav input { flex: 1; }
+}
+@keyframes sheet { from { transform: translateY(40px); opacity: 0; } }

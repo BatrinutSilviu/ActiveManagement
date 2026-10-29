@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { qs } from '../api.js';
-import { useApi, useChartColors, usePersistentState } from '../hooks.js';
+import { useApi, useChartColors, usePermissions, usePersistentState } from '../hooks.js';
 import { change, date, money0, MONTHS, MONTHS_LONG, number, pct, signedMoney } from '../format.js';
 import Kpi from '../components/Kpi.jsx';
 import EventForm from '../components/EventForm.jsx';
@@ -125,13 +125,16 @@ function FoundersSection() {
           <div className="table-wrap">
             {r.people.length ? (
               <table>
-                <thead><tr><th>Person</th><th className="r">Founder</th><th className="r">Organiser</th><th className="r">Total</th></tr></thead>
+                <thead><tr><th>Person</th><th className="r hide-sm">Founder</th><th className="r hide-sm">Organiser</th><th className="r">Total</th></tr></thead>
                 <tbody>
                   {r.people.map((p) => (
                     <tr key={p.id}>
-                      <td>{p.name}{p.founder && <span className="badge" style={{ marginLeft: 6 }}>Founder</span>}</td>
-                      <td className="r">{money0(p.standard)}</td>
-                      <td className="r" title={`${number(p.points)} points`}>{money0(p.pointsAmount)} <span className="muted">· {number(p.points)}p</span></td>
+                      <td>
+                        {p.name}{p.founder && <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span>}
+                        <div className="row-sub show-sm">{money0(p.standard)} founder · {money0(p.pointsAmount)} organiser ({number(p.points)}p)</div>
+                      </td>
+                      <td className="r hide-sm">{money0(p.standard)}</td>
+                      <td className="r hide-sm" title={`${number(p.points)} points`}>{money0(p.pointsAmount)} <span className="muted">· {number(p.points)}p</span></td>
                       <td className="r"><strong>{money0(p.total)}</strong></td>
                     </tr>
                   ))}
@@ -231,15 +234,15 @@ function YearOverview() {
           <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Results by sport</h2><Link to="/sports">Sports →</Link></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Sport</th><th className="r">Events</th><th className="r">Income</th><th className="r">Profit</th><th className="r">Per event</th></tr></thead>
+              <thead><tr><th>Sport</th><th className="r hide-sm">Events</th><th className="r hide-sm">Income</th><th className="r">Profit</th><th className="r hide-sm">Per event</th></tr></thead>
               <tbody>
                 {s.byType.filter((t) => t.events).sort((a, b) => b.profit - a.profit).map((t) => (
                   <tr key={t.id} className="clickable" onClick={() => navigate(`/sports/${t.id}`)}>
-                    <td>{t.name}</td>
-                    <td className="r">{t.events}</td>
-                    <td className="r">{money0(t.income)}</td>
+                    <td>{t.name}<div className="row-sub show-sm">{t.events} events · {money0(t.income)} income · {signedMoney(t.profit / t.events)} each</div></td>
+                    <td className="r hide-sm">{t.events}</td>
+                    <td className="r hide-sm">{money0(t.income)}</td>
                     <td className={`r ${t.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(t.profit)}</td>
-                    <td className="r">{signedMoney(t.profit / t.events)}</td>
+                    <td className="r hide-sm">{signedMoney(t.profit / t.events)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -295,6 +298,7 @@ function YearOverview() {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
+  const { canEdit } = usePermissions();
   return (
     <div>
       <div className="page-head">
@@ -302,7 +306,7 @@ export default function Dashboard() {
           <h1>Dashboard</h1>
           <p>Funds, founders’ remuneration and how the community is doing.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>}
       </div>
       <div className="stack" style={{ gap: 40 }}>
         <FundsSection />

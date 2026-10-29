@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, usePersistentState } from '../hooks.js';
+import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
-import { IconBox, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
+import { IconBox, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
 
 function ItemForm({ item, people, onClose, onSaved }) {
   const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', ...(item || {}) }));
@@ -87,11 +87,13 @@ function MoveForm({ item, people, mode, onClose, onSaved }) {
   );
 }
 
-// Inline number editor that saves on blur / Enter.
-function InlineNumber({ value, onSave, step = 'any', prefix, width = 84 }) {
+// Inline number editor that saves on blur / Enter (plain text for viewers).
+function InlineNumber({ value, onSave, step = 'any', prefix, width = 84, format = number }) {
   const [v, setV] = useState(String(value));
+  const { canEdit } = usePermissions();
   useEffect(() => setV(String(value)), [value]);
   const commit = () => { if (Number(v) !== Number(value) && v !== '') onSave(Number(v)); };
+  if (!canEdit) return <span className="inline-num">{prefix}{format(value)}</span>;
   return (
     <span className="inline-num">
       {prefix}
@@ -107,6 +109,7 @@ export default function Stock() {
   const [view, setView] = usePersistentState('am-stock-view', 'items');
   const [form, setForm] = useState(null); // { item? } | { move: item, mode }
   const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
   const people = allPeople?.filter((p) => p.active) || [];
   const refresh = () => { reload(); reloadPeople(); };
   const run = async (fn) => { try { await fn(); setError(null); refresh(); } catch (e) { setError(e.message); refresh(); } };
@@ -124,7 +127,7 @@ export default function Stock() {
           <h1>Stock</h1>
           <p>Products the community owns, who holds them, and what they’re worth. Using them at an event charges their cost to the event.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />New product</button>
+        {canEdit && <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />New product</button>}
       </div>
 
       <div className="stack">
@@ -144,16 +147,24 @@ export default function Stock() {
           <div className="card table-wrap">
             {items.length ? (
               <table>
-                <thead><tr><th>Product</th><th className="r">Price / unit</th><th>Who has it</th><th className="r">Total</th><th className="r">Value</th><th className="r">Used at events</th><th /></tr></thead>
+                <thead><tr><th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
                 <tbody>
                   {items.map((i) => (
                     <tr key={i.id}>
-                      <td><div className="row-title">{i.name}</div><div className="row-sub">{i.unit}</div></td>
-                      <td className="r">
-                        <InlineNumber value={i.unit_price} step="0.01" width={90}
+                      <td className="cell-wrap">
+                        <div className="row-title">{i.name}</div>
+                        <div className="row-sub">{i.unit}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
+                        <div className="row-sub show-sm">
+                          {i.holdings.map((h) => `${h.name.split(' ')[0]} ${number(h.qty)}`).join(' · ') || 'Nobody holds it'}
+                          {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>Add</button></>}
+                          {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button></>}
+                        </div>
+                      </td>
+                      <td className="r hide-sm">
+                        <InlineNumber value={i.unit_price} step="0.01" width={90} format={money}
                           onSave={(v) => run(() => api.put(`/stock/items/${i.id}`, { ...i, unit_price: v }))} />
                       </td>
-                      <td className="cell-wrap">
+                      <td className="cell-wrap hide-sm">
                         <div className="holders">
                           {i.holdings.map((h) => (
                             <span className="holder" key={h.person_id}>
@@ -162,21 +173,26 @@ export default function Stock() {
                                 onSave={(v) => run(() => api.put('/stock/holdings', { item_id: i.id, person_id: h.person_id, qty: v }))} />
                             </span>
                           ))}
-                          <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'add' })}><IconPlus width="13" />Add</button>
-                          {i.holdings.length > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button>}
+                          {canEdit && <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'add' })}><IconPlus width="13" />Add</button>}
+                          {canEdit && i.holdings.length > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button>}
                         </div>
                       </td>
                       <td className={`r ${i.qty <= 5 ? 'neg' : ''}`}><strong>{number(i.qty)}</strong> <span className="muted">{i.unit}</span></td>
-                      <td className="r">{money(i.value)}</td>
-                      <td className="r secondary">{number(i.used)}</td>
-                      <td className="r">
-                        <button className="btn btn-sm btn-ghost" onClick={() => setForm({ item: i })}>Edit</button>
-                        <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
-                      </td>
+                      <td className="r hide-sm">{money(i.value)}</td>
+                      <td className="r secondary hide-sm">{number(i.used)}</td>
+                      {canEdit && (
+                        <td className="r actions">
+                          <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: i })}><IconEdit /></button>
+                          <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr><td colSpan={4}>Total value</td><td className="r">{money(totalValue)}</td><td colSpan={2} /></tr></tfoot>
+                <tfoot><tr>
+                  <td colSpan={4} className="hide-sm">Total value</td><td colSpan={2} className="show-sm">Total value {money(totalValue)}</td>
+                  <td className="r hide-sm">{money(totalValue)}</td><td className="hide-sm" />{canEdit && <td />}
+                </tr></tfoot>
               </table>
             ) : <div className="empty">No products yet. Add water, fruit, balls… with their price.</div>}
           </div>

@@ -24,7 +24,14 @@ npm run build
 PORT=3001 npm start          # set COOKIE_SECURE=true when served over HTTPS
 ```
 
-On a fresh database the first visit asks you to create the first admin; more admins are added in **Settings**.
+On a fresh database the first visit asks you to create the first admin. There is no public sign-up: admins
+create the other accounts in **Settings → Accounts** and pick a role for each:
+
+- **Viewer** — sees everything (dashboards, events, payouts, stock…), changes nothing.
+- **Editor** — manages events, money, stock and settings.
+- **Admin** — everything, plus accounts and spreadsheet imports.
+
+Accounts created before roles existed are admins. The server enforces the roles; the UI just hides what you can't use.
 
 ## How the numbers are calculated
 

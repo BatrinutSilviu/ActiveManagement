@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
-import { useApi } from '../hooks.js';
+import { ROLE_LABELS, useApi, usePermissions } from '../hooks.js';
 import { date, money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../components/Icons.jsx';
@@ -87,22 +87,28 @@ function People() {
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
-          <thead><tr><th>Name</th><th>Founder</th><th>Discounts</th><th className="r">Organised</th><th className="r">Points</th><th className="r">Holds stock</th><th className="r">Discounts received</th><th /></tr></thead>
+          <thead><tr><th>Name</th><th>Founder</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
           <tbody>
             {data?.map((p) => (
               <tr key={p.id} className={p.active ? '' : 'row-off'}>
-                <td>{p.name}</td>
-                <td><input type="checkbox" checked={!!p.is_founder} onChange={(e) => save(p, { is_founder: e.target.checked })} aria-label="Founder" /></td>
                 <td className="cell-wrap">
+                  {p.name}
+                  <div className="row-sub show-sm">
+                    {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => d.name).join(', ')}
+                    {p.discount_ids.length ? ' · ' : ''}<button className="link-btn" onClick={() => setEditing(p)}>{p.discount_ids.length ? 'Edit discounts' : '+ Discount'}</button>
+                  </div>
+                </td>
+                <td><input type="checkbox" checked={!!p.is_founder} onChange={(e) => save(p, { is_founder: e.target.checked })} aria-label="Founder" /></td>
+                <td className="cell-wrap hide-sm">
                   <div className="holders">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => <span key={d.id} className="badge">{d.name}</span>)}
                     <button className="btn btn-sm btn-ghost" onClick={() => setEditing(p)}>{p.discount_ids.length ? 'Edit' : '+ Add'}</button>
                   </div>
                 </td>
-                <td className="r">{p.events}</td>
-                <td className="r">{p.points}</td>
-                <td className="r">{p.stock_value ? money0(p.stock_value) : '—'}</td>
-                <td className="r">{p.discounts_received ? <span title={`${p.discounted_events} events`}>{money0(p.discounts_received)}</span> : '—'}</td>
+                <td className="r hide-sm">{p.events}</td>
+                <td className="r hide-sm">{p.points}</td>
+                <td className="r hide-sm">{p.stock_value ? money0(p.stock_value) : '—'}</td>
+                <td className="r hide-sm">{p.discounts_received ? <span title={`${p.discounted_events} events`}>{money0(p.discounts_received)}</span> : '—'}</td>
                 <td className="r">
                   <button className="btn btn-sm btn-ghost" onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</button>
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(p.name); if (n) save(p, { name: n }); }}><IconEdit /></button>
@@ -335,26 +341,54 @@ function Categories() {
   );
 }
 
-function Admins({ user }) {
+const ROLE_HELP = {
+  viewer: 'can see everything, change nothing',
+  editor: 'manages events, money, stock and settings',
+  admin: 'everything, plus accounts and imports',
+};
+
+function RoleSelect({ value, onChange, ...props }) {
+  return (
+    <select className="select-sm" value={value} onChange={(e) => onChange(e.target.value)} {...props}>
+      {Object.entries(ROLE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+    </select>
+  );
+}
+
+function Accounts({ user }) {
   const { data, reload } = useApi('/users');
   const [error, run] = useAction(reload);
-  const [f, setF] = useState({ name: '', email: '', password: '' });
+  const blank = { name: '', email: '', password: '', role: 'viewer' };
+  const [f, setF] = useState(blank);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Admins</h2><p>Everyone here can manage events and money</p></div></div>
+      <div className="card-head">
+        <div>
+          <h2>Accounts</h2>
+          <p>Who can sign in. {Object.entries(ROLE_HELP).map(([k, v]) => `${ROLE_LABELS[k]}: ${v}`).join(' · ')}.</p>
+        </div>
+      </div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap">
         <table>
           <tbody>
             {data?.map((u) => (
               <tr key={u.id}>
-                <td><strong>{u.name}</strong>{u.id === user.id && <span className="muted"> (you)</span>}</td>
-                <td className="secondary">{u.email}</td>
-                <td className="muted">since {date(u.created_at.slice(0, 10))}</td>
-                <td className="r">
+                <td>
+                  <strong>{u.name}</strong>{u.id === user.id && <span className="muted"> (you)</span>}
+                  <div className="row-sub show-sm">{u.email}</div>
+                </td>
+                <td className="secondary hide-sm">{u.email}</td>
+                <td>
+                  {u.id === user.id ? <span className="badge">{ROLE_LABELS[u.role]}</span>
+                    : <RoleSelect value={u.role} style={{ width: 120 }} aria-label={`Role of ${u.name}`}
+                        onChange={(role) => run(() => api.put(`/users/${u.id}/role`, { role }))} />}
+                </td>
+                <td className="muted hide-sm">since {date(u.created_at.slice(0, 10))}</td>
+                <td className="r actions">
                   {u.id !== user.id && (
-                    <button className="icon-btn" aria-label="Remove" onClick={() => confirmDelete(`admin ${u.name}`) && run(() => api.del(`/users/${u.id}`))}><IconTrash /></button>
+                    <button className="icon-btn" aria-label="Remove" onClick={() => confirmDelete(`account ${u.name}`) && run(() => api.del(`/users/${u.id}`))}><IconTrash /></button>
                   )}
                 </td>
               </tr>
@@ -363,11 +397,16 @@ function Admins({ user }) {
         </table>
       </div>
       <form className="form-grid" style={{ marginTop: 14 }}
-        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/users', f))) setF({ name: '', email: '', password: '' }); }}>
+        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/users', f))) setF(blank); }}>
         <label className="field">Name<input value={f.name} onChange={set('name')} required /></label>
         <label className="field">Email<input type="email" value={f.email} onChange={set('email')} required /></label>
         <label className="field">Initial password<input type="text" value={f.password} onChange={set('password')} minLength={8} required /></label>
-        <div style={{ alignSelf: 'end' }}><button className="btn">Add admin</button></div>
+        <label className="field">Role
+          <select value={f.role} onChange={set('role')}>
+            {Object.entries(ROLE_LABELS).map(([k, label]) => <option key={k} value={k}>{label} — {ROLE_HELP[k]}</option>)}
+          </select>
+        </label>
+        <div><button className="btn">Add account</button></div>
       </form>
     </div>
   );
@@ -394,9 +433,19 @@ function Password() {
 }
 
 export default function Settings({ user }) {
+  const { canEdit, isAdmin } = usePermissions();
+  // Viewers only get their own password; the rest of the page is for changing things.
+  if (!canEdit) {
+    return (
+      <div>
+        <div className="page-head"><div><h1>Settings</h1><p>You have a view-only account. Ask an admin if you need to change data.</p></div></div>
+        <Password />
+      </div>
+    );
+  }
   return (
     <div>
-      <div className="page-head"><div><h1>Settings</h1><p>People, discounts, points table, default split, sports, categories and admin accounts.</p></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p>People, discounts, points table, default split, sports, categories{isAdmin ? ' and accounts' : ''}.</p></div></div>
       <div className="stack">
         <People />
         <Discounts />
@@ -406,7 +455,7 @@ export default function Settings({ user }) {
           <Sports />
         </div>
         <Categories />
-        <Admins user={user} />
+        {isAdmin && <Accounts user={user} />}
         <Password />
       </div>
     </div>

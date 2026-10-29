@@ -41,7 +41,7 @@ export function currentUser(req) {
   const token = readCookie(req, COOKIE);
   if (!token) return null;
   return db.prepare(`
-    SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id
+    SELECT u.id, u.name, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND s.expires_at > ?`).get(token, new Date().toISOString()) || null;
 }
 
@@ -55,5 +55,18 @@ export function requireAuth(req, res, next) {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'Not signed in' });
   req.user = user;
+  next();
+}
+
+export const ROLES = ['admin', 'editor', 'viewer'];
+
+// Viewers may only read; changing anything needs an editor. Accounts and imports are admin-only.
+// Everyone may change their own password.
+export function checkRole(req, res, next) {
+  const { role } = req.user;
+  if (req.method === 'PUT' && req.path === '/users/me/password') return next();
+  const adminOnly = /^\/(users|imports?)(\/|$)/.test(req.path);
+  if (adminOnly && role !== 'admin') return res.status(403).json({ error: 'Only admins can do this' });
+  if (!['GET', 'HEAD'].includes(req.method) && role === 'viewer') return res.status(403).json({ error: 'Your account can only view data' });
   next();
 }
