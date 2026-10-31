@@ -7,17 +7,23 @@ import { money, today } from '../format.js';
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
 export const DEFAULT_POINTS = { organizer: 2, 'co-organizer': 1 };
 
-// Create or edit an event. On create, the organizer and co-organizer can be set right away;
+// Create or edit an event, including its main organizer and co-organizer;
 // costs, stock and extra organizers are managed on the event page.
 export default function EventForm({ event, onClose, onSaved }) {
   const { data: types } = useApi('/event-types');
-  const { data: allPeople } = useApi(event ? null : '/people');
+  const { data: allPeople } = useApi('/people');
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => ({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     participants: '', participation_fee: '', venue_fee: '', budget: '', notes: '', ...(event || {}),
   }));
-  const [org, setOrg] = useState({ organizer: '', organizerPoints: DEFAULT_POINTS.organizer, co: '', coPoints: DEFAULT_POINTS['co-organizer'] });
+  // On edit, the form shows the first organizer and co-organizer; any others stay as they are.
+  const current = (role) => event?.people?.find((p) => p.role === role);
+  const [org, setOrg] = useState(() => ({
+    organizer: current('organizer')?.person_id || '', organizerPoints: current('organizer')?.points ?? DEFAULT_POINTS.organizer,
+    co: current('co-organizer')?.person_id || '', coPoints: current('co-organizer')?.points ?? DEFAULT_POINTS['co-organizer'],
+  }));
+  const extraOrganizers = (event?.people?.length || 0) - [current('organizer'), current('co-organizer')].filter(Boolean).length;
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -26,19 +32,29 @@ export default function EventForm({ event, onClose, onSaved }) {
   const applyActivity = (activityId, next = f) => {
     const a = activities?.find((x) => String(x.id) === String(activityId));
     setF({ ...next, activity_id: activityId });
-    if (a && !event) setOrg((o) => ({ ...o, organizerPoints: a.organizer_points, coPoints: a.co_points }));
+    if (a) setOrg((o) => ({ ...o, organizerPoints: a.organizer_points, coPoints: a.co_points }));
   };
-  // A new event also takes the sport's default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
+  // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
   const changeSport = (e) => {
     const match = activities?.find((a) => String(a.sport_id) === e.target.value);
     const sport = types?.find((t) => String(t.id) === e.target.value);
-    const prices = !event && sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
+    const prices = sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
     applyActivity(match ? match.id : '', { ...f, ...prices, type_id: e.target.value });
   };
   const activity = activities?.find((x) => String(x.id) === String(f.activity_id));
   const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
   const feeIncome = people * fee;
-  const active = allPeople?.filter((p) => p.active) || [];
+  // Inactive people stay selectable when they already organise this event.
+  const active = allPeople?.filter((p) => p.active || String(p.id) === String(org.organizer) || String(p.id) === String(org.co)) || [];
+
+  const syncOrganizer = async (existing, role, personId, points) => {
+    if (existing && String(existing.person_id) === String(personId)) {
+      if (Number(points) !== existing.points) await api.put(`/event-people/${existing.id}`, { role, points });
+      return;
+    }
+    if (existing) await api.del(`/event-people/${existing.id}`);
+    if (personId) await api.post(`/events/${event.id}/people`, { person_id: personId, role, points });
+  };
 
   const save = async () => {
     setSaving(true);
@@ -46,6 +62,8 @@ export default function EventForm({ event, onClose, onSaved }) {
       const body = { ...f, type_id: sportId };
       if (event) {
         await api.put(`/events/${event.id}`, body);
+        await syncOrganizer(current('organizer'), 'organizer', org.organizer, org.organizerPoints);
+        await syncOrganizer(current('co-organizer'), 'co-organizer', org.co, org.coPoints);
         onSaved(event.id);
       } else {
         body.people = [
@@ -125,30 +143,27 @@ export default function EventForm({ event, onClose, onSaved }) {
             <input type="date" value={f.end_date || ''} min={f.date} onChange={set('end_date')} />
           </label>
         )}
-        {!event && (
-          <>
-            <div className="full form-section">Organisers <span className="hint">— points decide each organiser’s share of the month’s payout</span></div>
-            <label className="field">Main organiser
-              <select value={org.organizer} onChange={(e) => setOrg({ ...org, organizer: e.target.value })}>
-                <option value="">— none —</option>
-                {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label className="field">Organiser points
-              <input type="number" min="0" step="0.5" value={org.organizerPoints} onChange={(e) => setOrg({ ...org, organizerPoints: e.target.value })} />
-            </label>
-            <label className="field">Co-organiser
-              <select value={org.co} onChange={(e) => setOrg({ ...org, co: e.target.value })}>
-                <option value="">— none —</option>
-                {active.filter((p) => String(p.id) !== String(org.organizer)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label className="field">Co-organiser points
-              <input type="number" min="0" step="0.5" value={org.coPoints} onChange={(e) => setOrg({ ...org, coPoints: e.target.value })} />
-            </label>
-            {allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
-          </>
-        )}
+        <div className="full form-section">Organisers <span className="hint">— points decide each organiser’s share of the month’s payout</span></div>
+        <label className="field">Main organiser
+          <select value={org.organizer} onChange={(e) => setOrg({ ...org, organizer: e.target.value })}>
+            <option value="">— none —</option>
+            {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label className="field">Organiser points
+          <input type="number" min="0" step="0.5" value={org.organizerPoints} onChange={(e) => setOrg({ ...org, organizerPoints: e.target.value })} />
+        </label>
+        <label className="field">Co-organiser
+          <select value={org.co} onChange={(e) => setOrg({ ...org, co: e.target.value })}>
+            <option value="">— none —</option>
+            {active.filter((p) => String(p.id) !== String(org.organizer)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label className="field">Co-organiser points
+          <input type="number" min="0" step="0.5" value={org.coPoints} onChange={(e) => setOrg({ ...org, coPoints: e.target.value })} />
+        </label>
+        {extraOrganizers > 0 && <p className="hint full">+{extraOrganizers} more organiser{extraOrganizers > 1 ? 's' : ''} on the event page.</p>}
+        {allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
         <label className="field full">Notes
           <textarea value={f.notes || ''} onChange={set('notes')} placeholder="Logistics, contacts, reminders…" />
         </label>
