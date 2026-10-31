@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { qs } from '../api.js';
+import { api, qs } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money0, number, signedMoney } from '../format.js';
 import EventForm, { STATUS_LABELS } from '../components/EventForm.jsx';
-import { IconPlus } from '../components/Icons.jsx';
+import { IconEdit, IconPlus } from '../components/Icons.jsx';
 
 export function StatusBadge({ status }) {
   return <span className={`badge status-${status}`}><span className="dot" />{STATUS_LABELS[status]}</span>;
@@ -18,10 +18,15 @@ export default function Events() {
   const { data: years } = useApi('/stats/years');
   const { data: types } = useApi('/event-types');
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null); // the full event being edited from the list
   const { canEdit } = usePermissions();
 
   const list = events || [];
   const sum = (k) => list.reduce((s, e) => s + e[k], 0);
+  const edit = (ev, id) => {
+    ev.stopPropagation();
+    api.get(`/events/${id}`).then(setEditing).catch((err) => alert(err.message));
+  };
 
   return (
     <div className={loading ? 'loading' : ''}>
@@ -57,7 +62,7 @@ export default function Events() {
             <thead>
               <tr>
                 <th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Sport</th><th className="hide-sm">Status</th><th className="r hide-sm">People</th>
-                <th className="r hide-sm">Income</th><th className="r hide-sm">Costs</th><th className="r">Profit</th><th className="r hide-sm">Sport fund</th>
+                <th className="r hide-sm">Income</th><th className="r hide-sm">Costs</th><th className="r">Profit</th><th className="r hide-sm">Sport fund</th>{canEdit && <th />}
               </tr>
             </thead>
             <tbody>
@@ -76,6 +81,7 @@ export default function Events() {
                   <td className="r hide-sm">{money0(e.expenses)}</td>
                   <td className={`r ${e.profit > 0 ? 'pos' : e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</td>
                   <td className="r secondary hide-sm">{e.status === 'cancelled' ? '—' : signedMoney(e.split.sport)}</td>
+                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label={`Edit ${e.name}`} title="Edit" onClick={(ev) => edit(ev, e.id)}><IconEdit /></button></td>}
                 </tr>
               ))}
             </tbody>
@@ -88,6 +94,7 @@ export default function Events() {
                 <td className="r hide-sm">{money0(sum('expenses'))}</td>
                 <td className={`r ${sum('profit') >= 0 ? 'pos' : 'neg'}`}>{signedMoney(sum('profit'))}</td>
                 <td className="hide-sm" />
+                {canEdit && <td />}
               </tr>
             </tfoot>
           </table>
@@ -96,6 +103,7 @@ export default function Events() {
         )}
       </div>
 
+      {editing && <EventForm event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       {creating && <EventForm onClose={() => setCreating(false)} onSaved={(id) => { reload(); navigate(`/events/${id}`); }} />}
     </div>
   );
