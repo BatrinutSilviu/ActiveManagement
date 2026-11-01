@@ -232,6 +232,8 @@ api.delete('/people/:id', (req, res) => {
     'This person has organized events — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
     'This person received discounts at events — mark them inactive instead, so that history is kept');
+  need(!db.prepare('SELECT 1 FROM event_attendees WHERE person_id = ?').get(idParam(req)),
+    'This person is on an event’s attendee list — mark them inactive instead, so that history is kept');
   db.prepare('DELETE FROM people WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
@@ -442,6 +444,8 @@ api.get('/events/:id', (req, res) => {
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
     JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
+  e.attendees = db.prepare(`SELECT a.*, p.name, ${IS_MEMBER_SQL} AS is_member FROM event_attendees a
+    JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY p.name`).all(e.id);
   e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
     .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: r2(s.qty * toRon(s.unit_price)) }));
@@ -510,6 +514,36 @@ api.put('/event-people/:id', (req, res) => {
 
 api.delete('/event-people/:id', (req, res) => {
   db.prepare('DELETE FROM event_people WHERE id = ?').run(idParam(req));
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------ attendees */
+
+// Add someone to an event's attendee list, by id or by name (a new name creates the person).
+api.post('/events/:id/attendees', (req, res) => {
+  need(db.prepare('SELECT 1 FROM events WHERE id = ?').get(idParam(req)), 'Event not found');
+  let personId = Number(req.body.person_id) || null;
+  if (!personId) {
+    const name = req.body.name?.trim();
+    need(name, 'Enter a name');
+    personId = db.prepare('SELECT id FROM people WHERE name = ?').get(name)?.id
+      ?? Number(db.prepare('INSERT INTO people (name) VALUES (?)').run(name).lastInsertRowid);
+  }
+  try {
+    db.prepare('INSERT INTO event_attendees (event_id, person_id, paid) VALUES (?, ?, ?)').run(idParam(req), personId, req.body.paid ? 1 : 0);
+  } catch {
+    throw httpError(400, 'This person is already on the list');
+  }
+  res.json({ ok: true });
+});
+
+api.put('/event-attendees/:id', (req, res) => {
+  db.prepare('UPDATE event_attendees SET paid = ? WHERE id = ?').run(req.body.paid ? 1 : 0, idParam(req));
+  res.json({ ok: true });
+});
+
+api.delete('/event-attendees/:id', (req, res) => {
+  db.prepare('DELETE FROM event_attendees WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 

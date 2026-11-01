@@ -7,7 +7,7 @@ import EventForm, { DEFAULT_POINTS } from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
-import { IconCheck, IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
+import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 
@@ -161,6 +161,77 @@ function Discounts({ e, reload }) {
       </form>}
       {canEdit && e.participation_fee > 0 && !memberPrice && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>Set the venue’s part of the price (Edit) to give members their price.</p>}
       {canEdit && !e.participation_fee && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>This event has no participation fee, so discounts are worth 0.</p>}
+    </div>
+  );
+}
+
+/** Optional list of who came, with a tick for who has paid. */
+function Attendees({ e, reload }) {
+  const { data: people, reload: reloadPeople } = useApi('/people');
+  const [name, setName] = useState('');
+  const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
+  const run = async (fn) => { try { await fn(); setError(null); reload(); return true; } catch (err) { setError(err.message); return false; } };
+
+  const listed = new Set(e.attendees.map((a) => a.person_id));
+  const discountOf = new Map(e.discountList.map((d) => [d.person_id, d.amount]));
+  const owes = (a) => Math.max(e.participation_fee - (discountOf.get(a.person_id) || 0), 0);
+  const paid = e.attendees.filter((a) => a.paid);
+  const toCollect = e.attendees.filter((a) => !a.paid).reduce((s, a) => s + owes(a), 0);
+
+  const add = async (ev) => {
+    ev.preventDefault();
+    const p = people?.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+    if (await run(() => api.post(`/events/${e.id}/attendees`, p ? { person_id: p.id } : { name }))) {
+      setName('');
+      if (!p) reloadPeople();
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+        <div>
+          <h2>Attendees</h2>
+          <p>{e.attendees.length
+            ? `${paid.length} of ${e.attendees.length} paid${toCollect > 0 ? ` · ${money(toCollect)} still to collect` : ''}`
+            : 'Optional — list who came and tick who has paid'}</p>
+        </div>
+      </div>
+      {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
+      {e.attendees.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th style={{ width: 44 }}>Paid</th><th>Person</th><th className="r">Pays</th>{canEdit && <th />}</tr></thead>
+            <tbody>
+              {e.attendees.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <input type="checkbox" checked={!!a.paid} disabled={!canEdit} aria-label={`${a.name} paid`}
+                      onChange={(ev) => run(() => api.put(`/event-attendees/${a.id}`, { paid: ev.target.checked }))} />
+                  </td>
+                  <td>{a.name}{a.is_member ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>Member</span> : null}</td>
+                  <td className={`r ${a.paid ? 'secondary' : ''}`}>{money(owes(a))}</td>
+                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {e.attendees.length > 0 && e.attendees.length !== e.participants && (
+        <p className="hint" style={{ padding: '10px 22px 0', margin: 0 }}>
+          The list has {e.attendees.length} people but the event counts {e.participants} participants — the money uses the count (Edit to change it).
+        </p>
+      )}
+      {canEdit && <form className="inline-form" onSubmit={add}>
+        <input className="select-sm" style={{ flex: '1 1 200px' }} list={`attendee-names-${e.id}`} placeholder="Name (existing or new person)"
+          value={name} onChange={(ev) => setName(ev.target.value)} required aria-label="Attendee name" />
+        <datalist id={`attendee-names-${e.id}`}>
+          {people?.filter((p) => p.active && !listed.has(p.id)).map((p) => <option key={p.id} value={p.name} />)}
+        </datalist>
+        <button className="btn btn-sm">Add</button>
+      </form>}
     </div>
   );
 }
@@ -330,7 +401,7 @@ export default function EventDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: 10 }}><Link to="/events">← Events</Link></div>
+      <Link to="/events" className="back-link"><IconChevronLeft width="16" height="16" />Events</Link>
       <div className="page-head">
         <div>
           <h1>{e.name}</h1>
@@ -368,6 +439,7 @@ export default function EventDetail() {
                 empty="No costs recorded yet. Fee income comes from people × fee." />
             </div>
           </div>
+          <Attendees e={e} reload={reload} />
           <Discounts e={e} reload={reload} />
           <StockUsage e={e} reload={reload} />
           <Organizers e={e} reload={reload} />

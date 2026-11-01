@@ -255,6 +255,16 @@ if (!columns('events').includes('venue_fee'))
 if (!columns('event_discounts').includes('member'))
   db.exec('ALTER TABLE event_discounts ADD COLUMN member INTEGER NOT NULL DEFAULT 0');
 
+// Optional list of who came to an event, with a tick for whether they have paid.
+// It doesn't drive the money: the event's participant count still does.
+db.exec(`CREATE TABLE IF NOT EXISTS event_attendees (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  person_id INTEGER NOT NULL REFERENCES people(id),
+  paid INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (event_id, person_id)
+)`);
+
 export const memberReduction = (fee, venueFee) => Math.max(fee - venueFee, 0);
 
 export const IS_MEMBER_SQL = `(p.is_founder = 1 OR p.is_premium = 1

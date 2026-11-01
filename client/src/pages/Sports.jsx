@@ -8,7 +8,7 @@ import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { BalanceLine, GroupedBars } from '../components/Charts.jsx';
-import { IconPlus, IconTrend } from '../components/Icons.jsx';
+import { IconPlus, IconTrend, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 
 const ymLabel = (ym) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
@@ -86,7 +86,7 @@ export function SportDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: 10 }}><Link to="/sports">← Sports</Link></div>
+      <Link to="/sports" className="back-link"><IconChevronLeft width="16" height="16" />Sports</Link>
       <div className="page-head">
         <div>
           <h1>{sport.name}</h1>
