@@ -295,11 +295,12 @@ api.delete('/discounts/:id', (req, res) => {
 
 const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fee * value) / 100 : Math.min(value, fee));
 
-// Give a person a discount at an event: one of their saved discounts, or a one-off amount.
+// Give a person a discount at an event: the member price, free entry (organisers of the event),
+// one of their saved discounts, or a one-off amount.
 api.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
   if (!ev) throw httpError(404, 'Event not found');
-  const { person_id, discount_id, amount, note, member } = req.body;
+  const { person_id, discount_id, amount, note, member, free } = req.body;
   need(person_id, 'Choose a person');
   let kind, value;
   if (member) {
@@ -308,6 +309,11 @@ api.post('/events/:id/discounts', (req, res) => {
       'Only founders, premium people and organisers get the member price');
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
+  } else if (free) {
+    need(db.prepare('SELECT 1 FROM event_people WHERE event_id = ? AND person_id = ?').get(ev.id, Number(person_id)),
+      'Only the organisers of this event can come for free');
+    kind = 'percent'; // 100% stays free if the price changes
+    value = 100;
   } else if (discount_id) {
     const d = db.prepare('SELECT * FROM discounts WHERE id = ?').get(discount_id);
     need(d, 'Discount not found');
