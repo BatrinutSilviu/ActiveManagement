@@ -295,7 +295,7 @@ api.delete('/discounts/:id', (req, res) => {
 
 const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fee * value) / 100 : Math.min(value, fee));
 
-// Give a person a discount at an event: the member price, free entry (organisers of the event),
+// Give a person a discount at an event: the member price, free entry (e.g. a founder or organiser),
 // one of their saved discounts, or a one-off amount.
 api.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
@@ -310,8 +310,6 @@ api.post('/events/:id/discounts', (req, res) => {
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
   } else if (free) {
-    need(db.prepare('SELECT 1 FROM event_people WHERE event_id = ? AND person_id = ?').get(ev.id, Number(person_id)),
-      'Only the organisers of this event can come for free');
     kind = 'percent'; // 100% stays free if the price changes
     value = 100;
   } else if (discount_id) {

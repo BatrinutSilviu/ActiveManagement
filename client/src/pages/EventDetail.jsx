@@ -52,9 +52,9 @@ function Statement({ e, split }) {
 }
 
 const discountLabel = (d) => (d.kind === 'percent' ? `−${number(d.value)}%` : `−${money(d.value)}`);
-// A one-off 100% is free entry for an organiser.
+// A one-off 100% is free entry (e.g. a founder or an organiser).
 const isFree = (d) => !d.member && !d.discount_id && d.kind === 'percent' && d.value === 100;
-const discountName = (d) => (d.member ? 'Member price' : isFree(d) ? 'Free (organiser)' : d.discount_name || 'One-off');
+const discountName = (d) => (d.member ? 'Member price' : isFree(d) ? 'Free' : d.discount_name || 'One-off');
 const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
 
 /** People who paid less (or nothing) at this event, with the discount they got. */
@@ -69,7 +69,6 @@ function Discounts({ e, reload }) {
   const taken = new Set(e.discountList.map((d) => d.person_id));
   const organisers = new Set(e.people.map((p) => p.person_id));
   const person = people?.find((p) => String(p.id) === String(f.person_id));
-  const isOrganiser = person && organisers.has(person.id);
   const applies = (d) => !d.sport_id || d.sport_id === e.type_id;
   // The person's own discounts that apply to this sport, best first; then every other saved discount.
   const own = (discounts || []).filter((d) => person?.discount_ids.includes(d.id) && applies(d))
@@ -94,6 +93,7 @@ function Discounts({ e, reload }) {
       return;
     }
     const p = people.find((x) => String(x.id) === value);
+    if (p?.is_founder) return setF({ person_id: value, discount_id: 'free', amount: '' });
     if (p?.is_member && memberPrice) return setF({ person_id: value, discount_id: 'member', amount: '' });
     const best = (discounts || []).filter((d) => p?.discount_ids.includes(d.id) && applies(d))
       .sort((a, b) => discountWorth(b, e.participation_fee) - discountWorth(a, e.participation_fee))[0];
@@ -140,14 +140,14 @@ function Discounts({ e, reload }) {
         <select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
           <option value="">Person…</option>
           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => (
-            <option key={p.id} value={p.id}>{p.name}{organisers.has(p.id) ? ' · organiser' : p.is_member && memberPrice ? ' · member' : p.discount_ids.length ? ' ★' : ''}</option>
+            <option key={p.id} value={p.id}>{p.name}{p.is_founder ? ' · founder' : organisers.has(p.id) ? ' · organiser' : p.is_member && memberPrice ? ' · member' : p.discount_ids.length ? ' ★' : ''}</option>
           ))}
           <option value="new">+ New person…</option>
         </select>
         <select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
-          <option value="">Discount…</option>
+          <option value="" disabled={!!person}>Discount…</option>
+          <option value="free">Free — pays nothing</option>
           {memberPrice && person?.is_member && <option value="member">Member price (pays {money(e.venue_fee)})</option>}
-          {isOrganiser && <option value="free">Free — organiser pays nothing</option>}
           {own.length > 0 && (
             <optgroup label={`${person.name}’s discounts`}>
               {own.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}
