@@ -292,8 +292,9 @@ if (!columns('activities').includes('people_step')) {
       VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities))`).run();
 }
 
-// Stock used at an event is charged to it either way; `kept` = we still own it afterwards (the
-// quantity stays), otherwise it was used up and the holder's quantity went down.
+// Stock used at an event is charged to it either way. `kept`: 1 = we still own it afterwards (the
+// quantity stays), 2 = partly used (just a note; the quantity stays too — correct it on the Stock
+// page if needed), 0 = used up (the holder's quantity went down).
 if (!columns('event_stock').includes('kept'))
   db.exec('ALTER TABLE event_stock ADD COLUMN kept INTEGER NOT NULL DEFAULT 0');
 

@@ -608,6 +608,9 @@ function returnStock(s) {
     ON CONFLICT(item_id, person_id) DO UPDATE SET qty = qty + excluded.qty`).run(s.item_id, s.person_id, s.qty);
 }
 
+// 1 = kept, 2 = partly used (quantity stays, like kept), 0 = used up.
+const keptValue = (v) => (v === 2 || v === 'partial' ? 2 : v === true || v === 1 || v === 'kept' ? 1 : 0);
+
 function takeStock(item, person_id, qty) {
   const held = db.prepare('SELECT qty FROM stock_holdings WHERE item_id = ? AND person_id = ?').get(item.id, person_id)?.qty || 0;
   need(held >= Number(qty), `Only ${held} ${item.unit} of ${item.name} available from this person`);
@@ -618,32 +621,31 @@ function takeStock(item, person_id, qty) {
 // Kept items stay in stock (we still own them); used-up ones come off the holder's quantity.
 api.post('/events/:id/stock', (req, res) => {
   const { item_id, person_id, qty } = req.body;
-  const kept = req.body.kept === undefined ? true : !!req.body.kept;
+  const kept = req.body.kept === undefined ? 1 : keptValue(req.body.kept);
   need(item_id && person_id && Number(qty) > 0, 'Choose a product, who it comes from and a quantity');
   tx(() => {
     const item = db.prepare('SELECT * FROM stock_items WHERE id = ?').get(item_id);
     need(item, 'Product not found');
     takeStock(item, person_id, qty);
-    if (!kept) db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(Number(qty), item_id, person_id);
+    if (kept === 0) db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(Number(qty), item_id, person_id);
     db.prepare('INSERT INTO event_stock (event_id, item_id, person_id, qty, unit_price, kept) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(idParam(req), item_id, person_id, Number(qty), item.unit_price, kept ? 1 : 0);
+      .run(idParam(req), item_id, person_id, Number(qty), item.unit_price, kept);
   });
   res.json({ ok: true });
 });
 
-// Switch a line between kept (back in stock) and used up (off the holder's quantity). The cost stays.
+// Switch a line between kept / partly used (in stock) and used up (off the holder's quantity). The cost stays.
 api.put('/event-stock/:id', (req, res) => {
-  const kept = !!req.body.kept;
+  const kept = keptValue(req.body.kept);
   tx(() => {
     const s = db.prepare('SELECT * FROM event_stock WHERE id = ?').get(idParam(req));
     need(s, 'Not found');
-    if (!!s.kept === kept) return;
-    if (kept) returnStock(s);
-    else if (s.person_id) {
+    const wasInStock = s.kept !== 0, inStock = kept !== 0;
+    if (wasInStock && !inStock && s.person_id) {
       takeStock(db.prepare('SELECT * FROM stock_items WHERE id = ?').get(s.item_id), s.person_id, s.qty);
       db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(s.qty, s.item_id, s.person_id);
-    }
-    db.prepare('UPDATE event_stock SET kept = ? WHERE id = ?').run(kept ? 1 : 0, s.id);
+    } else if (!wasInStock && inStock) returnStock({ ...s, kept: 0 });
+    db.prepare('UPDATE event_stock SET kept = ? WHERE id = ?').run(kept, s.id);
   });
   res.json({ ok: true });
 });

@@ -318,9 +318,14 @@ function Organizers({ e, reload }) {
   );
 }
 
+// What happened to stock after an event: kept (1), partly used (2, quantity unchanged), used up (0).
+const afterKey = (k) => (k === 2 ? 'partial' : k ? 'kept' : 'used');
+const AFTER_LABELS = { kept: 'Kept — still ours', partial: 'Partly used', used: 'Used up' };
+const AFTER_OPTIONS = Object.entries(AFTER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>);
+
 function StockUsage({ e, reload }) {
   const { data: stock, reload: reloadStock } = useApi('/stock');
-  const [f, setF] = useState({ item_id: '', person_id: '', qty: '', kept: true });
+  const [f, setF] = useState({ item_id: '', person_id: '', qty: '', kept: 'kept' });
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const item = stock?.find((i) => String(i.id) === String(f.item_id));
@@ -338,7 +343,7 @@ function StockUsage({ e, reload }) {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Products from stock</h2><p>Cost (price × quantity) is charged to the event. Kept items stay ours for future events; used-up ones come off the stock.</p></div>
+        <div><h2>Products from stock</h2><p>Cost (price × quantity) is charged to the event. Kept and partly used items stay in stock (fix the count on the Stock page if needed); used-up ones come off it.</p></div>
         <span className="muted">{money(e.stock_cost)}</span>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
@@ -349,17 +354,16 @@ function StockUsage({ e, reload }) {
             <tbody>
               {e.stock.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.item_name}<div className="row-sub show-sm">{number(s.qty)} {s.unit} × {money(s.unit_price)} · from {s.person_name || '—'} · {s.kept ? 'kept' : 'used up'}</div></td>
+                  <td>{s.item_name}<div className="row-sub show-sm">{number(s.qty)} {s.unit} × {money(s.unit_price)} · from {s.person_name || '—'} · {AFTER_LABELS[afterKey(s.kept)].toLowerCase()}</div></td>
                   <td className="secondary hide-sm">{s.person_name || '—'}</td>
                   <td className="r hide-sm">{number(s.qty)} {s.unit}</td>
                   <td className="hide-sm">
                     {canEdit ? (
-                      <select className="select-sm" value={s.kept ? 'kept' : 'used'} aria-label={`${s.item_name} after the event`}
-                        onChange={(ev) => run(() => api.put(`/event-stock/${s.id}`, { kept: ev.target.value === 'kept' }))}>
-                        <option value="kept">Kept — still ours</option>
-                        <option value="used">Used up</option>
+                      <select className="select-sm" value={afterKey(s.kept)} aria-label={`${s.item_name} after the event`}
+                        onChange={(ev) => run(() => api.put(`/event-stock/${s.id}`, { kept: ev.target.value }))}>
+                        {AFTER_OPTIONS}
                       </select>
-                    ) : (s.kept ? 'Kept' : 'Used up')}
+                    ) : AFTER_LABELS[afterKey(s.kept)]}
                   </td>
                   <td className="r hide-sm">{money(s.unit_price)}</td>
                   <td className="r kind-expense">−{money(s.cost)}</td>
@@ -386,9 +390,8 @@ function StockUsage({ e, reload }) {
         </select>
         <input className="select-sm num-input" type="number" min="0.01" step="any" max={holder?.qty} placeholder="Qty" value={f.qty}
           onChange={(ev) => setF({ ...f, qty: ev.target.value })} required aria-label="Quantity" />
-        <select className="select-sm" value={f.kept ? 'kept' : 'used'} onChange={(ev) => setF({ ...f, kept: ev.target.value === 'kept' })} aria-label="After the event">
-          <option value="kept">Kept — still ours</option>
-          <option value="used">Used up</option>
+        <select className="select-sm" value={f.kept} onChange={(ev) => setF({ ...f, kept: ev.target.value })} aria-label="After the event">
+          {AFTER_OPTIONS}
         </select>
         <button className="btn btn-sm" disabled={!item}>Add{cost ? ` · ${money(cost)}` : ''}</button>
       </form>}
