@@ -228,6 +228,8 @@ api.put('/people/:id', (req, res) => {
 api.delete('/people/:id', (req, res) => {
   need(!db.prepare('SELECT 1 FROM stock_holdings WHERE person_id = ? AND qty > 0').get(idParam(req)),
     'This person still holds stock — move it to someone else first');
+  need(!db.prepare("SELECT 1 FROM equipment WHERE person_id = ? AND state != 'lost'").get(idParam(req)),
+    'This person still has equipment — give it to someone else first');
   need(!db.prepare('SELECT 1 FROM event_people WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
@@ -295,7 +297,8 @@ api.delete('/discounts/:id', (req, res) => {
 
 const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fee * value) / 100 : Math.min(value, fee));
 
-// Give a person a discount at an event: the member price, free entry (e.g. a founder or organiser),
+// Give a person a discount at an event: the member price, free entry (e.g. a founder or organiser —
+// either not counted at all, or with the fee paid by us),
 // one of their saved discounts, or a one-off amount.
 api.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
@@ -310,6 +313,7 @@ api.post('/events/:id/discounts', (req, res) => {
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
   } else if (free) {
+    need(['skip', 'paid'].includes(free), 'Choose which kind of free entry');
     kind = 'percent'; // 100% stays free if the price changes
     value = 100;
   } else if (discount_id) {
@@ -324,9 +328,9 @@ api.post('/events/:id/discounts', (req, res) => {
   const given = db.prepare('SELECT COUNT(*) n FROM event_discounts WHERE event_id = ?').get(ev.id).n;
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
   try {
-    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(ev.id, Number(person_id), !member && discount_id ? Number(discount_id) : null, kind, value,
-        discountAmount(kind, value, ev.participation_fee), note?.trim() || null, member ? 1 : 0);
+    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(ev.id, Number(person_id), !member && !free && discount_id ? Number(discount_id) : null, kind, value,
+        discountAmount(kind, value, ev.participation_fee), note?.trim() || null, member ? 1 : 0, !member && free ? free : null);
   } catch (e) {
     if (e.status) throw e;
     throw httpError(400, 'This person already pays a reduced price at this event');
@@ -410,6 +414,44 @@ api.post('/stock/transfer', (req, res) => {
     db.prepare(`INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)
       ON CONFLICT(item_id, person_id) DO UPDATE SET qty = qty + excluded.qty`).run(item_id, to, Number(qty));
   });
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------ equipment */
+
+const EQUIPMENT_STATES = ['new', 'good', 'worn', 'broken', 'lost'];
+
+function readEquipment(b) {
+  need(b.name?.trim(), 'Name is required');
+  const qty = Number(b.qty ?? 1);
+  need(Number.isInteger(qty) && qty > 0, 'Quantity must be a whole number above 0');
+  need(!(Number(b.unit_cost) < 0), 'Cost cannot be negative');
+  need(!b.bought_on || isDate(b.bought_on), 'Enter a valid purchase date');
+  need(EQUIPMENT_STATES.includes(b.state || 'good'), 'Unknown state');
+  return [b.name.trim(), b.sport_id ? Number(b.sport_id) : null, qty, toBani(b.unit_cost), b.bought_on || null,
+    b.state || 'good', b.person_id ? Number(b.person_id) : null, b.notes?.trim() || null];
+}
+
+api.get('/equipment', (req, res) => {
+  res.json(db.prepare(`SELECT q.*, p.name AS person_name, t.name AS sport_name FROM equipment q
+    LEFT JOIN people p ON p.id = q.person_id LEFT JOIN event_types t ON t.id = q.sport_id
+    ORDER BY q.name COLLATE NOCASE, q.id`).all().map((q) => ({ ...q, unit_cost: toRon(q.unit_cost) })));
+});
+
+api.post('/equipment', (req, res) => {
+  const { lastInsertRowid } = db.prepare(`INSERT INTO equipment (name, sport_id, qty, unit_cost, bought_on, state, person_id, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEquipment(req.body));
+  res.json({ id: Number(lastInsertRowid) });
+});
+
+api.put('/equipment/:id', (req, res) => {
+  db.prepare(`UPDATE equipment SET name = ?, sport_id = ?, qty = ?, unit_cost = ?, bought_on = ?, state = ?, person_id = ?, notes = ?
+    WHERE id = ?`).run(...readEquipment(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+api.delete('/equipment/:id', (req, res) => {
+  db.prepare('DELETE FROM equipment WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 
@@ -678,15 +720,16 @@ api.get('/activities', (req, res) => {
 function readActivity(b) {
   need(b.name?.trim(), 'Name is required');
   const num = (v) => (v === '' || v == null ? null : Math.max(0, Number(v)));
+  const step = (v) => (num(v) ? num(v) : null); // a step of 0 means no scaling
   return [b.name.trim(), num(b.organizer_points) ?? 0, num(b.organizer_max), num(b.co_points) ?? 0, num(b.co_max),
-    b.sport_id ? Number(b.sport_id) : null];
+    b.sport_id ? Number(b.sport_id) : null, step(b.people_step), num(b.people_points), step(b.money_step), num(b.money_points)];
 }
 
 api.post('/activities', (req, res) => {
   const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM activities').get().n;
   try {
-    db.prepare(`INSERT INTO activities (name, organizer_points, organizer_max, co_points, co_max, sport_id, sort)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(...readActivity(req.body), sort);
+    db.prepare(`INSERT INTO activities (name, organizer_points, organizer_max, co_points, co_max, sport_id,
+      people_step, people_points, money_step, money_points, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readActivity(req.body), sort);
   } catch (e) {
     if (e.status) throw e;
     throw httpError(400, 'An activity with this name already exists');
@@ -695,8 +738,8 @@ api.post('/activities', (req, res) => {
 });
 
 api.put('/activities/:id', (req, res) => {
-  db.prepare(`UPDATE activities SET name = ?, organizer_points = ?, organizer_max = ?, co_points = ?, co_max = ?, sport_id = ?
-    WHERE id = ?`).run(...readActivity(req.body), idParam(req));
+  db.prepare(`UPDATE activities SET name = ?, organizer_points = ?, organizer_max = ?, co_points = ?, co_max = ?, sport_id = ?,
+    people_step = ?, people_points = ?, money_step = ?, money_points = ? WHERE id = ?`).run(...readActivity(req.body), idParam(req));
   res.json({ ok: true });
 });
 

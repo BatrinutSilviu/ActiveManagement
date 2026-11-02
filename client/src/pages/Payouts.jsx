@@ -6,6 +6,7 @@ import { date, money, money0, number, signedMoney } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import { monthName, pctLabel } from './Dashboard.jsx';
+import { scales } from '../points.js';
 
 const shiftMonth = (ym, d) => {
   const [y, m] = ym.split('-').map(Number);
@@ -16,8 +17,10 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 export function pointsLabel(a, role = 'organizer') {
   const [lo, hi] = role === 'organizer' ? [a.organizer_points, a.organizer_max] : [a.co_points, a.co_max];
+  if (role === 'organizer' && scales(a)) return hi ? `${number(lo)}–${number(hi)}` : `${number(lo)}+`;
   return hi ? `${number(lo)}–${number(hi)}` : number(lo);
 }
+
 
 /** Targets for the month: community / founders / organisers, must add up to 100%. */
 function Targets({ month, split, onSaved }) {

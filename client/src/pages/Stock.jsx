@@ -5,6 +5,7 @@ import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
+import Equipment from './Equipment.jsx';
 import { IconBox, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
 
 function ItemForm({ item, people, onClose, onSaved }) {
@@ -107,7 +108,7 @@ export default function Stock() {
   const { data: items, reload } = useApi('/stock');
   const { data: allPeople, reload: reloadPeople } = useApi('/people');
   const [view, setView] = usePersistentState('am-stock-view', 'items');
-  const [form, setForm] = useState(null); // { item? } | { move: item, mode }
+  const [form, setForm] = useState(null); // { item? } | { move: item, mode } | { equipment: item | null }
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const people = allPeople?.filter((p) => p.active) || [];
@@ -125,22 +126,27 @@ export default function Stock() {
       <div className="page-head">
         <div>
           <h1>Stock</h1>
-          <p>Products the community owns, who holds them, and what they’re worth. Using them at an event charges their cost to the event.</p>
+          <p>{view === 'equipment'
+            ? 'Things the community keeps and reuses: what they cost, what state they’re in and who has them.'
+            : 'Products the community owns, who holds them, and what they’re worth. Using them at an event charges their cost to the event.'}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />New product</button>}
+        {canEdit && (view === 'equipment'
+          ? <button className="btn btn-primary" onClick={() => setForm({ equipment: null })}><IconPlus width="16" />New equipment</button>
+          : <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />New product</button>)}
       </div>
 
       <div className="stack">
+        <div className="segmented" style={{ alignSelf: 'flex-start' }}>
+          <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>By product</button>
+          <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>By person</button>
+          <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>Equipment</button>
+        </div>
+        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : <>
         {error && <div className="error-box">{error}</div>}
         <div className="grid grid-kpi">
           <Kpi label="Stock value" icon={IconBox} tone="profit" value={money0(totalValue)} sub={`${items.length} products`} />
           <Kpi label="People holding stock" icon={IconUsers} value={holders.length} sub={holders.map((h) => h.name.split(' ')[0]).join(', ') || '—'} />
           <Kpi label="Running low" value={items.filter((i) => i.qty <= 5).length} sub={items.filter((i) => i.qty <= 5).map((i) => i.name).join(', ') || 'nothing'} />
-        </div>
-
-        <div className="segmented" style={{ alignSelf: 'flex-start' }}>
-          <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>By product</button>
-          <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>By person</button>
         </div>
 
         {view === 'items' ? (
@@ -225,10 +231,11 @@ export default function Stock() {
             {!holders.length && <div className="card empty">Nobody holds stock yet.</div>}
           </div>
         )}
+        </>}
         {!people.length && <p className="hint">Add people in <Link to="/settings">Settings → People</Link> to assign stock to them.</p>}
       </div>
 
-      {form && !form.move && <ItemForm item={form.item} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
       {form?.move && <MoveForm item={form.move} mode={form.mode} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
     </div>
   );

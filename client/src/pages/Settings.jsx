@@ -254,20 +254,27 @@ function Activities() {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Points table</h2><p>What each activity is worth. Leave “max” empty for a fixed value. The sport sets the default activity for its events.</p></div>
+        <div><h2>Points table</h2><p>What each activity is worth. Leave “max” empty for a fixed value (or no cap). “Grows with the event” adds organiser points per so many people and per so many RON of fees (people × price). The sport sets the default activity for its events.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Activity</th><th className="r">Organiser</th><th className="r">Max</th><th className="r">Co-organiser</th><th className="r">Max</th><th>Default for sport</th><th className="r">Used</th><th /></tr></thead>
+          <thead><tr><th>Activity</th><th className="r">Organiser</th><th className="r">Max</th><th className="r">Co-organiser</th><th className="r">Max</th><th>Organiser grows with the event</th><th>Default for sport</th><th className="r">Used</th><th /></tr></thead>
           <tbody>
             {data?.map((a) => (
-              <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}`}>
+              <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}-${a.people_step}-${a.people_points}-${a.money_step}-${a.money_points}`}>
                 <td>{a.name}</td>
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
                 <td className="r">{field(a, 'co_points')}</td>
                 <td className="r">{field(a, 'co_max', { placeholder: '—' })}</td>
+                <td>
+                  <span className="inline-num" style={{ whiteSpace: 'nowrap' }}>+{field(a, 'people_points', { placeholder: '—', style: { width: 56 }, 'aria-label': 'Points per people step' })} per
+                    {' '}{field(a, 'people_step', { placeholder: '—', step: 1, style: { width: 64 }, 'aria-label': 'People step' })} people</span>
+                  <br />
+                  <span className="inline-num" style={{ whiteSpace: 'nowrap' }}>+{field(a, 'money_points', { placeholder: '—', style: { width: 56 }, 'aria-label': 'Points per money step' })} per
+                    {' '}{field(a, 'money_step', { placeholder: '—', step: 50, style: { width: 64 }, 'aria-label': 'RON step' })} RON</span>
+                </td>
                 <td>
                   <select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }}
                     onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>

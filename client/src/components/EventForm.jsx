@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
-import { money, today } from '../format.js';
+import { money, number, today } from '../format.js';
+import { activityPoints, scaleLabel, scales } from '../points.js';
 
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
 export const DEFAULT_POINTS = { organizer: 2, 'co-organizer': 1 };
@@ -26,13 +27,23 @@ export default function EventForm({ event, onClose, onSaved }) {
   const extraOrganizers = (event?.people?.length || 0) - [current('organizer'), current('co-organizer')].filter(Boolean).length;
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Organiser points follow the event's size for activities that scale, until edited by hand.
+  const [pointsTouched, setPointsTouched] = useState(!!event);
+  const suggest = (a, next) => activityPoints(a, 'organizer', Number(next.participants) || 0,
+    (Number(next.participants) || 0) * (Number(next.participation_fee) || 0));
+  const set = (k) => (e) => {
+    const next = { ...f, [k]: e.target.value };
+    setF(next);
+    const a = activities?.find((x) => String(x.id) === String(next.activity_id));
+    if (a && scales(a) && !pointsTouched && ['participants', 'participation_fee'].includes(k))
+      setOrg((o) => ({ ...o, organizerPoints: suggest(a, next) }));
+  };
   const sportId = f.type_id || types?.[0]?.id;
   // Choosing an activity from the points table fills in the organisers' points.
   const applyActivity = (activityId, next = f) => {
     const a = activities?.find((x) => String(x.id) === String(activityId));
     setF({ ...next, activity_id: activityId });
-    if (a) setOrg((o) => ({ ...o, organizerPoints: a.organizer_points, coPoints: a.co_points }));
+    if (a) { setOrg((o) => ({ ...o, organizerPoints: suggest(a, next), coPoints: a.co_points })); setPointsTouched(false); }
   };
   // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
   const changeSport = (e) => {
@@ -101,6 +112,7 @@ export default function EventForm({ event, onClose, onSaved }) {
             {activities?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           {activity && <span className="hint">Organiser {activity.organizer_max ? `${activity.organizer_points}–${activity.organizer_max}` : activity.organizer_points} pts
+            {scales(activity) ? ` ${scaleLabel(activity)} (now ${number(suggest(activity, f))})` : ''}
             {' '}· co-organiser +{activity.co_max ? `${activity.co_points}–${activity.co_max}` : activity.co_points}</span>}
         </label>
         <label className="field">Date
@@ -151,7 +163,7 @@ export default function EventForm({ event, onClose, onSaved }) {
           </select>
         </label>
         <label className="field">Organiser points
-          <input type="number" min="0" step="0.5" value={org.organizerPoints} onChange={(e) => setOrg({ ...org, organizerPoints: e.target.value })} />
+          <input type="number" min="0" step="0.5" value={org.organizerPoints} onChange={(e) => { setPointsTouched(true); setOrg({ ...org, organizerPoints: e.target.value }); }} />
         </label>
         <label className="field">Co-organiser
           <select value={org.co} onChange={(e) => setOrg({ ...org, co: e.target.value })}>

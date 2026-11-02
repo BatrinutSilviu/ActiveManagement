@@ -10,6 +10,7 @@ import { confirmDelete } from '../components/Modal.jsx';
 import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
+import { activityPoints, scaleLabel, scales } from '../points.js';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -27,12 +28,12 @@ function Statement({ e, split }) {
         <div><h2>Event statement</h2><p>{e.status === 'completed' ? 'Finalized — included in the funds' : 'Live — added to the funds when finalized'}</p></div>
       </div>
       <dl className="statement">
-        <dt>Income from fees <span className="muted">{e.participants} × {money(e.participation_fee)}</span></dt><dd>{money(e.fee_gross)}</dd>
+        <dt>Income from fees <span className="muted">{e.counted_participants} × {money(e.participation_fee)}{e.free_skip_count > 0 ? ` · ${e.free_skip_count} free not counted` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
         {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} members paid only {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
         {e.discounts > 0 && <><dt>Discounts <span className="muted">{e.discount_count} people paid less</span></dt><dd className="neg">−{money(e.discounts)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}
-        <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.participants} × ${money(e.venue_fee)}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
-        <dt>Benefits offered <span className="muted">water, fruit, balls…</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
+        <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.counted_participants} × ${money(e.venue_fee)}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
+        <dt>Benefits offered <span className="muted">{e.covered_fees > 0 ? `incl. ${money(e.covered_fees)} fees we paid for ${e.covered_count} ${e.covered_count === 1 ? 'person' : 'people'}` : 'water, fruit, balls…'}</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
         <dt className="total">Total profit</dt><dd className={`total ${e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</dd>
       </dl>
       <div className="split-bar" style={{ margin: '18px 0 14px' }} role="img" aria-label="Profit split">
@@ -52,9 +53,10 @@ function Statement({ e, split }) {
 }
 
 const discountLabel = (d) => (d.kind === 'percent' ? `−${number(d.value)}%` : `−${money(d.value)}`);
-// A one-off 100% is free entry (e.g. a founder or an organiser).
-const isFree = (d) => !d.member && !d.discount_id && d.kind === 'percent' && d.value === 100;
-const discountName = (d) => (d.member ? 'Member price' : isFree(d) ? 'Free' : d.discount_name || 'One-off');
+// Free entry: 'skip' = doesn't pay and isn't counted (as if not signed up), 'paid' = we pay their fee.
+const FREE_LABELS = { skip: 'Free — not counted', paid: 'Free — we pay' };
+const isFree = (d) => !!d.free;
+const discountName = (d) => (d.member ? 'Member price' : FREE_LABELS[d.free] || d.discount_name || 'One-off');
 const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
 
 /** People who paid less (or nothing) at this event, with the discount they got. */
@@ -78,7 +80,7 @@ function Discounts({ e, reload }) {
   // Members pay only the venue's part of the price.
   const memberPrice = e.venue_fee > 0;
   const memberOff = Math.max(e.participation_fee - e.venue_fee, 0);
-  const preview = f.discount_id === 'member' ? memberOff : f.discount_id === 'free' ? e.participation_fee
+  const preview = f.discount_id === 'member' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
     : f.discount_id === 'custom' ? Number(f.amount) || 0 : chosen ? discountWorth(chosen, e.participation_fee) : 0;
 
   const pickPerson = async (value) => {
@@ -93,7 +95,7 @@ function Discounts({ e, reload }) {
       return;
     }
     const p = people.find((x) => String(x.id) === value);
-    if (p?.is_founder) return setF({ person_id: value, discount_id: 'free', amount: '' });
+    if (p?.is_founder) return setF({ person_id: value, discount_id: 'free-skip', amount: '' });
     if (p?.is_member && memberPrice) return setF({ person_id: value, discount_id: 'member', amount: '' });
     const best = (discounts || []).filter((d) => p?.discount_ids.includes(d.id) && applies(d))
       .sort((a, b) => discountWorth(b, e.participation_fee) - discountWorth(a, e.participation_fee))[0];
@@ -102,7 +104,7 @@ function Discounts({ e, reload }) {
   const add = async (ev) => {
     ev.preventDefault();
     const body = f.discount_id === 'member' ? { person_id: f.person_id, member: true }
-      : f.discount_id === 'free' ? { person_id: f.person_id, free: true }
+      : f.discount_id.startsWith('free-') ? { person_id: f.person_id, free: f.discount_id.slice(5) }
       : f.discount_id === 'custom' ? { person_id: f.person_id, amount: f.amount } : { person_id: f.person_id, discount_id: f.discount_id };
     if (await run(() => api.post(`/events/${e.id}/discounts`, body))) setF({ person_id: '', discount_id: '', amount: '' });
   };
@@ -146,7 +148,8 @@ function Discounts({ e, reload }) {
         </select>
         <select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
           <option value="" disabled={!!person}>Discount…</option>
-          <option value="free">Free — pays nothing</option>
+          <option value="free-skip">Free — doesn’t pay, not counted (no cost to us)</option>
+          <option value="free-paid">Free — we pay their fee (counts as a cost)</option>
           {memberPrice && person?.is_member && <option value="member">Member price (pays {money(e.venue_fee)})</option>}
           {own.length > 0 && (
             <optgroup label={`${person.name}’s discounts`}>
@@ -247,7 +250,7 @@ function Organizers({ e, reload }) {
   const { data: people } = useApi('/people');
   const { data: activities } = useApi('/activities');
   const act = activities?.find((a) => a.id === e.activity_id);
-  const pointsFor = (role) => (act ? (role === 'organizer' ? act.organizer_points : act.co_points) : DEFAULT_POINTS[role]);
+  const pointsFor = (role) => (act ? activityPoints(act, role, e.participants, e.fee_gross) : DEFAULT_POINTS[role]);
   const hasOrganizer = e.people.some((p) => p.role === 'organizer');
   const [f, setF] = useState({ person_id: '', role: 'organizer', points: '' });
   const role = f.role || (hasOrganizer ? 'co-organizer' : 'organizer');
@@ -259,7 +262,7 @@ function Organizers({ e, reload }) {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Organisers</h2><p>{act ? `${act.name}: organiser ${pointsFor('organizer')} pts, co-organiser +${pointsFor('co-organizer')}` : 'Points decide each organiser’s share of the month’s payout'}</p></div>
+        <div><h2>Organisers</h2><p>{act ? `${act.name}: organiser ${number(pointsFor('organizer'))} pts${scales(act) ? ` (${scaleLabel(act)})` : ''}, co-organiser +${number(pointsFor('co-organizer'))}` : 'Points decide each organiser’s share of the month’s payout'}</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       {e.people.length > 0 && (

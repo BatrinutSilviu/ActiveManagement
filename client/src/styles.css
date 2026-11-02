@@ -585,3 +585,8 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
   .month-nav input { flex: 1; }
 }
 @keyframes sheet { from { transform: translateY(40px); opacity: 0; } }
+
+/* Equipment state badges */
+.state-worn { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--text); }
+.state-bad { background: color-mix(in srgb, var(--bad-text) 13%, transparent); color: var(--bad-text); }
+select.badge { width: auto; border: 0; cursor: pointer; }

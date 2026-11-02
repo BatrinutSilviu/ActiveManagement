@@ -265,6 +265,44 @@ db.exec(`CREATE TABLE IF NOT EXISTS event_attendees (
   UNIQUE (event_id, person_id)
 )`);
 
+// Equipment the community keeps and reuses (balls, mats, rackets…), unlike stock that gets used up.
+// One row per piece or per group of identical pieces in the same state with the same person.
+db.exec(`CREATE TABLE IF NOT EXISTS equipment (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  sport_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,
+  qty INTEGER NOT NULL DEFAULT 1 CHECK (qty > 0),
+  unit_cost INTEGER NOT NULL DEFAULT 0,            -- bani per piece
+  bought_on TEXT,
+  state TEXT NOT NULL DEFAULT 'good' CHECK (state IN ('new','good','worn','broken','lost')),
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,   -- who has it; NULL = in storage
+  notes TEXT
+)`);
+
+// Activities whose points grow with the event: the organiser gets `people_points` more for every
+// `people_step` participants, and `money_points` more for every `money_step` RON of fees
+// (participants × price), capped at organizer_max when set. E.g. a social event.
+if (!columns('activities').includes('people_step')) {
+  db.exec(`ALTER TABLE activities ADD COLUMN people_step REAL;
+    ALTER TABLE activities ADD COLUMN people_points REAL;
+    ALTER TABLE activities ADD COLUMN money_step REAL;     -- RON
+    ALTER TABLE activities ADD COLUMN money_points REAL;`);
+  if (!db.prepare("SELECT 1 FROM activities WHERE name = 'Social event'").get())
+    db.prepare(`INSERT INTO activities (name, organizer_points, co_points, people_step, people_points, money_step, money_points, sort)
+      VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities))`).run();
+}
+
+// Free entry comes in two kinds (event_discounts.free):
+//  'skip' — the person doesn't pay and costs us nothing: counted as if they hadn't signed up
+//           (no fee income, no venue part for them);
+//  'paid' — we pay their fee from our budget: the fee still counts as income and the same
+//           amount is a cost (benefits offered).
+if (!columns('event_discounts').includes('free')) {
+  db.exec("ALTER TABLE event_discounts ADD COLUMN free TEXT CHECK (free IN ('skip', 'paid'))");
+  // Free entries given before the two kinds existed become 'paid', which keeps their profit the same.
+  db.exec("UPDATE event_discounts SET free = 'paid' WHERE member = 0 AND discount_id IS NULL AND kind = 'percent' AND value = 100");
+}
+
 export const memberReduction = (fee, venueFee) => Math.max(fee - venueFee, 0);
 
 export const IS_MEMBER_SQL = `(p.is_founder = 1 OR p.is_premium = 1
