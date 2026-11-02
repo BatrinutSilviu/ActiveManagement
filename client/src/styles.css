@@ -47,6 +47,7 @@
   --radius-sm: 9px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.04);
   --shadow-lg: 0 20px 50px -12px rgba(16, 24, 40, 0.25);
+  --chevron-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232a78d6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 14l5-5 5 5'/%3E%3C/svg%3E");
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23858b97' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
   font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-feature-settings: 'cv11', 'ss01';
@@ -292,6 +293,44 @@ select {
 }
 select option { font-weight: 450; background: var(--surface); color: var(--text); }
 select.select-sm, input.select-sm { height: 32px; font-size: 13px; padding-left: 10px; background-size: 16px; padding-right: 30px; background-position: right 8px center; }
+select:disabled { cursor: not-allowed; opacity: .55; }
+select:focus-visible { border-color: var(--accent); box-shadow: var(--ring); }
+
+/* Dropdown lists: where the browser allows styling the open list (Chrome/Edge 135+), every <select>
+   gets a card-like popup with rounded, highlighted options. Other browsers keep their native list. */
+@supports (appearance: base-select) {
+  select, ::picker(select) { appearance: base-select; }
+  select { display: inline-flex; align-items: center; white-space: nowrap; overflow: hidden; }
+  select::picker-icon { display: none; } /* the chevron comes from the background image */
+  select:open { border-color: var(--accent); box-shadow: var(--ring); background-image: var(--chevron-up); }
+
+  ::picker(select) {
+    margin-top: 6px; padding: 6px; min-width: anchor-size(width); max-height: min(360px, 60vh); overflow-y: auto; scrollbar-width: thin;
+    background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow-lg); opacity: 0; translate: 0 -4px;
+    transition: opacity .14s ease, translate .14s ease, display .14s allow-discrete, overlay .14s allow-discrete;
+  }
+  ::picker(select):popover-open { opacity: 1; translate: 0 0; }
+  @starting-style { ::picker(select):popover-open { opacity: 0; translate: 0 -4px; } }
+
+  select option {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; min-height: 34px;
+    font-size: 13.5px; font-weight: 500; background: transparent; color: var(--text); cursor: pointer; white-space: nowrap;
+  }
+  select option:hover, select option:focus-visible { background: var(--surface-3); outline: none; }
+  select option:checked { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  select option::checkmark { order: 1; margin-left: auto; color: var(--accent); font-weight: 700; }
+  select option:disabled { color: var(--muted); cursor: not-allowed; background: transparent; }
+  select option[value='']:not(:checked) { color: var(--muted); }
+
+  /* Group titles (e.g. "Ana's discounts"): small caps-style label, options inside look normal */
+  select optgroup { padding: 4px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  select optgroup option { text-transform: none; letter-spacing: normal; }
+  select optgroup + optgroup, select option + optgroup, select optgroup + option { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; }
+
+  select.badge::picker-icon { display: none; }
+  select.badge { padding-right: 9px; background-image: none; }
+}
 
 label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .hint { font-weight: 450; color: var(--muted); font-size: 12px; }

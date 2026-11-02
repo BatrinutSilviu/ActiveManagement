@@ -10,15 +10,25 @@ import { IconBox, IconEdit, IconPlus, IconTrash, IconUsers } from '../components
 
 function ItemForm({ item, people, onClose, onSaved }) {
   const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', ...(item || {}) }));
+  // On edit: how much each person holds, editable; people can be added.
+  const [held, setHeld] = useState(() => (item?.holdings || []).map((h) => ({ person_id: h.person_id, qty: String(h.qty), was: h.qty })));
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const setQty = (i, qty) => setHeld(held.map((h, j) => (j === i ? { ...h, qty } : h)));
+  const total = held.reduce((s, h) => s + (Number(h.qty) || 0), 0);
   const save = async () => {
     try {
-      if (item) await api.put(`/stock/items/${item.id}`, f);
-      else await api.post('/stock/items', f);
+      if (item) {
+        await api.put(`/stock/items/${item.id}`, f);
+        for (const h of held) {
+          if (!h.person_id || h.qty === '' || Number(h.qty) === h.was) continue;
+          await api.put('/stock/holdings', { item_id: item.id, person_id: h.person_id, qty: Number(h.qty) });
+        }
+      } else await api.post('/stock/items', f);
       onSaved();
     } catch (e) { setError(e.message); }
   };
+  const free = people.filter((p) => !held.some((h) => String(h.person_id) === String(p.id)));
   return (
     <Modal title={item ? `Edit ${item.name}` : 'New product'} onClose={onClose} onSubmit={save}
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
@@ -27,7 +37,7 @@ function ItemForm({ item, people, onClose, onSaved }) {
         <label className="field full">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Water 0.5L" autoFocus required /></label>
         <label className="field">Unit<input value={f.unit} onChange={set('unit')} placeholder="pcs, bottles, kg…" /></label>
         <label className="field">Price per unit (RON)<input type="number" min="0" step="0.01" value={f.unit_price} onChange={set('unit_price')} required /></label>
-        {!item && (
+        {!item ? (
           <>
             <label className="field">Held by
               <select value={f.person_id} onChange={set('person_id')}>
@@ -36,6 +46,30 @@ function ItemForm({ item, people, onClose, onSaved }) {
               </select>
             </label>
             <label className="field">Quantity<input type="number" min="0" step="any" value={f.qty} onChange={set('qty')} disabled={!f.person_id} /></label>
+          </>
+        ) : (
+          <>
+            <div className="full form-section">Quantity <span className="hint">— {number(total)} {f.unit || ''} in total</span></div>
+            {held.map((h, i) => {
+              const known = people.find((p) => String(p.id) === String(h.person_id)) || item.holdings.find((x) => x.person_id === h.person_id);
+              return (
+                <label className="field" key={i}>{h.was !== undefined ? `Held by ${known?.name || '—'}` : (
+                  <select className="select-sm" value={h.person_id} onChange={(e) => setHeld(held.map((x, j) => (j === i ? { ...x, person_id: e.target.value } : x)))} required aria-label="Held by">
+                    <option value="">Who holds it…</option>
+                    {[...free, ...(known ? [known] : [])].map((p) => <option key={p.id ?? p.person_id} value={p.id ?? p.person_id}>{p.name}</option>)}
+                  </select>
+                )}
+                  <input type="number" min="0" step="any" value={h.qty} onChange={(e) => setQty(i, e.target.value)} aria-label="Quantity" />
+                </label>
+              );
+            })}
+            {free.length > 0 && (
+              <div className="full">
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHeld([...held, { person_id: '', qty: '' }])}>
+                  <IconPlus width="13" />{held.length ? 'Someone else holds some too' : 'Set who holds it'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
