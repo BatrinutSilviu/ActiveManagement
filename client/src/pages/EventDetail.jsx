@@ -22,6 +22,7 @@ function Statement({ e, split }) {
     { key: 'general', label: 'General fund', color: c.general, value: s.general },
   ];
   const community = 100 - split.foundersStandard - split.foundersPoints;
+  const otherBenefits = Math.round((e.benefits - e.covered_fees) * 100) / 100;
   return (
     <div className="card card-pad">
       <div className="card-head">
@@ -32,8 +33,9 @@ function Statement({ e, split }) {
         {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} members paid only {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
         {e.discounts > 0 && <><dt>Discounts <span className="muted">{e.discount_count} people paid less</span></dt><dd className="neg">−{money(e.discounts)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}
-        <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.counted_participants} × ${money(e.venue_fee)}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
-        <dt>Benefits offered <span className="muted">{e.covered_fees > 0 ? `incl. ${money(e.covered_fees)} fees we paid for ${e.covered_count} ${e.covered_count === 1 ? 'person' : 'people'}` : 'water, fruit, balls…'}</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
+        <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.venue_mode === 'fixed' ? `${money(e.venue_cost)} fixed` : `${e.counted_participants} × ${money(e.venue_fee)}`}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
+        {otherBenefits > 0 || !e.covered_fees ? <><dt>Benefits offered <span className="muted">{e.stock_cost > 0 ? `incl. ${money(e.stock_cost)} stock used` : 'water, fruit, balls…'}</span></dt><dd className={otherBenefits ? 'neg' : ''}>{otherBenefits ? '−' : ''}{money(otherBenefits)}</dd></> : null}
+        {e.covered_fees > 0 && <><dt>Fees we paid <span className="muted">{e.covered_count} {e.covered_count === 1 ? 'person' : 'people'} free, paid by us</span></dt><dd className="neg">−{money(e.covered_fees)}</dd></>}
         <dt className="total">Total profit</dt><dd className={`total ${e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</dd>
       </dl>
       <div className="split-bar" style={{ margin: '18px 0 14px' }} role="img" aria-label="Profit split">
@@ -77,7 +79,7 @@ function Discounts({ e, reload }) {
     .sort((a, b) => discountWorth(b, e.participation_fee) - discountWorth(a, e.participation_fee));
   const others = (discounts || []).filter((d) => !own.includes(d) && applies(d));
   const chosen = discounts?.find((d) => String(d.id) === String(f.discount_id));
-  // Members pay only the venue's part of the price.
+  // Members pay only the venue's part of the price (with a fixed venue: the member price set on the event).
   const memberPrice = e.venue_fee > 0;
   const memberOff = Math.max(e.participation_fee - e.venue_fee, 0);
   const preview = f.discount_id === 'member' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
@@ -421,7 +423,7 @@ export default function EventDetail() {
             <StatusBadge status={e.status} />
             <span>{date(e.date)}{e.end_date ? ` – ${date(e.end_date)}` : ''}</span>
             {e.location && <span>· {e.location}</span>}
-            <span>· {e.participants} people × {money0(e.participation_fee)}{e.venue_fee > 0 ? ` (${money0(e.venue_fee)} to the venue)` : ''}</span>
+            <span>· {e.participants} people × {money0(e.participation_fee)}{e.venue_mode === 'fixed' ? (e.venue_total > 0 ? ` · venue ${money0(e.venue_total)} fixed` : '') : e.venue_fee > 0 ? ` (${money0(e.venue_fee)} to the venue)` : ''}</span>
           </p>
         </div>
         {canEdit && <div className="page-actions">

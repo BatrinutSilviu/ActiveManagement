@@ -16,7 +16,7 @@ export default function EventForm({ event, onClose, onSaved }) {
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => ({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    participants: '', participation_fee: '', venue_fee: '', budget: '', notes: '', ...(event || {}),
+    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', ...(event || {}),
   }));
   // On edit, the form shows the first organizer and co-organizer; any others stay as they are.
   const current = (role) => event?.people?.find((p) => p.role === role);
@@ -55,6 +55,8 @@ export default function EventForm({ event, onClose, onSaved }) {
   const activity = activities?.find((x) => String(x.id) === String(f.activity_id));
   const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
   const feeIncome = people * fee;
+  const fixedVenue = f.venue_mode === 'fixed';
+  const venueCost = fixedVenue ? Number(f.venue_total) || 0 : people * venue;
   // Inactive people stay selectable when they already organise this event.
   const active = allPeople?.filter((p) => p.active || String(p.id) === String(org.organizer) || String(p.id) === String(org.co)) || [];
 
@@ -125,14 +127,27 @@ export default function EventForm({ event, onClose, onSaved }) {
         <label className="field">Price (RON / person)
           <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
         </label>
-        <label className="field">Venue’s part (RON / person)
+        <label className="field">Venue cost
+          <select value={f.venue_mode} onChange={set('venue_mode')}>
+            <option value="per_person">Per participant</option>
+            <option value="fixed">Fixed total for the event</option>
+          </select>
+          <span className="hint">{fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant'}</span>
+        </label>
+        {fixedVenue && (
+          <label className="field">Venue total (RON)
+            <input type="number" min="0" step="0.01" value={f.venue_total} onChange={set('venue_total')} placeholder="0" />
+            <span className="hint">Or leave 0 and add the venue as a cost on the event page</span>
+          </label>
+        )}
+        <label className="field">{fixedVenue ? 'Members pay (RON / person)' : 'Venue’s part (RON / person)'}
           <input type="number" min="0" step="0.01" max={fee || undefined} value={f.venue_fee} onChange={set('venue_fee')} placeholder="0" />
-          <span className="hint">Paid on to the venue for everyone. Members pay only this.</span>
+          <span className="hint">{fixedVenue ? 'Optional member price; doesn’t change the venue cost' : 'Members pay only this.'}</span>
         </label>
         <div className="full fee-preview">
           Income from fees: <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({people} × {money(fee)})</span>
-          {venue > 0 && <> · venue: <strong>−{money(people * venue)}</strong><span className="muted"> ({people} × {money(venue)})</span></>}
+          {venueCost > 0 && <> · venue: <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ' (fixed)' : ` (${people} × ${money(venue)})`}</span></>}
           <span className="muted">{event?.discounts || event?.member_discounts
             ? ` · − ${money(event.discounts + event.member_discounts)} discounts & member prices`
             : ' · members and discounts are added on the event page'}</span>

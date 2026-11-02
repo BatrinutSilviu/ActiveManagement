@@ -507,11 +507,19 @@ const insertEventPeople = (eventId, people = []) => {
   }
 };
 
+// Venue paid per participant, or one fixed amount for the event.
+function saveVenue(id, b) {
+  const mode = b.venue_mode === 'fixed' ? 'fixed' : 'per_person';
+  need(!(Number(b.venue_total) < 0), 'The venue cost can’t be negative');
+  db.prepare('UPDATE events SET venue_mode = ?, venue_total = ? WHERE id = ?').run(mode, mode === 'fixed' ? toBani(b.venue_total) : 0, id);
+}
+
 api.post('/events', (req, res) => {
   const id = tx(() => {
     const id = Number(db.prepare(`
       INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, budget, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
+    saveVenue(id, req.body);
     insertEventPeople(id, req.body.people);
     return id;
   });
@@ -522,6 +530,7 @@ api.put('/events/:id', (req, res) => {
   db.prepare(`
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
       participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
+  if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
   // A new price changes what each discount (and the member price) is worth at this event.
   const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
   for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {

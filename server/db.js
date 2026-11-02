@@ -292,6 +292,12 @@ if (!columns('activities').includes('people_step')) {
       VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities))`).run();
 }
 
+// The venue is paid either per participant (venue_fee × people) or as one fixed amount for the
+// whole event (venue_total). With a fixed venue, venue_fee is only what members pay.
+if (!columns('events').includes('venue_mode'))
+  db.exec(`ALTER TABLE events ADD COLUMN venue_mode TEXT NOT NULL DEFAULT 'per_person' CHECK (venue_mode IN ('per_person', 'fixed'));
+    ALTER TABLE events ADD COLUMN venue_total INTEGER NOT NULL DEFAULT 0;   -- bani, used when venue_mode = 'fixed'`);
+
 // Free entry comes in two kinds (event_discounts.free):
 //  'skip' — the person doesn't pay and costs us nothing: counted as if they hadn't signed up
 //           (no fee income, no venue part for them);
