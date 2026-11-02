@@ -108,7 +108,7 @@ export default function Monthly() {
                       <td className={`r ${e.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(e.profit)}</td>
                       <td className="r">{money0(e.split.founders)}</td>
                       <td className="r hide-sm">{money0(e.split.general)}</td>
-                      <td className="r hide-sm">{money0(e.split.sport)}</td>
+                      <td className="r hide-sm">{e.is_sport ? money0(e.split.sport) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

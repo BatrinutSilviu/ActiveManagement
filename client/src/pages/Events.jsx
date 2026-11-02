@@ -80,7 +80,7 @@ export default function Events() {
                   <td className="r hide-sm">{money0(e.income)}</td>
                   <td className="r hide-sm">{money0(e.expenses)}</td>
                   <td className={`r ${e.profit > 0 ? 'pos' : e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</td>
-                  <td className="r secondary hide-sm">{e.status === 'cancelled' ? '—' : signedMoney(e.split.sport)}</td>
+                  <td className="r secondary hide-sm">{e.status === 'cancelled' || !e.is_sport ? '—' : signedMoney(e.split.sport)}</td>
                   {canEdit && <td className="r actions"><button className="icon-btn" aria-label={`Edit ${e.name}`} title="Edit" onClick={(ev) => edit(ev, e.id)}><IconEdit /></button></td>}
                 </tr>
               ))}
