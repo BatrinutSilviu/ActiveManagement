@@ -90,7 +90,7 @@ export default function TxForm({ tx, eventId, eventDate, fund, defaultKind = 'in
           <label className="field full">Fund
             <select value={f.fund_sport_id || ''} onChange={set('fund_sport_id')}>
               <option value="">General community fund</option>
-              {sports?.map((s) => <option key={s.id} value={s.id}>{s.name} reinvestment fund</option>)}
+              {sports?.filter((s) => s.is_sport || String(s.id) === String(f.fund_sport_id)).map((s) => <option key={s.id} value={s.id}>{s.name} reinvestment fund</option>)}
             </select>
             <span className="hint">{f.kind === 'expense' ? 'Spending is subtracted from this fund (a reinvestment).' : 'Added straight to this fund, not split.'}</span>
           </label>

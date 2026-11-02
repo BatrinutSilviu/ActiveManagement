@@ -123,7 +123,7 @@ api.put('/settings/split', (req, res) => {
 
 api.get('/event-types', (req, res) => {
   res.json(db.prepare(`
-    SELECT et.id, et.name, et.default_fee, et.default_venue_fee, COUNT(e.id) AS events FROM event_types et
+    SELECT et.id, et.name, et.is_sport, et.default_fee, et.default_venue_fee, COUNT(e.id) AS events FROM event_types et
     LEFT JOIN events e ON e.type_id = et.id GROUP BY et.id ORDER BY et.name`).all()
     .map((t) => ({ ...t, default_fee: toRon(t.default_fee), default_venue_fee: toRon(t.default_venue_fee) })));
 });
@@ -142,12 +142,12 @@ api.post('/event-types', (req, res) => {
 api.put('/event-types/:id', (req, res) => {
   const t = db.prepare('SELECT * FROM event_types WHERE id = ?').get(idParam(req));
   if (!t) throw httpError(404, 'Sport not found');
-  const { name = t.name, default_fee = toRon(t.default_fee), default_venue_fee = toRon(t.default_venue_fee) } = req.body;
+  const { name = t.name, default_fee = toRon(t.default_fee), default_venue_fee = toRon(t.default_venue_fee), is_sport = t.is_sport } = req.body;
   need(String(name).trim(), 'Name is required');
   need(Number(default_fee) >= 0 && Number(default_venue_fee) >= 0, 'Prices can’t be negative');
   need(Number(default_venue_fee) <= Number(default_fee), 'The venue’s part can’t be more than the full price');
-  db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ? WHERE id = ?')
-    .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), idParam(req));
+  db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ?, is_sport = ? WHERE id = ?')
+    .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), is_sport ? 1 : 0, idParam(req));
   res.json({ ok: true });
 });
 
@@ -603,23 +603,47 @@ api.delete('/event-attendees/:id', (req, res) => {
 });
 
 function returnStock(s) {
-  if (!s.person_id) return;
+  if (!s.person_id || s.kept) return;
   db.prepare(`INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)
     ON CONFLICT(item_id, person_id) DO UPDATE SET qty = qty + excluded.qty`).run(s.item_id, s.person_id, s.qty);
 }
 
-// Use products from someone's stock at an event: cost = qty × current price, stock goes down.
+function takeStock(item, person_id, qty) {
+  const held = db.prepare('SELECT qty FROM stock_holdings WHERE item_id = ? AND person_id = ?').get(item.id, person_id)?.qty || 0;
+  need(held >= Number(qty), `Only ${held} ${item.unit} of ${item.name} available from this person`);
+  return held;
+}
+
+// Use products from someone's stock at an event: cost = qty × current price is charged to the event.
+// Kept items stay in stock (we still own them); used-up ones come off the holder's quantity.
 api.post('/events/:id/stock', (req, res) => {
   const { item_id, person_id, qty } = req.body;
+  const kept = req.body.kept === undefined ? true : !!req.body.kept;
   need(item_id && person_id && Number(qty) > 0, 'Choose a product, who it comes from and a quantity');
   tx(() => {
     const item = db.prepare('SELECT * FROM stock_items WHERE id = ?').get(item_id);
     need(item, 'Product not found');
-    const held = db.prepare('SELECT qty FROM stock_holdings WHERE item_id = ? AND person_id = ?').get(item_id, person_id)?.qty || 0;
-    need(held >= Number(qty), `Only ${held} ${item.unit} of ${item.name} available from this person`);
-    db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(Number(qty), item_id, person_id);
-    db.prepare('INSERT INTO event_stock (event_id, item_id, person_id, qty, unit_price) VALUES (?, ?, ?, ?, ?)')
-      .run(idParam(req), item_id, person_id, Number(qty), item.unit_price);
+    takeStock(item, person_id, qty);
+    if (!kept) db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(Number(qty), item_id, person_id);
+    db.prepare('INSERT INTO event_stock (event_id, item_id, person_id, qty, unit_price, kept) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(idParam(req), item_id, person_id, Number(qty), item.unit_price, kept ? 1 : 0);
+  });
+  res.json({ ok: true });
+});
+
+// Switch a line between kept (back in stock) and used up (off the holder's quantity). The cost stays.
+api.put('/event-stock/:id', (req, res) => {
+  const kept = !!req.body.kept;
+  tx(() => {
+    const s = db.prepare('SELECT * FROM event_stock WHERE id = ?').get(idParam(req));
+    need(s, 'Not found');
+    if (!!s.kept === kept) return;
+    if (kept) returnStock(s);
+    else if (s.person_id) {
+      takeStock(db.prepare('SELECT * FROM stock_items WHERE id = ?').get(s.item_id), s.person_id, s.qty);
+      db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(s.qty, s.item_id, s.person_id);
+    }
+    db.prepare('UPDATE event_stock SET kept = ? WHERE id = ?').run(kept ? 1 : 0, s.id);
   });
   res.json({ ok: true });
 });

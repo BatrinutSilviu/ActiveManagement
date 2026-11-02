@@ -14,7 +14,7 @@ const SKIPPED = "(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id
 const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
 
 export const EVENT_SQL = `
-  SELECT e.*, et.name AS type_name, a.name AS activity_name,
+  SELECT e.*, et.name AS type_name, et.is_sport, a.name AS activity_name,
     ${SKIPPED} AS free_skip_count, ${COUNTED} AS counted_participants,
     ${COUNTED} * e.participation_fee AS fee_gross,
     CASE WHEN e.venue_mode = 'fixed' THEN e.venue_total ELSE ${COUNTED} * e.venue_fee END AS venue_cost,
@@ -46,6 +46,8 @@ export function splitProfit(profit, split = getSplit()) {
 }
 
 export function shapeEvent(e, split = getSplit()) {
+  // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
+  if (e.is_sport === 0) split = { ...split, generalShare: 100 };
   // Fee income = people × fee − discounts − what members don't pay (they pay only the venue's part).
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
   // without signing up aren't counted at all; fees we pay for someone are a benefit cost.
@@ -80,7 +82,7 @@ export function loadFundTx(where = '', params = []) {
     WHERE t.event_id IS NULL ${where} ORDER BY t.date`).all(...params).map((t) => ({ ...t, amount: toRon(t.amount) }));
 }
 
-const sports = () => db.prepare('SELECT id, name FROM event_types ORDER BY name').all();
+const sports = () => db.prepare('SELECT id, name, is_sport FROM event_types ORDER BY name').all();
 const blankFund = () => ({ allocated: 0, topups: 0, reinvested: 0, balance: 0, pending: 0, events: 0 });
 
 function finishFund(f) {
@@ -92,7 +94,7 @@ function finishFund(f) {
 /** All-time fund balances: general community fund and one per sport. */
 export function computeFunds() {
   const general = blankFund();
-  const bySport = new Map(sports().map((s) => [s.id, { id: s.id, name: s.name, ...blankFund() }]));
+  const bySport = new Map(sports().map((s) => [s.id, { id: s.id, name: s.name, is_sport: s.is_sport, ...blankFund() }]));
   for (const e of loadEvents("WHERE e.status IN ('completed', 'planned')")) {
     const s = bySport.get(e.type_id);
     if (e.status === FINALIZED) {
@@ -111,7 +113,7 @@ export function computeFunds() {
     if (t.kind === 'expense') f.reinvested += t.amount;
     else f.topups += t.amount;
   }
-  const list = [...bySport.values()].map(finishFund);
+  const list = [...bySport.values()].filter((s) => s.is_sport).map(({ is_sport, ...f }) => finishFund(f));
   return {
     general: finishFund(general),
     sports: list,
@@ -166,8 +168,15 @@ export function computeFounders(ym) {
   const done = events.filter((e) => e.status === FINALIZED);
   const live = events.filter((e) => e.status === LIVE);
   const profit = r2(done.reduce((s, e) => s + e.profit, 0));
-  const pools = splitProfit(profit, split);
-  const pending = splitProfit(r2(live.reduce((s, e) => s + e.profit, 0)), split);
+  // General vs sport fund comes from each event, since non-sport events give all of it to the general fund.
+  const fromEvents = (list, total) => {
+    const p = splitProfit(total, split);
+    p.general = r2(list.reduce((s, e) => s + e.split.general, 0));
+    p.sport = r2(p.community - p.general);
+    return p;
+  };
+  const pools = fromEvents(done, profit);
+  const pending = fromEvents(live, r2(live.reduce((s, e) => s + e.profit, 0)));
 
   // Every points line of the month, from events and from standalone contributions.
   const ledger = [

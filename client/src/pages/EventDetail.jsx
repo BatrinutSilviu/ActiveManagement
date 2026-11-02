@@ -18,7 +18,7 @@ function Statement({ e, split }) {
   const s = e.split;
   const parts = [
     { key: 'founders', label: 'Founders', color: c.founders, value: s.founders },
-    { key: 'sport', label: `${e.type_name} fund`, color: c.sportfund, value: s.sport },
+    ...(e.is_sport ? [{ key: 'sport', label: `${e.type_name} fund`, color: c.sportfund, value: s.sport }] : []),
     { key: 'general', label: 'General fund', color: c.general, value: s.general },
   ];
   const community = 100 - split.foundersStandard - split.foundersPoints;
@@ -45,10 +45,10 @@ function Statement({ e, split }) {
         <dt><i className="swatch" style={{ background: c.founders }} />Founders & organisers {pctLabel(split.foundersStandard + split.foundersPoints)}
           <span className="muted">{money0(s.standard)} founders · {money0(s.points)} organisers by points</span></dt>
         <dd>{money(s.founders)}</dd>
-        <dt><i className="swatch" style={{ background: c.general }} />General community fund <span className="muted">{pctLabel(split.generalShare)} of the {pctLabel(community)}</span></dt>
+        <dt><i className="swatch" style={{ background: c.general }} />General community fund <span className="muted">{e.is_sport ? `${pctLabel(split.generalShare)} of the ${pctLabel(community)}` : `all of the ${pctLabel(community)} — ${e.type_name} isn’t a sport, so no sport fund`}</span></dt>
         <dd>{money(s.general)}</dd>
-        <dt><i className="swatch" style={{ background: c.sportfund }} />{e.type_name} reinvestment fund <span className="muted">{pctLabel(100 - split.generalShare)} of the {pctLabel(community)}</span></dt>
-        <dd>{money(s.sport)}</dd>
+        {!!e.is_sport && <><dt><i className="swatch" style={{ background: c.sportfund }} />{e.type_name} reinvestment fund <span className="muted">{pctLabel(100 - split.generalShare)} of the {pctLabel(community)}</span></dt>
+        <dd>{money(s.sport)}</dd></>}
       </dl>
     </div>
   );
@@ -320,7 +320,7 @@ function Organizers({ e, reload }) {
 
 function StockUsage({ e, reload }) {
   const { data: stock, reload: reloadStock } = useApi('/stock');
-  const [f, setF] = useState({ item_id: '', person_id: '', qty: '' });
+  const [f, setF] = useState({ item_id: '', person_id: '', qty: '', kept: true });
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const item = stock?.find((i) => String(i.id) === String(f.item_id));
@@ -332,32 +332,41 @@ function StockUsage({ e, reload }) {
   };
   const add = async (ev) => {
     ev.preventDefault();
-    if (await run(() => api.post(`/events/${e.id}/stock`, f))) setF({ item_id: '', person_id: '', qty: '' });
+    if (await run(() => api.post(`/events/${e.id}/stock`, f))) setF({ item_id: '', person_id: '', qty: '', kept: f.kept });
   };
 
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Products from stock</h2><p>Cost is price × quantity; the stock goes down automatically</p></div>
+        <div><h2>Products from stock</h2><p>Cost (price × quantity) is charged to the event. Kept items stay ours for future events; used-up ones come off the stock.</p></div>
         <span className="muted">{money(e.stock_cost)}</span>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       {e.stock.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Product</th><th className="hide-sm">Taken from</th><th className="r hide-sm">Qty</th><th className="r hide-sm">Price</th><th className="r">Cost</th>{canEdit && <th />}</tr></thead>
+            <thead><tr><th>Product</th><th className="hide-sm">Taken from</th><th className="r hide-sm">Qty</th><th className="hide-sm">After the event</th><th className="r hide-sm">Price</th><th className="r">Cost</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.stock.map((s) => (
                 <tr key={s.id}>
-                  <td>{s.item_name}<div className="row-sub show-sm">{number(s.qty)} {s.unit} × {money(s.unit_price)} · from {s.person_name || '—'}</div></td>
+                  <td>{s.item_name}<div className="row-sub show-sm">{number(s.qty)} {s.unit} × {money(s.unit_price)} · from {s.person_name || '—'} · {s.kept ? 'kept' : 'used up'}</div></td>
                   <td className="secondary hide-sm">{s.person_name || '—'}</td>
                   <td className="r hide-sm">{number(s.qty)} {s.unit}</td>
+                  <td className="hide-sm">
+                    {canEdit ? (
+                      <select className="select-sm" value={s.kept ? 'kept' : 'used'} aria-label={`${s.item_name} after the event`}
+                        onChange={(ev) => run(() => api.put(`/event-stock/${s.id}`, { kept: ev.target.value === 'kept' }))}>
+                        <option value="kept">Kept — still ours</option>
+                        <option value="used">Used up</option>
+                      </select>
+                    ) : (s.kept ? 'Kept' : 'Used up')}
+                  </td>
                   <td className="r hide-sm">{money(s.unit_price)}</td>
                   <td className="r kind-expense">−{money(s.cost)}</td>
                   {canEdit && (
                     <td className="r actions">
                       <button className="icon-btn" aria-label="Remove and return to stock" title="Remove and return to stock"
-                        onClick={() => confirmDelete(`this line (${number(s.qty)} ${s.unit} go back to ${s.person_name || 'stock'})`) && run(() => api.del(`/event-stock/${s.id}`))}><IconTrash /></button>
+                        onClick={() => confirmDelete(s.kept ? 'this line' : `this line (${number(s.qty)} ${s.unit} go back to ${s.person_name || 'stock'})`) && run(() => api.del(`/event-stock/${s.id}`))}><IconTrash /></button>
                     </td>
                   )}
                 </tr>
@@ -367,7 +376,7 @@ function StockUsage({ e, reload }) {
         </div>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
-        <select className="select-sm" value={f.item_id} onChange={(ev) => setF({ item_id: ev.target.value, person_id: '', qty: '' })} required>
+        <select className="select-sm" value={f.item_id} onChange={(ev) => setF({ ...f, item_id: ev.target.value, person_id: '', qty: '' })} required>
           <option value="">Product…</option>
           {stock?.map((i) => <option key={i.id} value={i.id} disabled={!i.qty}>{i.name} · {money(i.unit_price)}/{i.unit} ({number(i.qty)} left)</option>)}
         </select>
@@ -377,6 +386,10 @@ function StockUsage({ e, reload }) {
         </select>
         <input className="select-sm num-input" type="number" min="0.01" step="any" max={holder?.qty} placeholder="Qty" value={f.qty}
           onChange={(ev) => setF({ ...f, qty: ev.target.value })} required aria-label="Quantity" />
+        <select className="select-sm" value={f.kept ? 'kept' : 'used'} onChange={(ev) => setF({ ...f, kept: ev.target.value === 'kept' })} aria-label="After the event">
+          <option value="kept">Kept — still ours</option>
+          <option value="used">Used up</option>
+        </select>
         <button className="btn btn-sm" disabled={!item}>Add{cost ? ` · ${money(cost)}` : ''}</button>
       </form>}
       {canEdit && stock && !stock.length && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>No products yet — add them on the <Link to="/stock">Stock</Link> page.</p>}

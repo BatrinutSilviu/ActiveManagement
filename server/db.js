@@ -292,6 +292,21 @@ if (!columns('activities').includes('people_step')) {
       VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities))`).run();
 }
 
+// Stock used at an event is charged to it either way; `kept` = we still own it afterwards (the
+// quantity stays), otherwise it was used up and the holder's quantity went down.
+if (!columns('event_stock').includes('kept'))
+  db.exec('ALTER TABLE event_stock ADD COLUMN kept INTEGER NOT NULL DEFAULT 0');
+
+// Event types that aren't a sport (e.g. Social) have no reinvestment fund: the community's whole
+// share of their profit goes to the general fund.
+if (!columns('event_types').includes('is_sport')) {
+  db.exec('ALTER TABLE event_types ADD COLUMN is_sport INTEGER NOT NULL DEFAULT 1');
+  db.prepare("INSERT OR IGNORE INTO event_types (name) VALUES ('Social')").run();
+  db.prepare("UPDATE event_types SET is_sport = 0 WHERE name = 'Social' COLLATE NOCASE").run();
+  db.prepare(`UPDATE activities SET sport_id = (SELECT id FROM event_types WHERE name = 'Social' COLLATE NOCASE)
+    WHERE name = 'Social event' AND sport_id IS NULL`).run();
+}
+
 // The venue is paid either per participant (venue_fee × people) or as one fixed amount for the
 // whole event (venue_total). With a fixed venue, venue_fee is only what members pay.
 if (!columns('events').includes('venue_mode'))
