@@ -2,7 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
@@ -612,7 +612,9 @@ api.get('/events/:id', (req, res) => {
   const [e] = loadEvents('WHERE e.id = ?', [idParam(req)]);
   if (!e) throw httpError(404, 'Event not found');
   e.tasks = taskLines('t.event_id = ?', [e.id]);
-  e.taskShares = getTaskShares();
+  e.skippedTasks = String(e.skipped_tasks || '').split(',').filter(Boolean);
+  e.taskShares = eventTaskShares(e.skipped_tasks);
+  e.usualTaskShares = getTaskShares();
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
     JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
@@ -639,6 +641,8 @@ const addTask = (eventId, task, personId, free = false) => {
   need(!db.prepare('SELECT 1 FROM event_tasks WHERE event_id = ? AND task = ? AND person_id = ?').get(eventId, task, Number(personId)),
     'This person is already on that task');
   db.prepare('INSERT INTO event_tasks (event_id, task, person_id, free) VALUES (?, ?, ?, ?)').run(eventId, task, Number(personId), free ? 1 : 0);
+  // Someone did it after all: the task is needed again.
+  db.prepare("UPDATE events SET skipped_tasks = TRIM(REPLACE(',' || skipped_tasks || ',', ',' || ? || ',', ','), ',') WHERE id = ?").run(task, eventId);
 };
 
 // Venue paid per participant, or one fixed amount for the event.
@@ -692,6 +696,28 @@ api.delete('/events/:id', (req, res) => {
 
 api.put('/events/:id/points', (req, res) => {
   savePoints(idParam(req), req.body);
+  res.json({ ok: true });
+});
+
+// A task this event didn't need: its people come off it and its share goes to the other tasks.
+api.post('/events/:id/tasks/:task/skip', (req, res) => {
+  need(TASKS.includes(req.params.task), 'Unknown task');
+  const e = db.prepare('SELECT skipped_tasks FROM events WHERE id = ?').get(idParam(req));
+  need(e, 'Event not found');
+  const off = new Set(e.skipped_tasks.split(',').filter(Boolean)).add(req.params.task);
+  need(off.size < TASKS.length, 'At least one task has to stay');
+  tx(() => {
+    db.prepare('DELETE FROM event_tasks WHERE event_id = ? AND task = ?').run(idParam(req), req.params.task);
+    db.prepare('UPDATE events SET skipped_tasks = ? WHERE id = ?').run([...off].join(','), idParam(req));
+  });
+  res.json({ ok: true });
+});
+
+api.delete('/events/:id/tasks/:task/skip', (req, res) => {
+  const e = db.prepare('SELECT skipped_tasks FROM events WHERE id = ?').get(idParam(req));
+  need(e, 'Event not found');
+  db.prepare('UPDATE events SET skipped_tasks = ? WHERE id = ?')
+    .run(e.skipped_tasks.split(',').filter((t) => t && t !== req.params.task).join(','), idParam(req));
   res.json({ ok: true });
 });
 

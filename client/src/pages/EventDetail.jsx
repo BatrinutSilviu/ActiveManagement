@@ -257,7 +257,10 @@ function Tasks({ e, reload }) {
   const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (err) { setError(err.message); } };
   const byTask = (t) => e.tasks.filter((l) => l.task === t);
-  const unassigned = TASKS.filter((t) => !byTask(t).length);
+  const needed = TASKS.filter((t) => !e.skippedTasks.includes(t));
+  const unassigned = needed.filter((t) => !byTask(t).length);
+  const skip = (t) => window.confirm(`${TASK_LABELS[t]} wasn’t needed for this event? ${byTask(t).length ? 'The people on it are removed and its' : 'Its'} points go to the other tasks.`)
+    && run(() => api.post(`/events/${e.id}/tasks/${t}/skip`));
   const freePoints = e.tasks.filter((l) => l.free).reduce((a, l) => a + l.points, 0);
   const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
   const setPoints = (v) => run(() => api.put(`/events/${e.id}/points`, { points: v })).then(() => setByHand(false));
@@ -289,13 +292,22 @@ function Tasks({ e, reload }) {
         <table>
           <thead><tr><th>Task</th><th className="r">Points</th><th>Done by</th></tr></thead>
           <tbody>
-            {TASKS.map((t) => {
+            {needed.map((t) => {
               const lines = byTask(t);
               const share = e.taskShares[t] || 0;
               const taken = new Set(lines.map((l) => l.person_id));
               return (
                 <tr key={t}>
-                  <td className="cell-wrap">{TASK_LABELS[t]}<div className="row-sub">{pctLabel(share)}</div></td>
+                  <td className="cell-wrap">
+                    <div className="task-title">
+                      {TASK_LABELS[t]}
+                      {canEdit && needed.length > 1 && (
+                        <button className="icon-btn" aria-label={`${TASK_LABELS[t]} wasn’t needed`} title="Not needed for this event — its points go to the other tasks"
+                          onClick={() => skip(t)}><IconTrash width="14" /></button>
+                      )}
+                    </div>
+                    <div className="row-sub">{pctLabel(share)}{e.skippedTasks.length && share !== e.usualTaskShares[t] ? ` (usually ${pctLabel(e.usualTaskShares[t])})` : ''}</div>
+                  </td>
                   <td className="r">{number(Math.round(e.points * share) / 100)}</td>
                   <td className="cell-wrap">
                     <div className="task-people">
@@ -326,6 +338,17 @@ function Tasks({ e, reload }) {
           </tbody>
         </table>
       </div>
+      {e.skippedTasks.length > 0 && (
+        <div className="skipped-tasks">
+          <span className="muted">Not needed for this event:</span>
+          {e.skippedTasks.map((t) => (
+            <span key={t} className="task-chip">
+              {TASK_LABELS[t]}
+              {canEdit && <button className="link-btn" onClick={() => run(() => api.del(`/events/${e.id}/tasks/${t}/skip`))}>Add back</button>}
+            </span>
+          ))}
+        </div>
+      )}
       {(unassigned.length > 0 || freePoints > 0) && (
         <p className="hint" style={{ padding: '12px 22px 16px', margin: 0 }}>
           {freePoints > 0 && <>{number(Math.round(freePoints * 100) / 100)} points done for free go to the {fund}. </>}

@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon } from './db.js';
+import { db, eventTaskShares, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -93,7 +93,7 @@ export function taskLines(where = '1', params = []) {
   const shares = getTaskShares();
   const lines = db.prepare(`
     SELECT t.id, t.event_id, t.task, t.person_id, t.free, p.name AS person_name, p.is_founder, e.points AS event_points,
-      e.name AS title, e.date, e.status, a.name AS activity_name,
+      e.name AS title, e.date, e.status, e.skipped_tasks, a.name AS activity_name,
       (SELECT COUNT(*) FROM event_tasks x WHERE x.event_id = t.event_id AND x.task = t.task) AS sharing
     FROM event_tasks t JOIN events e ON e.id = t.event_id JOIN people p ON p.id = t.person_id
     LEFT JOIN activities a ON a.id = e.activity_id
@@ -103,7 +103,8 @@ export function taskLines(where = '1', params = []) {
   const points = new Map(ids.length ? rawEvents(`WHERE e.id IN (${ids.map(() => '?').join(',')})`, ids).map((e) => [e.id, e.points]) : []);
   return lines.map((l) => {
     const total = points.get(l.event_id) ?? 0;
-    return { ...l, event_points: total, points: r2((total * (shares[l.task] || 0)) / 100 / l.sharing) };
+    const share = eventTaskShares(l.skipped_tasks, shares)[l.task];
+    return { ...l, event_points: total, points: r2((total * share) / 100 / l.sharing) };
   });
 }
 

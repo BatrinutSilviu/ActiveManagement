@@ -471,6 +471,17 @@ export function setPointsRates(rates) {
     .run(JSON.stringify(rates));
 }
 
+// Tasks an event didn't need (e.g. nothing to buy), comma-separated: their share goes to the other tasks.
+if (!columns('events').includes('skipped_tasks')) db.exec("ALTER TABLE events ADD COLUMN skipped_tasks TEXT NOT NULL DEFAULT ''");
+
+/** Each task's share (%) for one event: the needed tasks share 100% in proportion to their usual shares. */
+export function eventTaskShares(skipped = '', shares = getTaskShares()) {
+  const off = new Set(String(skipped || '').split(',').filter(Boolean));
+  const kept = TASKS.filter((t) => !off.has(t));
+  const total = kept.reduce((a, t) => a + (Number(shares[t]) || 0), 0);
+  return Object.fromEntries(TASKS.map((t) => [t, off.has(t) || !total ? 0 : ((Number(shares[t]) || 0) * 100) / total]));
+}
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {
