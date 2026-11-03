@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { ROLE_LABELS, useApi, usePermissions } from '../hooks.js';
 import { date, money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
-import { IconEdit, IconTrash } from '../components/Icons.jsx';
+import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
 
 function useAction(reload) {
@@ -207,6 +207,51 @@ function Discounts() {
         </select>
         <button className="btn btn-sm">{editId ? 'Save' : 'Add'}</button>
         {editId && <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setEditId(null); setF(blank); }}>Cancel</button>}
+      </form>
+    </div>
+  );
+}
+
+/** What the community had when it started: into the general fund, and optionally sport funds. */
+function StartingBalance() {
+  const { data, reload } = useApi('/settings/starting-balance');
+  const { data: types } = useApi('/event-types');
+  const [f, setF] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [showSports, setShowSports] = useState(false);
+  if (!data || !types) return null;
+  const v = f || data;
+  const sports = types.filter((t) => t.is_sport);
+  const setSport = (id, val) => setF({ ...v, sports: { ...v.sports, [id]: val } });
+  const total = Number(v.general || 0) + Object.values(v.sports).reduce((a, x) => a + (Number(x) || 0), 0);
+  const save = async (e) => {
+    e.preventDefault();
+    try { await api.put('/settings/starting-balance', v); setMsg({ ok: true, text: 'Saved. The funds and money in hand include it.' }); setF(null); reload(); }
+    catch (err) { setMsg({ ok: false, text: err.message }); }
+  };
+  const anySport = Object.values(v.sports).some((x) => Number(x));
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>Starting balance</h2><p>What the community had when it started. It’s counted in the funds and money in hand, not in any month’s profit or payouts.</p></div></div>
+      {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <form onSubmit={save} className="stack" style={{ gap: 14 }}>
+        <div className="form-grid">
+          <label className="field">Date<input type="date" value={v.date || ''} onChange={(e) => setF({ ...v, date: e.target.value })} /></label>
+          <label className="field">General fund (RON)<input type="number" step="0.01" value={v.general || ''} placeholder="0" onChange={(e) => setF({ ...v, general: e.target.value })} /></label>
+        </div>
+        {showSports || anySport ? (
+          <div className="form-grid">
+            {sports.map((t) => (
+              <label key={t.id} className="field">{t.name} fund (RON)
+                <input type="number" step="0.01" value={v.sports[t.id] || ''} placeholder="0" onChange={(e) => setSport(t.id, e.target.value)} />
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div><button type="button" className="btn btn-sm btn-ghost" onClick={() => setShowSports(true)}><IconPlus width="13" />Some of it belonged to a sport’s fund</button></div>
+        )}
+        <div className="targets-total">Total {money(total)}</div>
+        <div><button className="btn" disabled={!f}>Save starting balance</button></div>
       </form>
     </div>
   );
@@ -519,7 +564,7 @@ export default function Settings({ user }) {
   }
   return (
     <div>
-      <div className="page-head"><div><h1>Settings</h1><p>People, discounts, points table, default split, sports, categories{isAdmin ? ' and accounts' : ''}.</p></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p>People, discounts, points table, default split, sports, starting balance, categories{isAdmin ? ' and accounts' : ''}.</p></div></div>
       <div className="stack">
         <People />
         <Discounts />
@@ -532,6 +577,7 @@ export default function Settings({ user }) {
           <ProfitSplit />
           <Sports />
         </div>
+        <StartingBalance />
         <Categories />
         {isAdmin && <Accounts user={user} />}
         <Password />

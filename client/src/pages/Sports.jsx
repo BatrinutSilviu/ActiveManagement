@@ -40,7 +40,7 @@ export function SportsList() {
         </div>
         <div className="sport-grid">
           {sorted.map((s) => {
-            const used = s.allocated + s.topups > 0 ? Math.min(s.reinvested / (s.allocated + s.topups), 1) : 0;
+            const used = s.starting + s.allocated + s.topups > 0 ? Math.min(s.reinvested / (s.starting + s.allocated + s.topups), 1) : 0;
             return (
               <button className="card sport-card" key={s.id} onClick={() => navigate(`/sports/${s.id}`)}>
                 <div className="sport-card-top">
@@ -103,7 +103,7 @@ export function SportDetail() {
 
       <div className="stack">
         <div className="grid grid-kpi">
-          <Kpi label="Left to reinvest" hero value={money0(fund.balance)} sub={fund.pending ? `${signedMoney(fund.pending)} pending from live events` : 'available now'} />
+          <Kpi label="Left to reinvest" hero value={money0(fund.balance)} sub={[fund.starting && `incl. ${money0(fund.starting)} starting balance`, fund.pending ? `${signedMoney(fund.pending)} pending from live events` : 'available now'].filter(Boolean).join(' · ')} />
           <Kpi label="Earned for the fund" icon={IconTrend} tone="profit" value={money0(fund.allocated)} sub={`from ${fund.events} finalized events`} />
           <Kpi label="Reinvested" value={money0(fund.reinvested)} sub={fund.topups ? `+${money0(fund.topups)} added directly` : `${r.fundTx.filter((t) => t.kind === 'expense').length} purchases`} />
         </div>

@@ -476,6 +476,20 @@ db.exec(`CREATE TABLE IF NOT EXISTS payouts (
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS payouts_month ON payouts (month)');
 
+/* ----------------------------------------------------- starting balance */
+
+// What the community had when it started (before the first event in the app): an amount for the
+// general fund and optionally for sport funds. It counts in the fund balances and money in hand,
+// never in a month's profit or payouts. Amounts in RON: { date, general, sports: { [sportId]: amount } }.
+export function getStartingBalance() {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'starting_balance'").get();
+  return { date: null, general: 0, sports: {}, ...(row ? JSON.parse(row.value) : {}) };
+}
+export function setStartingBalance(v) {
+  db.prepare("INSERT INTO settings (key, value) VALUES ('starting_balance', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(JSON.stringify(v));
+}
+
 /* --------------------------------------------------------- profit split */
 
 // Percentages of profit: founders get `foundersStandard`% split equally, organisers get

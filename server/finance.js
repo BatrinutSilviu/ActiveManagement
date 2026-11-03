@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, getPointsRates, getSplit, getTaskShares, splitResolver, toBani, toRon } from './db.js';
+import { db, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -173,11 +173,11 @@ export function loadFundTx(where = '', params = []) {
 }
 
 const sports = () => db.prepare('SELECT id, name, is_sport FROM event_types ORDER BY name').all();
-const blankFund = () => ({ allocated: 0, topups: 0, reinvested: 0, balance: 0, pending: 0, events: 0 });
+const blankFund = () => ({ starting: 0, allocated: 0, topups: 0, reinvested: 0, balance: 0, pending: 0, events: 0 });
 
 function finishFund(f) {
-  for (const k of ['allocated', 'topups', 'reinvested', 'pending']) f[k] = r2(f[k]);
-  f.balance = r2(f.allocated + f.topups - f.reinvested);
+  for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'pending']) f[k] = r2(f[k]);
+  f.balance = r2(f.starting + f.allocated + f.topups - f.reinvested);
   return f;
 }
 
@@ -185,6 +185,9 @@ function finishFund(f) {
 export function computeFunds() {
   const general = blankFund();
   const bySport = new Map(sports().map((s) => [s.id, { id: s.id, name: s.name, is_sport: s.is_sport, ...blankFund() }]));
+  const start = getStartingBalance();
+  general.starting = Number(start.general) || 0;
+  for (const [id, amount] of Object.entries(start.sports)) if (bySport.has(Number(id))) bySport.get(Number(id)).starting = Number(amount) || 0;
   for (const e of loadEvents("WHERE e.status IN ('completed', 'planned')")) {
     const s = bySport.get(e.type_id);
     if (e.status === FINALIZED) {
@@ -208,7 +211,7 @@ export function computeFunds() {
     general: finishFund(general),
     sports: list,
     sportsTotal: finishFund(list.reduce((a, s) => {
-      for (const k of ['allocated', 'topups', 'reinvested', 'pending', 'events']) a[k] += s[k];
+      for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'pending', 'events']) a[k] += s[k];
       return a;
     }, blankFund())),
   };
@@ -340,7 +343,7 @@ export function computeSport(id) {
     const m = month(t.date.slice(0, 7));
     if (t.kind === 'expense') m.reinvested += t.amount; else m.topups += t.amount;
   }
-  let running = 0;
+  let running = Number(getStartingBalance().sports[id]) || 0; // what this sport's fund started with
   const months = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).map((m) => {
     for (const k of ['allocated', 'reinvested', 'topups', 'profit', 'income']) m[k] = r2(m[k]);
     running += m.allocated + m.topups - m.reinvested;
@@ -363,7 +366,7 @@ export function computePayoutMonths() {
 }
 
 /**
- * Money the community holds: finalized profit + donations − reinvested − payouts sent.
+ * Money the community holds: starting balance + finalized profit + donations − reinvested − payouts sent.
  * Equals the funds + payouts still owed (+ an organisers' share nobody earned points for).
  */
 export function computeCash(funds = computeFunds()) {
@@ -373,8 +376,9 @@ export function computeCash(funds = computeFunds()) {
   const topups = r2(funds.general.topups + funds.sportsTotal.topups);
   const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
   const paid = sum('paid');
+  const starting = r2(funds.general.starting + funds.sportsTotal.starting);
   return {
-    balance: r2(profit + topups - reinvested - paid), profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
+    balance: r2(starting + profit + topups - reinvested - paid), starting, profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
     unpaidMonths: months.filter((m) => Math.abs(m.owed) >= 0.01),
   };
 }

@@ -2,7 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, getPointsRates, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
   applyPayouts, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
@@ -117,6 +117,22 @@ api.put('/settings/split', (req, res) => {
   const s = readSplit(req.body);
   setSplit(s);
   res.json(s);
+});
+
+api.get('/settings/starting-balance', (req, res) => res.json(getStartingBalance()));
+
+api.put('/settings/starting-balance', (req, res) => {
+  const { date = null, general = 0, sports = {} } = req.body;
+  need(!date || isDate(date), 'Invalid date');
+  const amount = (v) => { need(Number.isFinite(Number(v || 0)), 'Amounts must be numbers'); return Math.round(Number(v || 0) * 100) / 100; };
+  const sportAmounts = {};
+  for (const [id, v] of Object.entries(sports)) {
+    need(db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(Number(id)), 'Unknown sport');
+    if (amount(v)) sportAmounts[id] = amount(v);
+  }
+  const value = { date: date || null, general: amount(general), sports: sportAmounts };
+  setStartingBalance(value);
+  res.json(value);
 });
 
 api.get('/settings/points-rates', (req, res) => res.json(getPointsRates()));
