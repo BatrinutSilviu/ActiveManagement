@@ -670,3 +670,10 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 .holder-actions { display: flex; gap: 10px; }
 label.field.check-field { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
 label.field.check-field input { width: auto; }
+/* Stock: pick products and move them to another category */
+.pick-col { width: 34px; padding-right: 0 !important; }
+.pick-col input { width: 16px; height: 16px; cursor: pointer; }
+tr.row-picked td { background: var(--accent-soft); }
+.move-bar { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.move-bar select { flex: 1 1 220px; max-width: 320px; }

@@ -456,6 +456,15 @@ api.put('/stock/items/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Move several products to another category at once.
+api.post('/stock/items/move', (req, res) => {
+  const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Boolean);
+  need(ids.length, 'Choose the products to move');
+  need(db.prepare('SELECT 1 FROM stock_categories WHERE id = ?').get(Number(req.body.category_id)), 'Choose a category');
+  db.prepare(`UPDATE stock_items SET category_id = ? WHERE id IN (${ids.map(() => '?').join(',')})`).run(Number(req.body.category_id), ...ids);
+  res.json({ ok: true, moved: ids.length });
+});
+
 api.delete('/stock/items/:id', (req, res) => {
   need(!db.prepare('SELECT 1 FROM event_stock WHERE item_id = ?').get(idParam(req)), 'This item was used at events and cannot be deleted');
   db.prepare('DELETE FROM stock_items WHERE id = ?').run(idParam(req));

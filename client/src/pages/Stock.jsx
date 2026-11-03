@@ -57,11 +57,11 @@ function PurchaseFields({ p, setP, people, holder, qty, price }) {
 }
 
 /** Category picker: the big categories, each followed by its subcategories. */
-function CategorySelect({ cats, value, onChange }) {
+function CategorySelect({ cats, value, onChange, placeholder = 'Choose…', ...props }) {
   const top = cats.filter((c) => !c.parent_id);
   return (
-    <select value={value || ''} onChange={onChange} required>
-      <option value="">Choose…</option>
+    <select value={value || ''} onChange={onChange} required {...props}>
+      <option value="">{placeholder}</option>
       {top.map((c) => (
         <optgroup key={c.id} label={c.name}>
           <option value={c.id}>{c.name}</option>
@@ -241,15 +241,18 @@ function Purchases({ run }) {
 }
 
 /** Products of one category: price, who holds how much, total and value. */
-function ItemsTable({ items, run, setForm }) {
+function ItemsTable({ items, run, setForm, selected, setSelected }) {
   const { canEdit } = usePermissions();
+  const allOn = items.every((i) => selected.has(i.id));
+  const pick = (ids, on) => { const next = new Set(selected); ids.forEach((id) => (on ? next.add(id) : next.delete(id))); setSelected(next); };
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr><th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
+        <thead><tr>{canEdit && <th className="pick-col"><input type="checkbox" checked={allOn} onChange={(e) => pick(items.map((i) => i.id), e.target.checked)} aria-label="Select all products here" /></th>}<th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
         <tbody>
           {items.map((i) => (
-            <tr key={i.id}>
+            <tr key={i.id} className={selected.has(i.id) ? 'row-picked' : ''}>
+              {canEdit && <td className="pick-col"><input type="checkbox" checked={selected.has(i.id)} onChange={(e) => pick([i.id], e.target.checked)} aria-label={`Select ${i.name}`} /></td>}
               <td className="cell-wrap">
                 <div className="row-title">{i.name}</div>
                 <div className="row-sub">{i.unit}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
@@ -301,7 +304,7 @@ function ItemsTable({ items, run, setForm }) {
 const sumUp = (list) => ({ count: list.length, value: list.reduce((a, i) => a + i.value, 0), low: list.filter((i) => i.qty <= 5).length });
 
 /** A category, collapsed to one line; opening it shows its products and subcategories. */
-function Category({ cat, cats, items, open, toggle, run, setForm }) {
+function Category({ cat, cats, items, open, toggle, run, setForm, selected, setSelected }) {
   const { canEdit } = usePermissions();
   const subs = cats.filter((c) => c.parent_id === cat.id);
   const own = items.filter((i) => i.category_id === cat.id);
@@ -339,8 +342,8 @@ function Category({ cat, cats, items, open, toggle, run, setForm }) {
       </div>
       {isOpen && (
         <div className="cat-body">
-          {own.length > 0 && <ItemsTable items={own} run={run} setForm={setForm} />}
-          {subs.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} />)}
+          {own.length > 0 && <ItemsTable items={own} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />}
+          {subs.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
           {!own.length && !subs.length && <div className="empty">No products here yet.</div>}
         </div>
       )}
@@ -353,6 +356,14 @@ export default function Stock() {
   const { data: cats, reload: reloadCats } = useApi('/stock/categories');
   const [open, setOpen] = usePersistentState('am-stock-open', []);
   const toggle = (id) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
+  const [selected, setSelected] = useState(() => new Set());
+  // Moving products: they go to the chosen category, which opens so you can see them there.
+  const moveTo = (categoryId) => run(async () => {
+    await api.post('/stock/items/move', { ids: [...selected], category_id: categoryId });
+    const target = cats.find((c) => c.id === Number(categoryId));
+    setOpen([...new Set([...open, Number(categoryId), ...(target?.parent_id ? [target.parent_id] : [])])]);
+    setSelected(new Set());
+  });
   const { data: allPeople, reload: reloadPeople } = useApi('/people');
   const [view, setView] = usePersistentState('am-stock-view', 'items');
   const [form, setForm] = useState(null); // { item? } | { move: item, mode } | { equipment: item | null }
@@ -404,7 +415,15 @@ export default function Stock() {
 
         {view === 'items' ? (
           <div className="stack" style={{ gap: 10 }}>
-            {shown.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} />)}
+            {selected.size > 0 && (
+              <div className="move-bar" role="region" aria-label="Move selected products">
+                <strong>{selected.size} selected</strong>
+                <CategorySelect cats={cats} value="" placeholder="Move to category…" aria-label="Move to category"
+                  onChange={(e) => e.target.value && moveTo(e.target.value)} />
+                <button className="btn btn-sm btn-ghost" onClick={() => setSelected(new Set())}>Clear</button>
+              </div>
+            )}
+            {shown.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
             {!items.length && <div className="card empty">No products yet. Add water, fruit, balls… with their price.</div>}
             {empty.length > 0 && (
               <div className="empty-cats">
