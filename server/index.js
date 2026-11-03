@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db, ensureStockCategories, getPointsRates, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -122,7 +122,7 @@ api.put('/settings/split', (req, res) => {
 api.get('/settings/points-rates', (req, res) => res.json(getPointsRates()));
 
 api.put('/settings/points-rates', (req, res) => {
-  const rates = Object.fromEntries(['before', 'during', 'after', 'moneyStep', 'moneyPoints'].map((k) => [k, Number(req.body[k])]));
+  const rates = Object.fromEntries(['before', 'during', 'after', 'moneyStep', 'moneyPoints', 'itemsStep', 'itemsPoints', 'merchStep', 'merchPoints'].map((k) => [k, Number(req.body[k])]));
   need(Object.values(rates).every((v) => Number.isFinite(v) && v >= 0), 'Rates must be positive numbers');
   setPointsRates(rates);
   res.json(rates);
@@ -214,7 +214,7 @@ api.delete('/categories/:id', (req, res) => {
 api.get('/people', (req, res) => {
   // Points earned on event tasks (not those done for free).
   const points = new Map();
-  for (const l of taskLines('t.free = 0')) points.set(l.person_id, (points.get(l.person_id) || 0) + l.points);
+  for (const l of [...taskLines('t.free = 0'), ...purchaseLines()]) points.set(l.person_id, (points.get(l.person_id) || 0) + l.points);
   res.json(db.prepare(`
     SELECT p.*, ${IS_MEMBER_SQL} AS is_member, (SELECT COUNT(DISTINCT t.event_id) FROM event_tasks t WHERE t.person_id = p.id) AS events,
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
@@ -252,6 +252,8 @@ api.delete('/people/:id', (req, res) => {
     'This person still holds stock — move it to someone else first');
   need(!db.prepare("SELECT 1 FROM equipment WHERE person_id = ? AND state != 'lost'").get(idParam(req)),
     'This person still has equipment — give it to someone else first');
+  need(!db.prepare('SELECT 1 FROM stock_purchases WHERE person_id = ?').get(idParam(req)),
+    'This person bought stock — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_tasks WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
@@ -438,8 +440,10 @@ api.post('/stock/items', (req, res) => {
       if (e.status) throw e;
       throw httpError(400, 'An item with this name already exists');
     }
-    if (req.body.person_id && Number(req.body.qty) > 0)
+    if (req.body.person_id && Number(req.body.qty) > 0) {
       db.prepare('INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)').run(id, Number(req.body.person_id), Number(req.body.qty));
+      if (req.body.purchase) recordPurchase(id, req.body.person_id, req.body.qty, req.body, req.user.id);
+    }
     return { id };
   });
   res.json(result);
@@ -457,14 +461,42 @@ api.delete('/stock/items/:id', (req, res) => {
 });
 
 // Set (mode 'set') or add to (mode 'add') the quantity one person holds.
+// Records a purchase: the holder gets the quantity, the buyer gets points for the amount paid.
+function recordPurchase(itemId, holderId, qty, b, userId) {
+  const p = b.purchase;
+  need(['items', 'merch'].includes(p.kind), 'Choose what kind of purchase it was');
+  need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(p.person_id)), 'Choose who bought it');
+  need(Number(p.amount) >= 0, 'The amount paid can’t be negative');
+  need(!p.date || isDate(p.date), 'Invalid date');
+  db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(itemId, Number(p.person_id), Number(holderId), Number(qty), toBani(p.amount), p.kind, p.date || today(), userId);
+}
+
+api.get('/stock/purchases', (req, res) => res.json(purchaseLines()));
+
+// Undoing a purchase takes the quantity back from whoever keeps it (as much as they still hold).
+api.delete('/stock/purchases/:id', (req, res) => {
+  const p = db.prepare('SELECT * FROM stock_purchases WHERE id = ?').get(idParam(req));
+  need(p, 'Purchase not found');
+  tx(() => {
+    if (p.holder_id) db.prepare('UPDATE stock_holdings SET qty = MAX(qty - ?, 0) WHERE item_id = ? AND person_id = ?').run(p.qty, p.item_id, p.holder_id);
+    db.prepare('DELETE FROM stock_purchases WHERE id = ?').run(p.id);
+  });
+  res.json({ ok: true });
+});
+
 api.put('/stock/holdings', (req, res) => {
   const { item_id, person_id, qty, mode = 'set' } = req.body;
   need(item_id && person_id && Number.isFinite(Number(qty)), 'Item, person and quantity are required');
   const cur = db.prepare('SELECT qty FROM stock_holdings WHERE item_id = ? AND person_id = ?').get(item_id, person_id)?.qty || 0;
   const next = mode === 'add' ? cur + Number(qty) : Number(qty);
   need(next >= 0, 'Quantity cannot go below 0');
-  db.prepare(`INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)
-    ON CONFLICT(item_id, person_id) DO UPDATE SET qty = excluded.qty`).run(item_id, person_id, next);
+  need(!req.body.purchase || (mode === 'add' && Number(qty) > 0), 'A purchase needs a quantity');
+  tx(() => {
+    db.prepare(`INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)
+      ON CONFLICT(item_id, person_id) DO UPDATE SET qty = excluded.qty`).run(item_id, person_id, next);
+    if (req.body.purchase) recordPurchase(item_id, person_id, qty, req.body, req.user.id);
+  });
   res.json({ qty: next });
 });
 

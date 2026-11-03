@@ -103,6 +103,19 @@ export function taskLines(where = '1', params = []) {
   });
 }
 
+/** Stock purchases with the points they earn the buyer: amount ÷ step × points, by kind. */
+export function purchaseLines(where = '1', params = []) {
+  const rates = getPointsRates();
+  return db.prepare(`
+    SELECT sp.*, p.name AS person_name, h.name AS holder_name, i.name AS item_name, i.unit
+    FROM stock_purchases sp JOIN people p ON p.id = sp.person_id JOIN stock_items i ON i.id = sp.item_id
+    LEFT JOIN people h ON h.id = sp.holder_id WHERE ${where} ORDER BY sp.date DESC, sp.id DESC`).all(...params).map((l) => {
+    const amount = toRon(l.amount);
+    const [step, pts] = l.kind === 'merch' ? [rates.merchStep, rates.merchPoints] : [rates.itemsStep, rates.itemsPoints];
+    return { ...l, amount, points: step > 0 ? r2((amount / step) * pts) : 0 };
+  });
+}
+
 /**
  * Money earned by tasks done for free, per finalized event: the organisers' pool of its month is
  * shared by points, and the free points' part goes to the event's sport fund instead of a person.
@@ -121,6 +134,7 @@ function freeTaskMoney() {
     if (l.free) add(free, l.event_id, l.points);
   }
   for (const c of db.prepare("SELECT strftime('%Y-%m', date) AS ym, SUM(points) AS n FROM contributions GROUP BY ym").all()) add(points, c.ym, c.n);
+  for (const l of purchaseLines()) add(points, l.date.slice(0, 7), l.points);
   const money = new Map();
   for (const [id, fp] of free) {
     const ym = monthOfEvent.get(id), total = points.get(ym);
@@ -263,6 +277,9 @@ export function computeFounders(ym) {
         COALESCE(c.note, a.name, 'Contribution') AS title, c.date, a.name AS activity_name, c.activity_id, c.note
       FROM contributions c JOIN people p ON p.id = c.person_id LEFT JOIN activities a ON a.id = c.activity_id
       WHERE strftime('%Y-%m', c.date) = ?`).all(ym),
+    ...purchaseLines("strftime('%Y-%m', sp.date) = ?", [ym]).filter((l) => l.points).map((l) => ({
+      source: 'purchase', id: l.id, person_id: l.person_id, person_name: l.person_name, task: null, kind: l.kind, points: l.points,
+      event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} RON`, date: l.date, activity_name: null })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const pendingPoints = r2(linesOf(live).reduce((s, l) => s + l.points, 0));
   const totalPoints = r2(ledger.reduce((s, l) => s + l.points, 0));

@@ -281,7 +281,7 @@ export default function Payouts() {
         <div className="card">
           <div className="card-pad card-head" style={{ marginBottom: 0 }}>
             <div><h2>Points earned · {monthName(month)}</h2>
-              <p>From finalized events’ tasks and contributions outside events{r.pendingPoints ? ` · ${number(r.pendingPoints)} more points on live events` : ''}</p></div>
+              <p>From finalized events’ tasks, stock purchases and contributions outside events{r.pendingPoints ? ` · ${number(r.pendingPoints)} more points on live events` : ''}</p></div>
             {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Add points</button>}
           </div>
           <div className="table-wrap">
@@ -298,7 +298,7 @@ export default function Payouts() {
                         <div className="row-sub show-sm">{date(l.date)}{l.activity_name ? ` · ${l.activity_name}` : ''}</div>
                       </td>
                       <td className="secondary hide-sm">{l.activity_name || '—'}</td>
-                      <td className="secondary hide-sm">{l.task ? `${TASK_LABELS[l.task]}${l.sharing > 1 ? ` (shared by ${l.sharing})` : ''}` : 'Contribution'}</td>
+                      <td className="secondary hide-sm">{l.task ? `${TASK_LABELS[l.task]}${l.sharing > 1 ? ` (shared by ${l.sharing})` : ''}` : l.source === 'purchase' ? (l.kind === 'merch' ? 'Bought partnership merchandise' : 'Bought items / prizes') : 'Contribution'}</td>
                       <td className="r"><strong>{number(l.points)}</strong></td>
                       {canEdit && (
                         <td className="r actions">

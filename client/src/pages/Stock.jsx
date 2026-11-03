@@ -2,11 +2,59 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
-import { money, money0, number } from '../format.js';
+import { date, money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import Equipment from './Equipment.jsx';
 import { IconBox, IconChevronRight, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
+
+export const PURCHASE_KINDS = { items: 'Usual items / prizes', merch: 'Partnership merchandise' };
+const today = () => new Date().toISOString().slice(0, 10);
+export const blankPurchase = () => ({ on: true, person_id: '', kind: 'items', amount: '', date: today() });
+
+/** Turns the purchase fields into what the API expects (or nothing when it wasn't bought). */
+const purchaseBody = (p, holder, qty, price) => (p.on
+  ? { purchase: { kind: p.kind, person_id: p.person_id || holder, date: p.date, amount: p.amount === '' ? (Number(qty) || 0) * (Number(price) || 0) : p.amount } }
+  : {});
+
+/** "Bought just now": who bought it, what kind of purchase, what they paid — it earns them points. */
+function PurchaseFields({ p, setP, people, holder, qty, price }) {
+  const { data: rates } = useApi('/settings/points-rates');
+  const set = (k) => (e) => setP({ ...p, [k]: e.target.value });
+  const auto = (Number(qty) || 0) * (Number(price) || 0);
+  const amount = p.amount === '' ? auto : Number(p.amount) || 0;
+  const [step, pts] = rates ? (p.kind === 'merch' ? [rates.merchStep, rates.merchPoints] : [rates.itemsStep, rates.itemsPoints]) : [0, 0];
+  const points = step > 0 ? Math.round((amount / step) * pts * 100) / 100 : 0;
+  return (
+    <>
+      <label className="field full check-field">
+        <input type="checkbox" checked={p.on} onChange={(e) => setP({ ...p, on: e.target.checked })} />
+        Bought now — the buyer gets points for it
+      </label>
+      {p.on && (
+        <>
+          <label className="field">Bought by
+            <select value={p.person_id || holder || ''} onChange={set('person_id')} required>
+              <option value="">Choose person…</option>
+              {people.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </label>
+          <label className="field">Kind of purchase
+            <select value={p.kind} onChange={set('kind')}>
+              {Object.entries(PURCHASE_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </label>
+          <label className="field">Paid (RON)
+            <input type="number" min="0" step="0.01" value={p.amount} onChange={set('amount')} placeholder={String(auto)} />
+            <span className="hint">{p.amount === '' ? 'Quantity × price; type the real amount if different' : ' '}</span>
+          </label>
+          <label className="field">Date<input type="date" value={p.date} onChange={set('date')} required /></label>
+          <p className="hint full" style={{ margin: 0 }}>{number(points)} points{rates && step > 0 ? ` (${number(pts)} per ${number(step)} RON for ${PURCHASE_KINDS[p.kind].toLowerCase()})` : ''}</p>
+        </>
+      )}
+    </>
+  );
+}
 
 /** Category picker: the big categories, each followed by its subcategories. */
 function CategorySelect({ cats, value, onChange }) {
@@ -28,6 +76,7 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
   const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', category_id: category || '', ...(item || {}) }));
   // On edit: how much each person holds, editable; people can be added.
   const [held, setHeld] = useState(() => (item?.holdings || []).map((h) => ({ person_id: h.person_id, qty: String(h.qty), was: h.qty })));
+  const [purchase, setPurchase] = useState(blankPurchase);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const setQty = (i, qty) => setHeld(held.map((h, j) => (j === i ? { ...h, qty } : h)));
@@ -40,7 +89,7 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
           if (!h.person_id || h.qty === '' || Number(h.qty) === h.was) continue;
           await api.put('/stock/holdings', { item_id: item.id, person_id: h.person_id, qty: Number(h.qty) });
         }
-      } else await api.post('/stock/items', f);
+      } else await api.post('/stock/items', { ...f, ...(f.person_id && Number(f.qty) > 0 ? purchaseBody(purchase, f.person_id, f.qty, f.unit_price) : {}) });
       onSaved();
     } catch (e) { setError(e.message); }
   };
@@ -63,6 +112,9 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
               </select>
             </label>
             <label className="field">Quantity<input type="number" min="0" step="any" value={f.qty} onChange={set('qty')} disabled={!f.person_id} /></label>
+            {f.person_id && Number(f.qty) > 0 && (
+              <PurchaseFields p={purchase} setP={setPurchase} people={people} holder={f.person_id} qty={f.qty} price={f.unit_price} />
+            )}
           </>
         ) : (
           <>
@@ -96,11 +148,12 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
 
 function MoveForm({ item, people, mode, onClose, onSaved }) {
   const [f, setF] = useState({ from: item.holdings[0]?.person_id || '', to: '', person_id: '', qty: '' });
+  const [purchase, setPurchase] = useState(blankPurchase);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const save = async () => {
     try {
-      if (mode === 'add') await api.put('/stock/holdings', { item_id: item.id, person_id: f.person_id, qty: f.qty, mode: 'add' });
+      if (mode === 'add') await api.put('/stock/holdings', { item_id: item.id, person_id: f.person_id, qty: f.qty, mode: 'add', ...purchaseBody(purchase, f.person_id, f.qty, item.unit_price) });
       else await api.post('/stock/transfer', { item_id: item.id, from: Number(f.from), to: Number(f.to), qty: f.qty });
       onSaved();
     } catch (e) { setError(e.message); }
@@ -111,7 +164,7 @@ function MoveForm({ item, people, mode, onClose, onSaved }) {
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
         {mode === 'add' ? (
-          <label className="field">To
+          <label className="field">Kept by
             <select value={f.person_id} onChange={set('person_id')} required>
               <option value="">Choose person…</option>
               {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -133,8 +186,9 @@ function MoveForm({ item, people, mode, onClose, onSaved }) {
           </>
         )}
         <label className="field">Quantity ({item.unit})<input type="number" min="0.01" step="any" value={f.qty} onChange={set('qty')} autoFocus required /></label>
+        {mode === 'add' && <PurchaseFields p={purchase} setP={setPurchase} people={people} holder={f.person_id} qty={f.qty} price={item.unit_price} />}
       </div>
-      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>Adds to what this person already holds. To correct a count, edit the number in the table.</p>}
+      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>Adds to what this person already holds. Untick “Bought now” for stock that was given to us; to correct a count, edit the number in the table.</p>}
     </Modal>
   );
 }
@@ -152,6 +206,37 @@ function InlineNumber({ value, onSave, step = 'any', prefix, width = 84, format 
       <input className="select-sm num-input" type="number" min="0" step={step} value={v} style={{ width }}
         onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
     </span>
+  );
+}
+
+/** Every purchase, newest first, with the points it earned. */
+function Purchases({ run }) {
+  const { data, reload } = useApi('/stock/purchases');
+  const { canEdit } = usePermissions();
+  if (!data) return null;
+  const del = (l) => window.confirm(`Delete this purchase? ${l.qty} ${l.unit} of ${l.item_name} are taken back from ${l.holder_name || 'the holder'} and ${l.person_name} loses its ${number(l.points)} points.`)
+    && run(() => api.del(`/stock/purchases/${l.id}`)).then(reload);
+  return (
+    <div className="card table-wrap">
+      {data.length ? (
+        <table>
+          <thead><tr><th>Date</th><th>Product</th><th className="hide-sm">Kind</th><th>Bought by</th><th className="r">Paid</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
+          <tbody>
+            {data.map((l) => (
+              <tr key={l.id}>
+                <td>{date(l.date)}</td>
+                <td className="cell-wrap">{l.item_name}<div className="row-sub">{number(l.qty)} {l.unit}{l.holder_name && l.holder_id !== l.person_id ? ` · kept by ${l.holder_name}` : ''}<span className="show-sm"> · {PURCHASE_KINDS[l.kind]}</span></div></td>
+                <td className="secondary hide-sm">{PURCHASE_KINDS[l.kind]}</td>
+                <td>{l.person_name}</td>
+                <td className="r">{money(l.amount)}</td>
+                <td className="r"><strong>{number(l.points)}</strong></td>
+                {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Delete purchase" onClick={() => del(l)}><IconTrash /></button></td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <div className="empty">No purchases yet. When you add stock, tick “Bought now” to record who bought it.</div>}
+    </div>
   );
 }
 
@@ -306,9 +391,10 @@ export default function Stock() {
         <div className="segmented" style={{ alignSelf: 'flex-start' }}>
           <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>By product</button>
           <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>By person</button>
+          <button className={view === 'purchases' ? 'on' : ''} onClick={() => setView('purchases')}>Purchases</button>
           <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>Equipment</button>
         </div>
-        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : <>
+        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <>{error && <div className="error-box">{error}</div>}<Purchases run={run} /></> : <>
         {error && <div className="error-box">{error}</div>}
         <div className="grid grid-kpi">
           <Kpi label="Stock value" icon={IconBox} tone="profit" value={money0(totalValue)} sub={`${items.length} products`} />

@@ -668,3 +668,5 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 .holder-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .holder-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .holder-actions { display: flex; gap: 10px; }
+label.field.check-field { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+label.field.check-field input { width: auto; }

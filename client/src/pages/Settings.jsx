@@ -263,13 +263,16 @@ function PointsRates() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Event points</h2><p>Each event earns points for the time spent on it and the profit it made; they’re then shared between its tasks.</p></div></div>
+      <div className="card-head"><div><h2>Event points</h2><p>Each event earns points for the time spent on it and the profit it made; they’re then shared between its tasks. Buying stock earns points too.</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 10 }}>
         <span className="inline-num">{input('before')} points per hour before the event (preparing)</span>
         <span className="inline-num">{input('during')} points per hour during the event</span>
         <span className="inline-num">{input('after')} points per hour after the event (wrapping up)</span>
         <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
+        <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
+        <span className="inline-num">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</span>
+        <span className="inline-num">{input('merchPoints')} points per {input('merchStep', 10)} RON of partnership merchandise</span>
         <div><button className="btn" disabled={!f}>Save rates</button></div>
       </form>
     </div>

@@ -293,6 +293,21 @@ export function ensureStockCategories() {
   return misc;
 }
 
+// Stock someone bought: usual items / prizes for events, or merchandise from a secured partnership.
+// The amount (what they paid) only drives the buyer's points; buying stock isn't an expense itself.
+db.exec(`CREATE TABLE IF NOT EXISTS stock_purchases (
+  id INTEGER PRIMARY KEY,
+  item_id INTEGER NOT NULL REFERENCES stock_items(id) ON DELETE CASCADE,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,   -- who bought it
+  holder_id INTEGER REFERENCES people(id) ON DELETE SET NULL,           -- who keeps it
+  qty REAL NOT NULL CHECK (qty > 0),
+  amount INTEGER NOT NULL DEFAULT 0,                                    -- bani paid
+  kind TEXT NOT NULL CHECK (kind IN ('items', 'merch')),
+  date TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+
 /* -------------------------------------------------------- member prices */
 
 // Members — founders, premium people and anyone who has organised an event — pay only the venue's
@@ -418,7 +433,9 @@ if (!columns('events').includes('hours_before')) {
   db.exec('UPDATE events SET points_manual = 1 WHERE points > 0');
 }
 
-export const DEFAULT_POINTS_RATES = { before: 1, during: 1, after: 1, moneyStep: 100, moneyPoints: 1 };
+// Stock purchases earn the buyer points per so many RON spent, at a rate for each kind of purchase.
+export const DEFAULT_POINTS_RATES = { before: 1, during: 1, after: 1, moneyStep: 100, moneyPoints: 1,
+  itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1 };
 export function getPointsRates() {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'points_rates'").get();
   return { ...DEFAULT_POINTS_RATES, ...(row ? JSON.parse(row.value) : {}) };
