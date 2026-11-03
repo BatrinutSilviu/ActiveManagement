@@ -240,6 +240,34 @@ if (!db.prepare('SELECT 1 FROM activities LIMIT 1').get()) {
   ].forEach(([name, op, omax, cp, cmax, s], i) => ins.run(name, op, omax, cp, cmax, sport(s), i));
 }
 
+// Event tasks. An event is worth `events.points`; each task gets a fixed share of that (set in
+// Settings, see getTaskShares) and the people on a task share its points equally. Someone doing a
+// task for free (free = 1) gives their points to the community: that money goes to the event's sport fund.
+export const TASKS = ['announce', 'signups', 'fees', 'hosting', 'buying'];
+db.exec(`CREATE TABLE IF NOT EXISTS event_tasks (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  task TEXT NOT NULL CHECK (task IN ('announce', 'signups', 'fees', 'hosting', 'buying')),
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  free INTEGER NOT NULL DEFAULT 0
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS event_tasks_event ON event_tasks (event_id)');
+// Before tasks, an event had an organiser (its points = the event's points) and co-organisers.
+// The organiser takes every task, co-organisers help host; the co-organiser bonus is dropped.
+if (!columns('events').includes('points')) {
+  db.exec('ALTER TABLE events ADD COLUMN points REAL NOT NULL DEFAULT 0');
+  tx(() => {
+    const ins = db.prepare('INSERT INTO event_tasks (event_id, task, person_id) VALUES (?, ?, ?)');
+    for (const ev of db.prepare('SELECT DISTINCT event_id FROM event_people').all()) {
+      const rows = db.prepare('SELECT * FROM event_people WHERE event_id = ? ORDER BY role DESC, points DESC, id').all(ev.event_id);
+      const lead = rows.find((r) => r.role === 'organizer') || rows[0];
+      db.prepare('UPDATE events SET points = ? WHERE id = ?').run(lead.points, ev.event_id);
+      for (const t of TASKS) ins.run(ev.event_id, t, lead.person_id);
+      for (const r of rows) if (r.person_id !== lead.person_id) ins.run(ev.event_id, 'hosting', r.person_id);
+    }
+  });
+}
+
 /* -------------------------------------------------------- member prices */
 
 // Members — founders, premium people and anyone who has organised an event — pay only the venue's
@@ -328,7 +356,7 @@ if (!columns('event_discounts').includes('free')) {
 export const memberReduction = (fee, venueFee) => Math.max(fee - venueFee, 0);
 
 export const IS_MEMBER_SQL = `(p.is_founder = 1 OR p.is_premium = 1
-  OR EXISTS (SELECT 1 FROM event_people ep WHERE ep.person_id = p.id))`;
+  OR EXISTS (SELECT 1 FROM event_tasks et WHERE et.person_id = p.id))`;
 
 // Hyrox costs 50 RON a person, 40 of which goes to the venue. The spreadsheet recorded past sessions
 // as people × 10 (only our share); they become people × 50 with 40 a person to the venue, so their
@@ -351,6 +379,17 @@ export function applyHyroxPricing() {
 if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:hyrox-pricing'").get()) {
   applyHyroxPricing();
   db.prepare("INSERT INTO settings (key, value) VALUES ('migrated:hyrox-pricing', ?)").run(new Date().toISOString());
+}
+
+// Share of an event's points for each task, in %; they add up to 100.
+export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
+export function getTaskShares() {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'task_shares'").get();
+  return { ...DEFAULT_TASK_SHARES, ...(row ? JSON.parse(row.value) : {}) };
+}
+export function setTaskShares(shares) {
+  db.prepare("INSERT INTO settings (key, value) VALUES ('task_shares', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(JSON.stringify(shares));
 }
 
 // Payouts actually sent for a month. "Mark as paid" stores what each person was due then; if the

@@ -633,3 +633,12 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 /* Payouts: paid status next to the month's total, and months still to pay */
 .payout-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .unpaid-months { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Event tasks: total points, and the people on each task */
+.task-total { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.task-people { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.task-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.task-chip.free { border-style: dashed; }
+.task-chip .icon-btn { padding: 4px; }
+.link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0 2px; }
+.link-btn:hover { text-decoration: underline; }

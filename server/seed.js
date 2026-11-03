@@ -1,6 +1,6 @@
 // Fills the database with realistic demo data so the dashboards have something to show.
 // Run with `npm run seed` (add --reset to wipe events, money, people and stock first).
-import { db, SPORTS, toBani, tx } from './db.js';
+import { db, SPORTS, TASKS, toBani, tx } from './db.js';
 import { hashPassword } from './auth.js';
 
 const reset = process.argv.includes('--reset');
@@ -31,7 +31,7 @@ const PROFILE = {
 
 tx(() => {
   if (reset) {
-    db.exec(`DELETE FROM event_stock; DELETE FROM event_people; DELETE FROM contributions; DELETE FROM month_splits;
+    db.exec(`DELETE FROM event_stock; DELETE FROM event_tasks; DELETE FROM payouts; DELETE FROM contributions; DELETE FROM month_splits;
       DELETE FROM transactions; DELETE FROM events; DELETE FROM imports; DELETE FROM stock_holdings; DELETE FROM stock_items;
       DELETE FROM people;`);
     db.exec(`DELETE FROM event_types WHERE name IN ('Sport', 'Tournament')`);
@@ -93,7 +93,8 @@ tx(() => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const add = (eventId, kind, category, amount, date, description, fund = null) =>
     insTx.run(eventId, kind, cat(category, kind), toBani(amount), date, description, pick(['Card', 'Bank transfer', 'Cash']), fund, admin.id);
-  const insOrg = db.prepare('INSERT INTO event_people (event_id, person_id, role, points) VALUES (?, ?, ?, ?)');
+  const insTask = db.prepare('INSERT INTO event_tasks (event_id, task, person_id, free) VALUES (?, ?, ?, ?)');
+  const setPoints = db.prepare('UPDATE events SET points = ? WHERE id = ?');
 
   const today = new Date().toISOString().slice(0, 10);
   const thisMonth = today.slice(0, 7);
@@ -119,11 +120,12 @@ tx(() => {
         toBani(special ? fee * 1.5 : fee), toBani(between(vmin, vmax) * (special ? 2 : 1) + 150), admin.id).lastInsertRowid);
       if (status === 'cancelled') continue;
 
-      // Organizers and their points.
+      // The event's points and who did each task (sometimes a task is done for free).
+      setPoints.run(act ? act.organizer_points : 2, id);
       const org = pick(people);
-      insOrg.run(id, org.id, 'organizer', act ? act.organizer_points : 2);
       const co = pick(people.filter((p) => p.id !== org.id));
-      if (rand() < 0.6) insOrg.run(id, co.id, 'co-organizer', act ? act.co_points : 1);
+      for (const t of TASKS) insTask.run(id, t, org.id, t === 'announce' && rand() < 0.2 ? 1 : 0);
+      if (rand() < 0.6) insTask.run(id, 'hosting', co.id, 0);
 
       if (!past && status === 'planned' && ym !== thisMonth) continue;
       // Organizing costs.

@@ -6,10 +6,9 @@ import { money, number, today } from '../format.js';
 import { activityPoints, scaleLabel, scales } from '../points.js';
 
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
-export const DEFAULT_POINTS = { organizer: 2, 'co-organizer': 1 };
+export const DEFAULT_POINTS = 2;
 
-// Create or edit an event, including its main organizer and co-organizer;
-// costs, stock and extra organizers are managed on the event page.
+// Create or edit an event and its points; who did which task, costs and stock are managed on the event page.
 export default function EventForm({ event, onClose, onSaved }) {
   const { data: types } = useApi('/event-types');
   const { data: allPeople } = useApi('/people');
@@ -17,17 +16,13 @@ export default function EventForm({ event, onClose, onSaved }) {
   const [f, setF] = useState(() => ({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', ...(event || {}),
+    points: event ? event.points : DEFAULT_POINTS,
   }));
-  // On edit, the form shows the first organizer and co-organizer; any others stay as they are.
-  const current = (role) => event?.people?.find((p) => p.role === role);
-  const [org, setOrg] = useState(() => ({
-    organizer: current('organizer')?.person_id || '', organizerPoints: current('organizer')?.points ?? DEFAULT_POINTS.organizer,
-    co: current('co-organizer')?.person_id || '', coPoints: current('co-organizer')?.points ?? DEFAULT_POINTS['co-organizer'],
-  }));
-  const extraOrganizers = (event?.people?.length || 0) - [current('organizer'), current('co-organizer')].filter(Boolean).length;
+  // A new event can start with one organiser on every task; tasks are changed on the event page.
+  const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  // Organiser points follow the event's size for activities that scale, until edited by hand.
+  // The event's points follow its size for activities that scale, until edited by hand.
   const [pointsTouched, setPointsTouched] = useState(!!event);
   const suggest = (a, next) => activityPoints(a, 'organizer', Number(next.participants) || 0,
     (Number(next.participants) || 0) * (Number(next.participation_fee) || 0));
@@ -36,14 +31,14 @@ export default function EventForm({ event, onClose, onSaved }) {
     setF(next);
     const a = activities?.find((x) => String(x.id) === String(next.activity_id));
     if (a && scales(a) && !pointsTouched && ['participants', 'participation_fee'].includes(k))
-      setOrg((o) => ({ ...o, organizerPoints: suggest(a, next) }));
+      setF({ ...next, points: suggest(a, next) });
   };
   const sportId = f.type_id || types?.[0]?.id;
-  // Choosing an activity from the points table fills in the organisers' points.
+  // Choosing an activity from the points table fills in the event's points.
   const applyActivity = (activityId, next = f) => {
     const a = activities?.find((x) => String(x.id) === String(activityId));
-    setF({ ...next, activity_id: activityId });
-    if (a) { setOrg((o) => ({ ...o, organizerPoints: suggest(a, next), coPoints: a.co_points })); setPointsTouched(false); }
+    setF({ ...next, activity_id: activityId, ...(a ? { points: suggest(a, next) } : {}) });
+    if (a) setPointsTouched(false);
   };
   // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
   const changeSport = (e) => {
@@ -57,17 +52,7 @@ export default function EventForm({ event, onClose, onSaved }) {
   const feeIncome = people * fee;
   const fixedVenue = f.venue_mode === 'fixed';
   const venueCost = fixedVenue ? Number(f.venue_total) || 0 : people * venue;
-  // Inactive people stay selectable when they already organise this event.
-  const active = allPeople?.filter((p) => p.active || String(p.id) === String(org.organizer) || String(p.id) === String(org.co)) || [];
-
-  const syncOrganizer = async (existing, role, personId, points) => {
-    if (existing && String(existing.person_id) === String(personId)) {
-      if (Number(points) !== existing.points) await api.put(`/event-people/${existing.id}`, { role, points });
-      return;
-    }
-    if (existing) await api.del(`/event-people/${existing.id}`);
-    if (personId) await api.post(`/events/${event.id}/people`, { person_id: personId, role, points });
-  };
+  const active = allPeople?.filter((p) => p.active) || [];
 
   const save = async () => {
     setSaving(true);
@@ -75,15 +60,9 @@ export default function EventForm({ event, onClose, onSaved }) {
       const body = { ...f, type_id: sportId };
       if (event) {
         await api.put(`/events/${event.id}`, body);
-        await syncOrganizer(current('organizer'), 'organizer', org.organizer, org.organizerPoints);
-        await syncOrganizer(current('co-organizer'), 'co-organizer', org.co, org.coPoints);
         onSaved(event.id);
       } else {
-        body.people = [
-          org.organizer && { person_id: org.organizer, role: 'organizer', points: org.organizerPoints },
-          org.co && { person_id: org.co, role: 'co-organizer', points: org.coPoints },
-        ].filter(Boolean);
-        const r = await api.post('/events', body);
+        const r = await api.post('/events', { ...body, lead_id: lead || null });
         onSaved(r.id);
       }
     } catch (e) {
@@ -113,9 +92,8 @@ export default function EventForm({ event, onClose, onSaved }) {
             <option value="">— not in the points table —</option>
             {activities?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          {activity && <span className="hint">Organiser {activity.organizer_max ? `${activity.organizer_points}–${activity.organizer_max}` : activity.organizer_points} pts
-            {scales(activity) ? ` ${scaleLabel(activity)} (now ${number(suggest(activity, f))})` : ''}
-            {' '}· co-organiser +{activity.co_max ? `${activity.co_points}–${activity.co_max}` : activity.co_points}</span>}
+          {activity && <span className="hint">{activity.organizer_max ? `${activity.organizer_points}–${activity.organizer_max}` : activity.organizer_points} pts
+            {scales(activity) ? ` ${scaleLabel(activity)} (now ${number(suggest(activity, f))})` : ''}</span>}
         </label>
         <label className="field">Date
           <input type="date" value={f.date} onChange={set('date')} required />
@@ -170,27 +148,20 @@ export default function EventForm({ event, onClose, onSaved }) {
             <input type="date" value={f.end_date || ''} min={f.date} onChange={set('end_date')} />
           </label>
         )}
-        <div className="full form-section">Organisers <span className="hint">— points decide each organiser’s share of the month’s payout</span></div>
-        <label className="field">Main organiser
-          <select value={org.organizer} onChange={(e) => setOrg({ ...org, organizer: e.target.value })}>
-            <option value="">— none —</option>
-            {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+        <div className="full form-section">Points <span className="hint">— shared between the event’s tasks; they decide each organiser’s share of the month’s payout</span></div>
+        <label className="field">Points for this event
+          <input type="number" min="0" step="0.5" value={f.points} onChange={(e) => { setPointsTouched(true); setF({ ...f, points: e.target.value }); }} />
         </label>
-        <label className="field">Organiser points
-          <input type="number" min="0" step="0.5" value={org.organizerPoints} onChange={(e) => { setPointsTouched(true); setOrg({ ...org, organizerPoints: e.target.value }); }} />
-        </label>
-        <label className="field">Co-organiser
-          <select value={org.co} onChange={(e) => setOrg({ ...org, co: e.target.value })}>
-            <option value="">— none —</option>
-            {active.filter((p) => String(p.id) !== String(org.organizer)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        <label className="field">Co-organiser points
-          <input type="number" min="0" step="0.5" value={org.coPoints} onChange={(e) => setOrg({ ...org, coPoints: e.target.value })} />
-        </label>
-        {extraOrganizers > 0 && <p className="hint full">+{extraOrganizers} more organiser{extraOrganizers > 1 ? 's' : ''} on the event page.</p>}
-        {allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
+        {!event && (
+          <label className="field">Organiser
+            <select value={lead} onChange={(e) => setLead(e.target.value)}>
+              <option value="">— none yet —</option>
+              {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <span className="hint">Put on every task; change who did what on the event page</span>
+          </label>
+        )}
+        {!event && allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
         <label className="field full">Notes
           <textarea value={f.notes || ''} onChange={set('notes')} placeholder="Logistics, contacts, reminders…" />
         </label>

@@ -6,7 +6,7 @@ import { date, money, money0, number, signedMoney } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import { monthName, pctLabel } from './Dashboard.jsx';
-import { scales } from '../points.js';
+import { scales, TASK_LABELS } from '../points.js';
 
 const shiftMonth = (ym, d) => {
   const [y, m] = ym.split('-').map(Number);
@@ -15,9 +15,9 @@ const shiftMonth = (ym, d) => {
 };
 const r2 = (v) => Math.round(v * 100) / 100;
 
-export function pointsLabel(a, role = 'organizer') {
-  const [lo, hi] = role === 'organizer' ? [a.organizer_points, a.organizer_max] : [a.co_points, a.co_max];
-  if (role === 'organizer' && scales(a)) return hi ? `${number(lo)}–${number(hi)}` : `${number(lo)}+`;
+export function pointsLabel(a) {
+  const [lo, hi] = [a.organizer_points, a.organizer_max];
+  if (scales(a)) return hi ? `${number(lo)}–${number(hi)}` : `${number(lo)}+`;
   return hi ? `${number(lo)}–${number(hi)}` : number(lo);
 }
 
@@ -102,7 +102,7 @@ function ContributionForm({ month, item, onClose, onSaved }) {
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
       {error && <div className="error-box">{error}</div>}
       <p className="hint" style={{ margin: 0 }}>For work that isn’t an event in the app — a partnership, a promo event, a free event with a partner club.
-        Organisers of events get their points on the event page.</p>
+        People get points for event tasks on the event page.</p>
       <div className="form-grid">
         <label className="field">Person
           <select value={f.person_id} onChange={set('person_id')} required>
@@ -218,6 +218,7 @@ export default function Payouts() {
                   <span className="mini-label"><i style={{ background: c.general }} />Organisers {pctLabel(s.foundersPoints)}</span>
                   <strong>{money0(r.pools.points)}</strong>
                   <span className="muted">{r.totalPoints ? `${number(r.totalPoints)} points · ${money(r.pools.points / r.totalPoints)} per point` : 'no points this month'}</span>
+                  {r.pools.freeTasks !== 0 && <span className="muted">{money0(r.pools.freeTasks)} of it to sport funds ({number(r.freePoints)} pts done for free)</span>}
                 </div>
               </div>
             </div>
@@ -280,24 +281,24 @@ export default function Payouts() {
         <div className="card">
           <div className="card-pad card-head" style={{ marginBottom: 0 }}>
             <div><h2>Points earned · {monthName(month)}</h2>
-              <p>From finalized events’ organisers and contributions outside events{r.pendingPoints ? ` · ${number(r.pendingPoints)} more points on live events` : ''}</p></div>
+              <p>From finalized events’ tasks and contributions outside events{r.pendingPoints ? ` · ${number(r.pendingPoints)} more points on live events` : ''}</p></div>
             {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Add points</button>}
           </div>
           <div className="table-wrap">
             {r.ledger.length ? (
               <table>
-                <thead><tr><th className="hide-sm">Date</th><th>Person</th><th>For</th><th className="hide-sm">Activity</th><th className="hide-sm">Role</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
+                <thead><tr><th className="hide-sm">Date</th><th>Person</th><th>For</th><th className="hide-sm">Activity</th><th className="hide-sm">Task</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
                 <tbody>
                   {r.ledger.map((l) => (
                     <tr key={`${l.source}-${l.id}`}>
                       <td className="hide-sm">{date(l.date)}</td>
-                      <td>{l.person_name}</td>
+                      <td>{l.person_name}{l.free ? <span className="badge status-completed" style={{ marginLeft: 6 }}>free</span> : null}</td>
                       <td className="cell-wrap">
                         {l.event_id ? <Link to={`/events/${l.event_id}`}>{l.title}</Link> : l.title}
                         <div className="row-sub show-sm">{date(l.date)}{l.activity_name ? ` · ${l.activity_name}` : ''}</div>
                       </td>
                       <td className="secondary hide-sm">{l.activity_name || '—'}</td>
-                      <td className="secondary hide-sm">{l.role === 'organizer' ? 'Organiser' : l.role === 'co-organizer' ? 'Co-organiser' : 'Contribution'}</td>
+                      <td className="secondary hide-sm">{l.task ? `${TASK_LABELS[l.task]}${l.sharing > 1 ? ` (shared by ${l.sharing})` : ''}` : 'Contribution'}</td>
                       <td className="r"><strong>{number(l.points)}</strong></td>
                       {canEdit && (
                         <td className="r actions">
@@ -313,7 +314,7 @@ export default function Payouts() {
                   ))}
                 </tbody>
               </table>
-            ) : <div className="empty">No points yet this month. Add organisers on events, or add points for other work.</div>}
+            ) : <div className="empty">No points yet this month. Add who did each task on the events, or add points for other work.</div>}
           </div>
         </div>
       </div>

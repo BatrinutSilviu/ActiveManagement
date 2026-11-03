@@ -2,10 +2,10 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, getSplit, IS_MEMBER_SQL, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, getSplit, getTaskShares, IS_MEMBER_SQL, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -119,6 +119,17 @@ api.put('/settings/split', (req, res) => {
   res.json(s);
 });
 
+api.get('/settings/task-shares', (req, res) => res.json(getTaskShares()));
+
+api.put('/settings/task-shares', (req, res) => {
+  const shares = Object.fromEntries(TASKS.map((t) => [t, Number(req.body[t])]));
+  need(Object.values(shares).every((v) => Number.isFinite(v) && v >= 0), 'Shares must be positive numbers');
+  const total = r2(Object.values(shares).reduce((a, v) => a + v, 0));
+  need(total === 100, `The task shares add up to ${total}% — they must make 100%`);
+  setTaskShares(shares);
+  res.json(shares);
+});
+
 /* ----------------------------------------------------- sports & categories */
 
 api.get('/event-types', (req, res) => {
@@ -192,16 +203,18 @@ api.delete('/categories/:id', (req, res) => {
 /* --------------------------------------------------------------- people */
 
 api.get('/people', (req, res) => {
+  // Points earned on event tasks (not those done for free).
+  const points = new Map();
+  for (const l of taskLines('t.free = 0')) points.set(l.person_id, (points.get(l.person_id) || 0) + l.points);
   res.json(db.prepare(`
-    SELECT p.*, ${IS_MEMBER_SQL} AS is_member, (SELECT COUNT(*) FROM event_people ep WHERE ep.person_id = p.id) AS events,
-      (SELECT COALESCE(SUM(ep.points), 0) FROM event_people ep WHERE ep.person_id = p.id) AS points,
+    SELECT p.*, ${IS_MEMBER_SQL} AS is_member, (SELECT COUNT(DISTINCT t.event_id) FROM event_tasks t WHERE t.person_id = p.id) AS events,
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
         WHERE h.person_id = p.id) AS stock_value,
       (SELECT json_group_array(pd.discount_id) FROM person_discounts pd WHERE pd.person_id = p.id) AS discount_ids,
       (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounts_received,
       (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounted_events
     FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({
-    ...p, stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
+    ...p, points: r2(points.get(p.id) || 0), stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
   })));
 });
 
@@ -230,7 +243,7 @@ api.delete('/people/:id', (req, res) => {
     'This person still holds stock — move it to someone else first');
   need(!db.prepare("SELECT 1 FROM equipment WHERE person_id = ? AND state != 'lost'").get(idParam(req)),
     'This person still has equipment — give it to someone else first');
-  need(!db.prepare('SELECT 1 FROM event_people WHERE person_id = ?').get(idParam(req)),
+  need(!db.prepare('SELECT 1 FROM event_tasks WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
     'This person received discounts at events — mark them inactive instead, so that history is kept');
@@ -485,8 +498,8 @@ api.get('/events', (req, res) => {
 api.get('/events/:id', (req, res) => {
   const [e] = loadEvents('WHERE e.id = ?', [idParam(req)]);
   if (!e) throw httpError(404, 'Event not found');
-  e.people = db.prepare(`SELECT ep.*, p.name, p.is_founder FROM event_people ep JOIN people p ON p.id = ep.person_id
-    WHERE ep.event_id = ? ORDER BY ep.role, p.name`).all(e.id);
+  e.tasks = taskLines('t.event_id = ?', [e.id]);
+  e.taskShares = getTaskShares();
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
     JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
@@ -498,13 +511,19 @@ api.get('/events/:id', (req, res) => {
   res.json(e);
 });
 
-const insertEventPeople = (eventId, people = []) => {
-  const ins = db.prepare('INSERT INTO event_people (event_id, person_id, role, points) VALUES (?, ?, ?, ?)');
-  for (const p of people) {
-    if (!p.person_id) continue;
-    need(['organizer', 'co-organizer'].includes(p.role), 'Invalid organizer role');
-    ins.run(eventId, Number(p.person_id), p.role, Math.max(0, Number(p.points) || 0));
-  }
+// The event's points, shared out between its tasks.
+function savePoints(id, b) {
+  if (!('points' in b)) return;
+  need(!(Number(b.points) < 0), 'Points can’t be negative');
+  db.prepare('UPDATE events SET points = ? WHERE id = ?').run(Number(b.points) || 0, id);
+}
+
+const addTask = (eventId, task, personId, free = false) => {
+  need(TASKS.includes(task), 'Unknown task');
+  need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(personId)), 'Choose a person');
+  need(!db.prepare('SELECT 1 FROM event_tasks WHERE event_id = ? AND task = ? AND person_id = ?').get(eventId, task, Number(personId)),
+    'This person is already on that task');
+  db.prepare('INSERT INTO event_tasks (event_id, task, person_id, free) VALUES (?, ?, ?, ?)').run(eventId, task, Number(personId), free ? 1 : 0);
 };
 
 // Venue paid per participant, or one fixed amount for the event.
@@ -520,7 +539,9 @@ api.post('/events', (req, res) => {
       INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, budget, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
     saveVenue(id, req.body);
-    insertEventPeople(id, req.body.people);
+    savePoints(id, req.body);
+    // One organiser doing everything: put them on every task (change it on the event page).
+    if (req.body.lead_id) for (const t of TASKS) addTask(id, t, req.body.lead_id);
     return id;
   });
   res.json({ id });
@@ -531,6 +552,7 @@ api.put('/events/:id', (req, res) => {
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
       participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
   if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
+  savePoints(idParam(req), req.body);
   // A new price changes what each discount (and the member price) is worth at this event.
   const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
   for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {
@@ -555,20 +577,24 @@ api.delete('/events/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-api.post('/events/:id/people', (req, res) => {
-  insertEventPeople(idParam(req), [req.body]);
+api.put('/events/:id/points', (req, res) => {
+  savePoints(idParam(req), req.body);
   res.json({ ok: true });
 });
 
-api.put('/event-people/:id', (req, res) => {
-  const { role, points } = req.body;
-  need(['organizer', 'co-organizer'].includes(role), 'Invalid organizer role');
-  db.prepare('UPDATE event_people SET role = ?, points = ? WHERE id = ?').run(role, Math.max(0, Number(points) || 0), idParam(req));
+api.post('/events/:id/tasks', (req, res) => {
+  addTask(idParam(req), req.body.task, req.body.person_id, !!req.body.free);
   res.json({ ok: true });
 });
 
-api.delete('/event-people/:id', (req, res) => {
-  db.prepare('DELETE FROM event_people WHERE id = ?').run(idParam(req));
+// Done for free or not.
+api.put('/event-tasks/:id', (req, res) => {
+  db.prepare('UPDATE event_tasks SET free = ? WHERE id = ?').run(req.body.free ? 1 : 0, idParam(req));
+  res.json({ ok: true });
+});
+
+api.delete('/event-tasks/:id', (req, res) => {
+  db.prepare('DELETE FROM event_tasks WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 
@@ -1029,7 +1055,7 @@ api.delete('/imports/:id', (req, res) => {
     db.prepare(`DELETE FROM events WHERE import_id = ?
       AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.event_id = events.id)
       AND NOT EXISTS (SELECT 1 FROM event_stock s WHERE s.event_id = events.id)
-      AND NOT EXISTS (SELECT 1 FROM event_people p WHERE p.event_id = events.id)`).run(id);
+      AND NOT EXISTS (SELECT 1 FROM event_tasks p WHERE p.event_id = events.id)`).run(id);
     db.prepare('UPDATE events SET import_id = NULL WHERE import_id = ?').run(id);
     db.prepare('DELETE FROM imports WHERE id = ?').run(id);
   });

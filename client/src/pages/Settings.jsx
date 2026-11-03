@@ -4,6 +4,7 @@ import { ROLE_LABELS, useApi, usePermissions } from '../hooks.js';
 import { date, money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../components/Icons.jsx';
+import { TASK_LABELS, TASKS } from '../points.js';
 
 function useAction(reload) {
   const [error, setError] = useState(null);
@@ -245,11 +246,43 @@ function ProfitSplit() {
   );
 }
 
+/** How an event's points are shared between its tasks. */
+function TaskShares() {
+  const { data, reload } = useApi('/settings/task-shares');
+  const [f, setF] = useState(null);
+  const [msg, setMsg] = useState(null);
+  if (!data) return null;
+  const v = f || data;
+  const total = Math.round(TASKS.reduce((a, t) => a + Number(v[t] || 0), 0) * 100) / 100;
+  const save = async (e) => {
+    e.preventDefault();
+    try { await api.put('/settings/task-shares', v); setMsg({ ok: true, text: 'Saved. Every event’s task points use the new shares.' }); setF(null); reload(); }
+    catch (err) { setMsg({ ok: false, text: err.message }); }
+  };
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>Event tasks</h2><p>Each task’s share of an event’s points. People on the same task share its points; a task done for free gives its points’ money to the event’s sport fund.</p></div></div>
+      {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <form onSubmit={save} className="stack" style={{ gap: 14 }}>
+        <div className="targets">
+          {TASKS.map((t) => (
+            <label key={t} className="field">{TASK_LABELS[t]}
+              <div className="pct-input"><input type="number" min="0" max="100" step="0.5" value={v[t]} onChange={(e) => setF({ ...v, [t]: e.target.value })} /><span>%</span></div>
+            </label>
+          ))}
+        </div>
+        <div className={`targets-total ${total === 100 ? '' : 'neg'}`}>Total {total}%{total !== 100 && ' — must be 100%'}</div>
+        <div><button className="btn" disabled={!f || total !== 100}>Save shares</button></div>
+      </form>
+    </div>
+  );
+}
+
 function Activities() {
   const { data, reload } = useApi('/activities');
   const { data: sports } = useApi('/event-types');
   const [error, run] = useAction(reload);
-  const blank = { name: '', organizer_points: '', organizer_max: '', co_points: '', co_max: '', sport_id: '' };
+  const blank = { name: '', organizer_points: '', organizer_max: '', sport_id: '' };
   const [f, setF] = useState(blank);
   const field = (a, k, props = {}) => (
     <input className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={a[k] ?? ''} {...props}
@@ -258,20 +291,18 @@ function Activities() {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Points table</h2><p>What each activity is worth. Leave “max” empty for a fixed value (or no cap). “Grows with the event” adds organiser points per so many people and per so many RON of fees (people × price). The sport sets the default activity for its events.</p></div>
+        <div><h2>Points table</h2><p>What an event of each activity is worth in total, shared between its tasks. Leave “max” empty for a fixed value (or no cap). “Grows with the event” adds points per so many people and per so many RON of fees (people × price). The sport sets the default activity for its events.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Activity</th><th className="r">Organiser</th><th className="r">Max</th><th className="r">Co-organiser</th><th className="r">Max</th><th>Organiser grows with the event</th><th>Default for sport</th><th className="r">Used</th><th /></tr></thead>
+          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th>Grows with the event</th><th>Default for sport</th><th className="r">Used</th><th /></tr></thead>
           <tbody>
             {data?.map((a) => (
               <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}-${a.people_step}-${a.people_points}-${a.money_step}-${a.money_points}`}>
                 <td>{a.name}</td>
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
-                <td className="r">{field(a, 'co_points')}</td>
-                <td className="r">{field(a, 'co_max', { placeholder: '—' })}</td>
                 <td>
                   <span className="inline-num" style={{ whiteSpace: 'nowrap' }}>+{field(a, 'people_points', { placeholder: '—', style: { width: 56 }, 'aria-label': 'Points per people step' })} per
                     {' '}{field(a, 'people_step', { placeholder: '—', step: 1, style: { width: 64 }, 'aria-label': 'People step' })} people</span>
@@ -298,8 +329,7 @@ function Activities() {
       </div>
       <form className="inline-form" onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/activities', f))) setF(blank); }}>
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="New activity" required style={{ flex: '2 1 200px' }} className="select-sm" />
-        <input className="select-sm num-input" type="number" min="0" step="0.5" placeholder="Org. pts" value={f.organizer_points} onChange={(e) => setF({ ...f, organizer_points: e.target.value })} required style={{ width: 96 }} />
-        <input className="select-sm num-input" type="number" min="0" step="0.5" placeholder="Co pts" value={f.co_points} onChange={(e) => setF({ ...f, co_points: e.target.value })} style={{ width: 96 }} />
+        <input className="select-sm num-input" type="number" min="0" step="0.5" placeholder="Points" value={f.organizer_points} onChange={(e) => setF({ ...f, organizer_points: e.target.value })} required style={{ width: 96 }} />
         <button className="btn btn-sm">Add</button>
       </form>
     </div>
@@ -471,6 +501,7 @@ export default function Settings({ user }) {
         <People />
         <Discounts />
         <Activities />
+        <TaskShares />
         <div className="grid grid-2">
           <ProfitSplit />
           <Sports />

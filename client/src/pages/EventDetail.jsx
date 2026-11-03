@@ -3,14 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApi, useChartColors, usePermissions } from '../hooks.js';
 import { date, money, money0, number, signedMoney } from '../format.js';
-import EventForm, { DEFAULT_POINTS } from '../components/EventForm.jsx';
+import EventForm from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
-import { activityPoints, scaleLabel, scales } from '../points.js';
+import { activityPoints, scaleLabel, scales, TASK_LABELS, TASKS } from '../points.js';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -43,7 +43,7 @@ function Statement({ e, split }) {
       </div>
       <dl className="statement">
         <dt><i className="swatch" style={{ background: c.founders }} />Founders & organisers {pctLabel(split.foundersStandard + split.foundersPoints)}
-          <span className="muted">{money0(s.standard)} founders · {money0(s.points)} organisers by points</span></dt>
+          <span className="muted">{money0(s.standard)} founders · {money0(s.points)} organisers by points{s.freeTasks ? ` · ${money0(s.freeTasks)} of tasks done for free moved to the ${s.freeTo === 'sport' ? `${e.type_name} fund` : 'general fund'}` : ''}</span></dt>
         <dd>{money(s.founders)}</dd>
         <dt><i className="swatch" style={{ background: c.general }} />General community fund <span className="muted">{e.is_sport ? `${pctLabel(split.generalShare)} of the ${pctLabel(community)}` : `all of the ${pctLabel(community)} — ${e.type_name} isn’t a sport, so no sport fund`}</span></dt>
         <dd>{money(s.general)}</dd>
@@ -71,7 +71,7 @@ function Discounts({ e, reload }) {
   const run = async (fn) => { try { await fn(); setError(null); reload(); return true; } catch (err) { setError(err.message); return false; } };
 
   const taken = new Set(e.discountList.map((d) => d.person_id));
-  const organisers = new Set(e.people.map((p) => p.person_id));
+  const organisers = new Set(e.tasks.map((l) => l.person_id));
   const person = people?.find((p) => String(p.id) === String(f.person_id));
   const applies = (d) => !d.sport_id || d.sport_id === e.type_id;
   // The person's own discounts that apply to this sport, best first; then every other saved discount.
@@ -248,72 +248,86 @@ function Attendees({ e, reload }) {
   );
 }
 
-function Organizers({ e, reload }) {
+/** The event's points, shared between its tasks; people on a task share its points equally. */
+function Tasks({ e, reload }) {
   const { data: people } = useApi('/people');
   const { data: activities } = useApi('/activities');
   const act = activities?.find((a) => a.id === e.activity_id);
-  const pointsFor = (role) => (act ? activityPoints(act, role, e.participants, e.fee_gross) : DEFAULT_POINTS[role]);
-  const hasOrganizer = e.people.some((p) => p.role === 'organizer');
-  const [f, setF] = useState({ person_id: '', role: 'organizer', points: '' });
-  const role = f.role || (hasOrganizer ? 'co-organizer' : 'organizer');
-  const points = f.points === '' ? pointsFor(role) : f.points;
+  const suggested = act ? activityPoints(act, 'organizer', e.participants, e.fee_gross) : null;
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (err) { setError(err.message); } };
-  const taken = new Set(e.people.map((p) => p.person_id));
+  const byTask = (t) => e.tasks.filter((l) => l.task === t);
+  const unassigned = TASKS.filter((t) => !byTask(t).length);
+  const freePoints = e.tasks.filter((l) => l.free).reduce((a, l) => a + l.points, 0);
+  const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
+  const setPoints = (v) => Number(v) !== e.points && run(() => api.put(`/events/${e.id}/points`, { points: v }));
+
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Organisers</h2><p>{act ? `${act.name}: organiser ${number(pointsFor('organizer'))} pts${scales(act) ? ` (${scaleLabel(act)})` : ''}, co-organiser +${number(pointsFor('co-organizer'))}` : 'Points decide each organiser’s share of the month’s payout'}</p></div>
+        <div><h2>Tasks & points</h2>
+          <p>Each task gets its share of the event’s points; people on the same task share them. Done for free: the points’ money goes to the {fund}.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
-      {e.people.length > 0 && (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Person</th><th>Role</th><th className="r">Points</th>{canEdit && <th />}</tr></thead>
-            <tbody>
-              {e.people.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.name}{p.is_founder ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span> : null}</td>
-                  {canEdit ? (
-                    <>
-                      <td>
-                        <select className="select-sm role-select" value={p.role}
-                          onChange={(ev) => run(() => api.put(`/event-people/${p.id}`, { role: ev.target.value, points: p.points }))}>
-                          <option value="organizer">Organiser</option>
-                          <option value="co-organizer">Co-organiser</option>
+      <div className="card-pad task-total" style={{ paddingTop: 0 }}>
+        <span>Event points</span>
+        {canEdit
+          ? <input key={e.points} className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={e.points} aria-label="Event points"
+            onBlur={(ev) => setPoints(ev.target.value)} />
+          : <strong>{number(e.points)}</strong>}
+        {act && <span className="muted">{act.name}{scales(act) ? ` (${scaleLabel(act)})` : ''}: {number(suggested)} pts</span>}
+        {canEdit && suggested != null && suggested !== e.points && (
+          <button className="btn btn-sm" onClick={() => setPoints(suggested)}>Use {number(suggested)}</button>
+        )}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Task</th><th className="r">Points</th><th>Done by</th></tr></thead>
+          <tbody>
+            {TASKS.map((t) => {
+              const lines = byTask(t);
+              const share = e.taskShares[t] || 0;
+              const taken = new Set(lines.map((l) => l.person_id));
+              return (
+                <tr key={t}>
+                  <td className="cell-wrap">{TASK_LABELS[t]}<div className="row-sub">{pctLabel(share)}</div></td>
+                  <td className="r">{number(Math.round(e.points * share) / 100)}</td>
+                  <td className="cell-wrap">
+                    <div className="task-people">
+                      {lines.map((l) => (
+                        <span key={l.id} className={`task-chip ${l.free ? 'free' : ''}`}>
+                          {l.person_name} <span className="muted">{number(l.points)}</span>
+                          {l.free ? <span className="badge status-completed">free</span> : null}
+                          {canEdit && <>
+                            <button className="link-btn" onClick={() => run(() => api.put(`/event-tasks/${l.id}`, { free: !l.free }))}
+                              title={l.free ? 'They get the points' : `Done for free — the money goes to the ${fund}`}>{l.free ? 'paid' : 'free'}</button>
+                            <button className="icon-btn" aria-label={`Remove ${l.person_name}`} onClick={() => run(() => api.del(`/event-tasks/${l.id}`))}><IconTrash width="14" /></button>
+                          </>}
+                        </span>
+                      ))}
+                      {!lines.length && <span className="muted">Nobody yet</span>}
+                      {canEdit && (
+                        <select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
+                          onChange={(ev) => ev.target.value && run(() => api.post(`/events/${e.id}/tasks`, { task: t, person_id: ev.target.value }))}>
+                          <option value="">Add…</option>
+                          {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
-                      </td>
-                      <td className="r">
-                        <input className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={p.points}
-                          onBlur={(ev) => Number(ev.target.value) !== p.points && run(() => api.put(`/event-people/${p.id}`, { role: p.role, points: ev.target.value }))} />
-                      </td>
-                      <td className="r actions"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-people/${p.id}`))}><IconTrash /></button></td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="secondary">{p.role === 'organizer' ? 'Organiser' : 'Co-organiser'}</td>
-                      <td className="r">{number(p.points)}</td>
-                    </>
-                  )}
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {(unassigned.length > 0 || freePoints > 0) && (
+        <p className="hint" style={{ padding: '12px 22px 16px', margin: 0 }}>
+          {freePoints > 0 && <>{number(Math.round(freePoints * 100) / 100)} points done for free go to the {fund}. </>}
+          {unassigned.length > 0 && <>{unassigned.map((t) => TASK_LABELS[t]).join(', ')}: nobody yet, so {unassigned.length > 1 ? 'those points aren’t' : 'its points aren’t'} counted.</>}
+        </p>
       )}
-      {canEdit && <form className="inline-form" onSubmit={(ev) => { ev.preventDefault(); run(() => api.post(`/events/${e.id}/people`, { person_id: f.person_id, role, points })).then(() => setF({ person_id: '', role: '', points: '' })); }}>
-        <select className="select-sm" value={f.person_id} onChange={(ev) => setF({ ...f, person_id: ev.target.value })} required>
-          <option value="">Add person…</option>
-          {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select className="select-sm" value={role} onChange={(ev) => setF({ ...f, role: ev.target.value, points: '' })}>
-          <option value="organizer">Organiser</option>
-          <option value="co-organizer">Co-organiser</option>
-        </select>
-        <input className="select-sm num-input" type="number" min="0" step="0.5" value={points} onChange={(ev) => setF({ ...f, points: ev.target.value })} aria-label="Points" />
-        <button className="btn btn-sm">Add</button>
-      </form>}
     </div>
   );
 }
@@ -470,7 +484,7 @@ export default function EventDetail() {
           <Attendees e={e} reload={reload} />
           <Discounts e={e} reload={reload} />
           <StockUsage e={e} reload={reload} />
-          <Organizers e={e} reload={reload} />
+          <Tasks e={e} reload={reload} />
         </div>
         <div className="stack">
           <Statement e={e} split={split} />

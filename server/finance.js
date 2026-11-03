@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, getSplit, splitResolver, toBani, toRon } from './db.js';
+import { db, getSplit, getTaskShares, splitResolver, toBani, toRon } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -67,9 +67,66 @@ export function shapeEvent(e, split = getSplit()) {
 }
 
 // Each event is split with the targets of its own month.
-export function loadEvents(where = '', params = [], order = 'ORDER BY e.date') {
+function rawEvents(where = '', params = [], order = 'ORDER BY e.date') {
   const splitFor = splitResolver();
   return db.prepare(`${EVENT_SQL} ${where} ${order}`).all(...params).map((e) => shapeEvent(e, splitFor(e.date.slice(0, 7))));
+}
+
+/**
+ * Task lines of events: each task gets its share (%) of the event's points, and the people on it
+ * share those equally. free = 1: done for free, the points are the community's.
+ */
+export function taskLines(where = '1', params = []) {
+  const shares = getTaskShares();
+  return db.prepare(`
+    SELECT t.id, t.event_id, t.task, t.person_id, t.free, p.name AS person_name, p.is_founder, e.points AS event_points,
+      e.name AS title, e.date, e.status, a.name AS activity_name,
+      (SELECT COUNT(*) FROM event_tasks x WHERE x.event_id = t.event_id AND x.task = t.task) AS sharing
+    FROM event_tasks t JOIN events e ON e.id = t.event_id JOIN people p ON p.id = t.person_id
+    LEFT JOIN activities a ON a.id = e.activity_id
+    WHERE ${where} ORDER BY e.date, t.id`).all(...params)
+    .map((l) => ({ ...l, points: r2((l.event_points * (shares[l.task] || 0)) / 100 / l.sharing) }));
+}
+
+/**
+ * Money earned by tasks done for free, per finalized event: the organisers' pool of its month is
+ * shared by points, and the free points' part goes to the event's sport fund instead of a person.
+ */
+function freeTaskMoney() {
+  const pool = new Map(), points = new Map(), free = new Map(), monthOfEvent = new Map();
+  const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
+  const lines = taskLines("e.status = 'completed'");
+  if (!lines.some((l) => l.free)) return free;
+  for (const e of rawEvents("WHERE e.status = 'completed'")) {
+    monthOfEvent.set(e.id, e.date.slice(0, 7));
+    add(pool, e.date.slice(0, 7), e.split.points);
+  }
+  for (const l of lines) {
+    add(points, l.date.slice(0, 7), l.points);
+    if (l.free) add(free, l.event_id, l.points);
+  }
+  for (const c of db.prepare("SELECT strftime('%Y-%m', date) AS ym, SUM(points) AS n FROM contributions GROUP BY ym").all()) add(points, c.ym, c.n);
+  const money = new Map();
+  for (const [id, fp] of free) {
+    const ym = monthOfEvent.get(id), total = points.get(ym);
+    if (total) money.set(id, r2((pool.get(ym) * fp) / total));
+  }
+  return money;
+}
+
+export function loadEvents(where = '', params = [], order = 'ORDER BY e.date') {
+  const list = rawEvents(where, params, order);
+  const free = list.some((e) => e.status === FINALIZED) ? freeTaskMoney() : new Map();
+  for (const e of list) {
+    const amt = free.get(e.id) || 0;
+    const s = e.split;
+    s.freeTasks = amt;
+    s.freeTo = e.is_sport === 0 ? 'general' : 'sport';
+    if (!amt) continue;
+    s.points = r2(s.points - amt); s.founders = r2(s.founders - amt);
+    s.community = r2(s.community + amt); s[s.freeTo] = r2(s[s.freeTo] + amt);
+  }
+  return list;
 }
 
 /** Transactions not tied to an event: money spent from (reinvested) or added to a fund. */
@@ -169,42 +226,44 @@ export function computeFounders(ym) {
   const live = events.filter((e) => e.status === LIVE);
   const profit = r2(done.reduce((s, e) => s + e.profit, 0));
   // General vs sport fund comes from each event, since non-sport events give all of it to the general fund.
+  // Money from tasks done for free is kept apart (freeTasks): it's part of the organisers' pool.
   const fromEvents = (list, total) => {
     const p = splitProfit(total, split);
-    p.general = r2(list.reduce((s, e) => s + e.split.general, 0));
+    p.freeTasks = r2(list.reduce((s, e) => s + (e.split.freeTasks || 0), 0));
+    p.general = r2(list.reduce((s, e) => s + e.split.general - (e.split.freeTo === 'general' ? e.split.freeTasks || 0 : 0), 0));
     p.sport = r2(p.community - p.general);
     return p;
   };
   const pools = fromEvents(done, profit);
   const pending = fromEvents(live, r2(live.reduce((s, e) => s + e.profit, 0)));
 
-  // Every points line of the month, from events and from standalone contributions.
+  // Every points line of the month, from event tasks and from standalone contributions.
+  const ids = (list) => list.map((e) => e.id);
+  const linesOf = (list) => (list.length ? taskLines(`t.event_id IN (${list.map(() => '?').join(',')})`, ids(list)) : []);
   const ledger = [
-    ...(done.length ? db.prepare(`
-      SELECT 'event' AS source, ep.id, ep.person_id, p.name AS person_name, ep.role, ep.points, e.id AS event_id,
-        e.name AS title, e.date, a.name AS activity_name
-      FROM event_people ep JOIN people p ON p.id = ep.person_id JOIN events e ON e.id = ep.event_id
-      LEFT JOIN activities a ON a.id = e.activity_id
-      WHERE ep.event_id IN (${done.map(() => '?').join(',')})`).all(...done.map((e) => e.id)) : []),
+    ...linesOf(done).map((l) => ({ source: 'event', id: l.id, person_id: l.person_id, person_name: l.person_name, task: l.task, free: l.free,
+      points: l.points, event_id: l.event_id, title: l.title, date: l.date, activity_name: l.activity_name, sharing: l.sharing })),
     ...db.prepare(`
-      SELECT 'contribution' AS source, c.id, c.person_id, p.name AS person_name, NULL AS role, c.points, NULL AS event_id,
+      SELECT 'contribution' AS source, c.id, c.person_id, p.name AS person_name, NULL AS task, c.points, NULL AS event_id,
         COALESCE(c.note, a.name, 'Contribution') AS title, c.date, a.name AS activity_name, c.activity_id, c.note
       FROM contributions c JOIN people p ON p.id = c.person_id LEFT JOIN activities a ON a.id = c.activity_id
       WHERE strftime('%Y-%m', c.date) = ?`).all(ym),
   ].sort((a, b) => a.date.localeCompare(b.date));
-  const pendingPoints = live.length ? db.prepare(`SELECT COALESCE(SUM(points), 0) AS n FROM event_people
-    WHERE event_id IN (${live.map(() => '?').join(',')})`).get(...live.map((e) => e.id)).n : 0;
-  const totalPoints = ledger.reduce((s, l) => s + l.points, 0);
+  const pendingPoints = r2(linesOf(live).reduce((s, l) => s + l.points, 0));
+  const totalPoints = r2(ledger.reduce((s, l) => s + l.points, 0));
+  const freePoints = r2(ledger.filter((l) => l.free).reduce((s, l) => s + l.points, 0));
 
   const founders = db.prepare('SELECT id, name FROM people WHERE is_founder = 1 AND active = 1 ORDER BY name').all();
   const people = new Map();
   const person = (id, name) => people.get(id) || people.set(id, { id, name, standard: 0, points: 0, pointsAmount: 0, lines: 0 }).get(id);
   for (const f of founders) person(f.id, f.name).standard = r2(pools.standard / founders.length);
   for (const l of ledger) {
+    if (l.free) continue; // done for free: the community's points
     const p = person(l.person_id, l.person_name);
     p.points += l.points;
     p.lines++;
   }
+  for (const p of people.values()) p.points = r2(p.points);
   for (const p of people.values()) p.pointsAmount = totalPoints ? r2((pools.points * p.points) / totalPoints) : 0;
   // What was already sent for this month; someone paid earlier but no longer due shows as overpaid.
   const sent = db.prepare('SELECT person_id, person_name, SUM(amount) AS amount, MAX(paid_at) AS paid_at FROM payouts WHERE month = ? GROUP BY person_id, person_name').all(ym);
@@ -219,7 +278,7 @@ export function computeFounders(ym) {
   const paidAt = sent.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
   return {
     month: ym, split, profit, pools, pending, liveEvents: live.length, pendingPoints, events: done, live,
-    founders: founders.length, totalPoints, people: rows, ledger,
+    founders: founders.length, totalPoints, freePoints, people: rows, ledger,
     payout: {
       paidAt, due: r2(rows.reduce((a, p) => a + p.total, 0)), paid: r2(rows.reduce((a, p) => a + p.paid, 0)),
       owed: r2(rows.reduce((a, p) => a + p.owed, 0)),
