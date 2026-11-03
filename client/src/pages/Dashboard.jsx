@@ -37,7 +37,9 @@ function AccountSection() {
   const c = f.cash;
   const parts = [
     { label: 'In the funds', value: c.funds, hint: 'general + sport funds, to reinvest', to: '/sports' },
-    { label: 'Still to pay out', value: c.owed, hint: 'founders’ and organisers’ payouts not sent yet', to: '/payouts' },
+    c.owed >= 0
+      ? { label: 'Still to pay out', value: c.owed, hint: 'founders’ and organisers’ payouts not sent yet', to: '/payouts' }
+      : { label: 'Paid out beyond the calculated payouts', value: c.owed, hint: 'more was sent than the profit split gives', to: '/payouts' },
     { label: 'Organisers’ share with no points', value: c.unassigned, hint: 'nobody earned points in those months', to: '/payouts' },
   ].filter((p) => Math.abs(p.value) >= 0.01);
   return (

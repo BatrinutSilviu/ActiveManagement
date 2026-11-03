@@ -127,11 +127,41 @@ function ContributionForm({ month, item, onClose, onSaved }) {
   );
 }
 
+/** Record what was really paid for a month: each person's amount (owed by default) and the date. */
+function PayForm({ month, r, onClose, onSaved }) {
+  const [amounts, setAmounts] = useState(() => Object.fromEntries(r.people.map((p) => [p.id, String(Math.max(r2(p.owed), 0) || '')])));
+  const [date_, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState(null);
+  const total = Object.values(amounts).reduce((a, v) => a + (Number(v) || 0), 0);
+  const paidAny = !!r.payout.paidAt;
+  const save = async () => {
+    try { await api.post(`/payouts/${month}/apply`, { amounts, date: date_ }); onSaved(); } catch (e) { setError(e.message); }
+  };
+  return (
+    <Modal title={`${paidAny ? 'Record another payment' : 'Mark as paid'} · ${monthName(month)}`} onClose={onClose} onSubmit={save}
+      footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Record {money(total)}</button></>}>
+      {error && <div className="error-box">{error}</div>}
+      <p className="hint" style={{ margin: 0 }}>Enter what each person was actually sent{paidAny ? ' this time' : ''} — it can differ from the calculated amount
+        (e.g. a round 700 each). The difference stays visible on this page.{r.liveEvents ? ` ${r.liveEvents} live event${r.liveEvents > 1 ? 's aren’t' : ' isn’t'} counted yet.` : ''}</p>
+      <div className="form-grid">
+        {r.people.map((p) => (
+          <label key={p.id} className="field">{p.name}
+            <input type="number" step="0.01" value={amounts[p.id] ?? ''} placeholder="0" onChange={(e) => setAmounts({ ...amounts, [p.id]: e.target.value })} />
+            <span className="hint">{paidAny ? `still owed ${money(p.owed)}` : `calculated ${money(p.total)}`}</span>
+          </label>
+        ))}
+        <label className="field">Paid on<input type="date" value={date_} onChange={(e) => setDate(e.target.value)} required /></label>
+      </div>
+    </Modal>
+  );
+}
+
 export default function Payouts() {
   const c = useChartColors();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const { data: r, loading, reload } = useApi(`/payouts?month=${month}`);
   const [form, setForm] = useState(null);
+  const [paying, setPaying] = useState(false);
   const { canEdit } = usePermissions();
   if (!r) return null;
 
@@ -145,15 +175,7 @@ export default function Payouts() {
   const pay = r.payout;
   const paidAny = !!pay.paidAt;
   const owing = Math.abs(pay.owed) >= 0.01;
-  const markPaid = async () => {
-    const msg = paidAny
-      ? `The figures for ${monthName(month)} changed since they were paid. Record ${signedMoney(pay.owed)} more as paid (only the difference)?`
-      : `Record ${money(pay.owed)} as paid to ${r.people.filter((p) => Math.abs(p.owed) >= 0.01).length} people for ${monthName(month)}?`;
-    const live = r.liveEvents ? `\n\n${r.liveEvents} event${r.liveEvents > 1 ? 's are' : ' is'} still live and not counted yet.` : '';
-    if (!window.confirm(msg + live)) return;
-    await api.post(`/payouts/${month}/apply`);
-    reload();
-  };
+  const markPaid = () => setPaying(true);
   const undoPaid = async () => {
     if (!window.confirm(`Undo the payouts recorded for ${monthName(month)}? The month will show as unpaid again.`)) return;
     await api.del(`/payouts/${month}`);
@@ -229,15 +251,15 @@ export default function Payouts() {
                 <div className="payout-status">
                   <strong>{money(pay.due)}</strong>
                   {paidAny && <span className="badge status-completed">Paid {date(pay.paidAt)}</span>}
-                  {canEdit && owing && (
-                    <button className="btn btn-sm btn-primary" onClick={markPaid}>{paidAny ? `Pay difference ${signedMoney(pay.owed)}` : 'Mark as paid'}</button>
+                  {canEdit && (!paidAny || pay.owed >= 0.01) && (
+                    <button className="btn btn-sm btn-primary" onClick={markPaid}>{paidAny ? `Pay the rest ${money(pay.owed)}` : 'Mark as paid'}</button>
                   )}
                   {canEdit && paidAny && <button className="btn btn-sm" onClick={undoPaid}>Undo</button>}
                 </div>
               </div>
               {paidAny && owing && (
                 <p className="hint" style={{ padding: '0 22px 12px', margin: 0 }}>
-                  {money(pay.paid)} was paid; the month’s figures have changed since, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} was overpaid`}.
+                  {money(pay.paid)} was paid against {money(pay.due)} calculated, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} more was paid than calculated`}.
                 </p>
               )}
               <div className="table-wrap">
@@ -319,6 +341,7 @@ export default function Payouts() {
         </div>
       </div>
 
+      {paying && <PayForm month={month} r={r} onClose={() => setPaying(false)} onSaved={() => { setPaying(false); reload(); }} />}
       {form && <ContributionForm month={month} item={form.item} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
     </div>
   );

@@ -15,6 +15,9 @@ export default function Transactions() {
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
   const { data: rows, loading, reload } = useApi(`/transactions${qs(filters)}`);
   const { data: years } = useApi('/stats/years');
+  // Only the period is filtered: the overall result (with event fees) applies.
+  const periodOnly = !filters.kind && !filters.category && !filters.q && !filters.event_id;
+  const { data: period } = useApi(periodOnly ? `/stats/period${qs({ year: filters.year, month: filters.year ? filters.month : '' })}` : null);
   const { data: categories } = useApi('/categories');
   const [form, setForm] = useState(null);
 
@@ -67,12 +70,19 @@ export default function Transactions() {
       </div>
 
       <div className="grid grid-kpi" style={{ marginBottom: 16 }}>
-        <Kpi label="Income (filtered)" value={money0(income)} />
-        <Kpi label="Expenses (filtered)" value={money0(expenses)} />
-        <Kpi label="Net" value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
-          sub={`${list.length} transactions`} />
+        {periodOnly && period ? (
+          <>
+            <Kpi label="Overall result" hero value={<span className={period.overall < 0 ? 'neg' : ''}>{signedMoney(period.overall)}</span>}
+              sub={`What the account gained: events’ profit ${signedMoney(period.eventProfit)} · fund money in/out ${signedMoney(period.fundNet)}${period.paid ? ` · payouts sent −${money0(period.paid)}` : ''}`} />
+            <Kpi label="Participation fees" value={money0(period.fees)}
+              sub={`${period.events} finalized events — not listed below${period.live ? ` · ${period.live} live events not counted yet` : ''}`} />
+          </>
+        ) : null}
+        <Kpi label="Listed lines" value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
+          sub={`${money0(income)} in · ${money0(expenses)} out · ${list.length} transactions`} />
       </div>
-      <p className="muted" style={{ marginTop: -6 }}>Filtered by each transaction’s own date. Participation fees (people × fee) live on the events, not here.</p>
+      <p className="muted" style={{ marginTop: -6 }}>The list holds costs and other money in/out; participation fees (people × price) live on the events,
+        so “Listed lines” alone is mostly costs.{periodOnly ? ' “Overall result” adds the events’ fees.' : ' Clear the other filters to see the overall result.'}</p>
 
       <div className="card table-wrap">
         <TxTable rows={list} onEdit={(t) => setForm({ tx: t })} onDelete={del}

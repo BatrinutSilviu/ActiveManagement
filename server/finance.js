@@ -384,16 +384,22 @@ export function computeCash(funds = computeFunds()) {
   return {
     funds: r2(funds.general.balance + funds.sportsTotal.balance), openVouchers: { n: vouchers.n, value: toRon(vouchers.value) },
     balance: r2(starting + profit + topups - reinvested - paid), starting, profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
-    unpaidMonths: months.filter((m) => Math.abs(m.owed) >= 0.01),
+    unpaidMonths: months.filter((m) => m.owed >= 0.01), // paid more than calculated isn't "not paid"
   };
 }
 
 /** Records the payouts for a month: whatever each person is owed now (all of it the first time). */
-export function applyPayouts(ym, userId) {
+// `amounts` ({ personId: RON }) records what was really sent, e.g. a round 700 each; without it,
+// whatever each person is owed. `date` is when it was paid (today by default).
+export function applyPayouts(ym, userId, { amounts, date } = {}) {
   const r = computeFounders(ym);
-  const due = r.people.filter((p) => Math.abs(p.owed) >= 0.01);
-  if (!due.length) return 0;
-  const ins = db.prepare('INSERT INTO payouts (month, person_id, person_name, amount, created_by) VALUES (?, ?, ?, ?, ?)');
-  for (const p of due) ins.run(ym, p.id ?? null, p.name, toBani(p.owed), userId ?? null);
-  return due.length;
+  const lines = amounts
+    ? Object.entries(amounts).map(([id, v]) => ({ id: Number(id), amount: Number(v) || 0 })).filter((l) => Math.abs(l.amount) >= 0.01)
+      .map((l) => ({ ...l, name: r.people.find((p) => p.id === l.id)?.name || db.prepare('SELECT name FROM people WHERE id = ?').get(l.id)?.name }))
+    : r.people.filter((p) => Math.abs(p.owed) >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }));
+  if (lines.some((l) => !l.name)) throw Object.assign(new Error('Unknown person'), { status: 400 });
+  const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by)
+    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?)`);
+  for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null);
+  return lines.length;
 }
