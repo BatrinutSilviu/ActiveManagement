@@ -2,7 +2,7 @@ import express from 'express';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, getPointsRates, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, getPointsRates, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
   applyPayouts, computeCash, computeFounders, computeFunds, computeSport, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
@@ -368,6 +368,7 @@ api.delete('/event-discounts/:id', (req, res) => {
 /* ---------------------------------------------------------------- stock */
 
 api.get('/stock', (req, res) => {
+  ensureStockCategories();
   const items = db.prepare('SELECT * FROM stock_items ORDER BY name').all();
   const holdings = db.prepare(`
     SELECT h.item_id, h.person_id, h.qty, p.name FROM stock_holdings h JOIN people p ON p.id = h.person_id
@@ -384,14 +385,55 @@ api.get('/stock', (req, res) => {
 function readItem(body) {
   need(body.name?.trim(), 'Item name is required');
   need(Number(body.unit_price) >= 0, 'Price must be 0 or more');
-  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price)];
+  const category = Number(body.category_id) || ensureStockCategories();
+  need(db.prepare('SELECT 1 FROM stock_categories WHERE id = ?').get(category), 'Unknown category');
+  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price), category];
 }
+
+/* ------------------------------------------------------ stock categories */
+
+api.get('/stock/categories', (req, res) => {
+  ensureStockCategories();
+  res.json(db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM stock_items i WHERE i.category_id = c.id) AS items
+    FROM stock_categories c ORDER BY c.sport_id IS NULL AND c.parent_id IS NULL, c.name COLLATE NOCASE`).all());
+});
+
+// Subcategories only: the big categories are the sports and Miscellaneous.
+api.post('/stock/categories', (req, res) => {
+  need(req.body.name?.trim(), 'Name is required');
+  const parent = db.prepare('SELECT * FROM stock_categories WHERE id = ?').get(Number(req.body.parent_id));
+  need(parent, 'Choose the category it belongs to');
+  need(!db.prepare('SELECT 1 FROM stock_categories WHERE parent_id = ? AND name = ? COLLATE NOCASE').get(parent.id, req.body.name.trim()),
+    'That subcategory already exists');
+  const { lastInsertRowid } = db.prepare('INSERT INTO stock_categories (name, parent_id) VALUES (?, ?)').run(req.body.name.trim(), parent.id);
+  res.json({ id: Number(lastInsertRowid) });
+});
+
+api.put('/stock/categories/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM stock_categories WHERE id = ?').get(idParam(req));
+  need(c?.parent_id, 'Only subcategories can be renamed — sports are renamed in Settings');
+  need(req.body.name?.trim(), 'Name is required');
+  db.prepare('UPDATE stock_categories SET name = ? WHERE id = ?').run(req.body.name.trim(), c.id);
+  res.json({ ok: true });
+});
+
+// Deleting a subcategory moves its products (and its own subcategories) up to its parent.
+api.delete('/stock/categories/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM stock_categories WHERE id = ?').get(idParam(req));
+  need(c?.parent_id, 'Only subcategories can be deleted');
+  tx(() => {
+    db.prepare('UPDATE stock_items SET category_id = ? WHERE category_id = ?').run(c.parent_id, c.id);
+    db.prepare('UPDATE stock_categories SET parent_id = ? WHERE parent_id = ?').run(c.parent_id, c.id);
+    db.prepare('DELETE FROM stock_categories WHERE id = ?').run(c.id);
+  });
+  res.json({ ok: true });
+});
 
 api.post('/stock/items', (req, res) => {
   const result = tx(() => {
     let id;
     try {
-      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price) VALUES (?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
+      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price, category_id) VALUES (?, ?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
     } catch (e) {
       if (e.status) throw e;
       throw httpError(400, 'An item with this name already exists');
@@ -404,7 +446,7 @@ api.post('/stock/items', (req, res) => {
 });
 
 api.put('/stock/items/:id', (req, res) => {
-  db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
+  db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
   res.json({ ok: true });
 });
 

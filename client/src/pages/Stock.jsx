@@ -6,10 +6,26 @@ import { money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import Equipment from './Equipment.jsx';
-import { IconBox, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
+import { IconBox, IconChevronRight, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
 
-function ItemForm({ item, people, onClose, onSaved }) {
-  const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', ...(item || {}) }));
+/** Category picker: the big categories, each followed by its subcategories. */
+function CategorySelect({ cats, value, onChange }) {
+  const top = cats.filter((c) => !c.parent_id);
+  return (
+    <select value={value || ''} onChange={onChange} required>
+      <option value="">Choose…</option>
+      {top.map((c) => (
+        <optgroup key={c.id} label={c.name}>
+          <option value={c.id}>{c.name}</option>
+          {cats.filter((x) => x.parent_id === c.id).map((x) => <option key={x.id} value={x.id}>{c.name} › {x.name}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+function ItemForm({ item, category, cats, people, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', category_id: category || '', ...(item || {}) }));
   // On edit: how much each person holds, editable; people can be added.
   const [held, setHeld] = useState(() => (item?.holdings || []).map((h) => ({ person_id: h.person_id, qty: String(h.qty), was: h.qty })));
   const [error, setError] = useState(null);
@@ -35,6 +51,7 @@ function ItemForm({ item, people, onClose, onSaved }) {
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
         <label className="field full">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Water 0.5L" autoFocus required /></label>
+        <label className="field">Category<CategorySelect cats={cats} value={f.category_id} onChange={set('category_id')} /></label>
         <label className="field">Unit<input value={f.unit} onChange={set('unit')} placeholder="pcs, bottles, kg…" /></label>
         <label className="field">Price per unit (RON)<input type="number" min="0" step="0.01" value={f.unit_price} onChange={set('unit_price')} required /></label>
         {!item ? (
@@ -138,18 +155,134 @@ function InlineNumber({ value, onSave, step = 'any', prefix, width = 84, format 
   );
 }
 
+/** Products of one category: price, who holds how much, total and value. */
+function ItemsTable({ items, run, setForm }) {
+  const { canEdit } = usePermissions();
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.id}>
+              <td className="cell-wrap">
+                <div className="row-title">{i.name}</div>
+                <div className="row-sub">{i.unit}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
+                <div className="row-sub show-sm">
+                  {i.holdings.map((h) => `${h.name} ${number(h.qty)}`).join(' · ') || 'Nobody holds it'}
+                  {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>Add</button></>}
+                  {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button></>}
+                </div>
+              </td>
+              <td className="r hide-sm">
+                <InlineNumber value={i.unit_price} step="0.01" width={90} format={money}
+                  onSave={(v) => run(() => api.put(`/stock/items/${i.id}`, { ...i, unit_price: v }))} />
+              </td>
+              <td className="hide-sm holders-cell">
+                <div className="holder-list">
+                  {i.holdings.map((h) => (
+                    <div className="holder-row" key={h.person_id}>
+                      <span className="holder-name">{h.name}</span>
+                      <InlineNumber value={h.qty} width={90}
+                        onSave={(v) => run(() => api.put('/stock/holdings', { item_id: i.id, person_id: h.person_id, qty: v }))} />
+                    </div>
+                  ))}
+                  {!i.holdings.length && <span className="muted">Nobody holds it</span>}
+                  {canEdit && (
+                    <div className="holder-actions">
+                      <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>+ Add</button>
+                      {i.holdings.length > 0 && <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button>}
+                    </div>
+                  )}
+                </div>
+              </td>
+              <td className={`r ${i.qty <= 5 ? 'neg' : ''}`}><strong>{number(i.qty)}</strong> <span className="muted">{i.unit}</span></td>
+              <td className="r hide-sm">{money(i.value)}</td>
+              <td className="r secondary hide-sm">{number(i.used)}</td>
+              {canEdit && (
+                <td className="r actions">
+                  <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: i })}><IconEdit /></button>
+                  <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const sumUp = (list) => ({ count: list.length, value: list.reduce((a, i) => a + i.value, 0), low: list.filter((i) => i.qty <= 5).length });
+
+/** A category, collapsed to one line; opening it shows its products and subcategories. */
+function Category({ cat, cats, items, open, toggle, run, setForm }) {
+  const { canEdit } = usePermissions();
+  const subs = cats.filter((c) => c.parent_id === cat.id);
+  const own = items.filter((i) => i.category_id === cat.id);
+  const all = items.filter((i) => i.category_id === cat.id || subs.some((sc) => sc.id === i.category_id));
+  const t = sumUp(all);
+  const isOpen = open.includes(cat.id);
+  const sub = !!cat.parent_id;
+  const addSub = () => {
+    const name = window.prompt(`New subcategory of ${cat.name}`);
+    if (name?.trim()) run(() => api.post('/stock/categories', { name, parent_id: cat.id }));
+  };
+  const rename = () => {
+    const name = window.prompt('Rename subcategory', cat.name);
+    if (name?.trim() && name !== cat.name) run(() => api.put(`/stock/categories/${cat.id}`, { name }));
+  };
+  const remove = () => window.confirm(`Delete the subcategory ${cat.name}? Its products move to the category above.`)
+    && run(() => api.del(`/stock/categories/${cat.id}`));
+  return (
+    <div className={sub ? 'stock-sub' : 'card stock-cat'}>
+      <div className="cat-head">
+        <button className="cat-toggle" onClick={() => toggle(cat.id)} aria-expanded={isOpen}>
+          <IconChevronRight width="16" className={`chev ${isOpen ? 'open' : ''}`} />
+          <span className="cat-name">{cat.name}</span>
+          <span className="muted">{t.count ? `${t.count} product${t.count > 1 ? 's' : ''} · ${money0(t.value)}` : 'No products'}</span>
+          {t.low > 0 && <span className="badge low-badge">{t.low} running low</span>}
+        </button>
+        {canEdit && isOpen && (
+          <div className="cat-actions">
+            <button className="btn btn-sm btn-ghost" onClick={() => setForm({ category: cat.id })}><IconPlus width="13" />Product</button>
+            {!sub && <button className="btn btn-sm btn-ghost" onClick={addSub}><IconPlus width="13" />Subcategory</button>}
+            {sub && <button className="icon-btn" aria-label={`Rename ${cat.name}`} onClick={rename}><IconEdit /></button>}
+            {sub && <button className="icon-btn" aria-label={`Delete ${cat.name}`} onClick={remove}><IconTrash /></button>}
+          </div>
+        )}
+      </div>
+      {isOpen && (
+        <div className="cat-body">
+          {own.length > 0 && <ItemsTable items={own} run={run} setForm={setForm} />}
+          {subs.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} />)}
+          {!own.length && !subs.length && <div className="empty">No products here yet.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Stock() {
   const { data: items, reload } = useApi('/stock');
+  const { data: cats, reload: reloadCats } = useApi('/stock/categories');
+  const [open, setOpen] = usePersistentState('am-stock-open', []);
+  const toggle = (id) => setOpen(open.includes(id) ? open.filter((x) => x !== id) : [...open, id]);
   const { data: allPeople, reload: reloadPeople } = useApi('/people');
   const [view, setView] = usePersistentState('am-stock-view', 'items');
   const [form, setForm] = useState(null); // { item? } | { move: item, mode } | { equipment: item | null }
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const people = allPeople?.filter((p) => p.active) || [];
-  const refresh = () => { reload(); reloadPeople(); };
+  const refresh = () => { reload(); reloadPeople(); reloadCats(); };
   const run = async (fn) => { try { await fn(); setError(null); refresh(); } catch (e) { setError(e.message); refresh(); } };
 
-  if (!items || !allPeople) return null;
+  if (!items || !allPeople || !cats) return null;
+  // Big categories with products are listed; empty ones wait in a short line below until opened.
+  const top = cats.filter((c) => !c.parent_id);
+  const hasItems = (c) => items.some((i) => i.category_id === c.id || cats.some((x) => x.parent_id === c.id && x.id === i.category_id));
+  const shown = top.filter((c) => hasItems(c) || open.includes(c.id));
+  const empty = top.filter((c) => !shown.includes(c));
   const totalValue = items.reduce((s, i) => s + i.value, 0);
   const holders = people.map((p) => ({
     ...p, items: items.flatMap((i) => i.holdings.filter((h) => h.person_id === p.id).map((h) => ({ ...h, item: i }))),
@@ -184,57 +317,15 @@ export default function Stock() {
         </div>
 
         {view === 'items' ? (
-          <div className="card table-wrap">
-            {items.length ? (
-              <table>
-                <thead><tr><th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
-                <tbody>
-                  {items.map((i) => (
-                    <tr key={i.id}>
-                      <td className="cell-wrap">
-                        <div className="row-title">{i.name}</div>
-                        <div className="row-sub">{i.unit}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
-                        <div className="row-sub show-sm">
-                          {i.holdings.map((h) => `${h.name.split(' ')[0]} ${number(h.qty)}`).join(' · ') || 'Nobody holds it'}
-                          {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>Add</button></>}
-                          {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button></>}
-                        </div>
-                      </td>
-                      <td className="r hide-sm">
-                        <InlineNumber value={i.unit_price} step="0.01" width={90} format={money}
-                          onSave={(v) => run(() => api.put(`/stock/items/${i.id}`, { ...i, unit_price: v }))} />
-                      </td>
-                      <td className="cell-wrap hide-sm">
-                        <div className="holders">
-                          {i.holdings.map((h) => (
-                            <span className="holder" key={h.person_id}>
-                              {h.name.split(' ')[0]}
-                              <InlineNumber value={h.qty} width={64}
-                                onSave={(v) => run(() => api.put('/stock/holdings', { item_id: i.id, person_id: h.person_id, qty: v }))} />
-                            </span>
-                          ))}
-                          {canEdit && <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'add' })}><IconPlus width="13" />Add</button>}
-                          {canEdit && i.holdings.length > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button>}
-                        </div>
-                      </td>
-                      <td className={`r ${i.qty <= 5 ? 'neg' : ''}`}><strong>{number(i.qty)}</strong> <span className="muted">{i.unit}</span></td>
-                      <td className="r hide-sm">{money(i.value)}</td>
-                      <td className="r secondary hide-sm">{number(i.used)}</td>
-                      {canEdit && (
-                        <td className="r actions">
-                          <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: i })}><IconEdit /></button>
-                          <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot><tr>
-                  <td colSpan={4} className="hide-sm">Total value</td><td colSpan={2} className="show-sm">Total value {money(totalValue)}</td>
-                  <td className="r hide-sm">{money(totalValue)}</td><td className="hide-sm" />{canEdit && <td />}
-                </tr></tfoot>
-              </table>
-            ) : <div className="empty">No products yet. Add water, fruit, balls… with their price.</div>}
+          <div className="stack" style={{ gap: 10 }}>
+            {shown.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} />)}
+            {!items.length && <div className="card empty">No products yet. Add water, fruit, balls… with their price.</div>}
+            {empty.length > 0 && (
+              <div className="empty-cats">
+                <span className="muted">No products yet:</span>
+                {empty.map((c) => <button key={c.id} className="btn btn-sm btn-ghost" onClick={() => toggle(c.id)}>{c.name}</button>)}
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-2">
@@ -269,7 +360,7 @@ export default function Stock() {
         {!people.length && <p className="hint">Add people in <Link to="/settings">Settings → People</Link> to assign stock to them.</p>}
       </div>
 
-      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
       {form?.move && <MoveForm item={form.move} mode={form.mode} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
     </div>
   );

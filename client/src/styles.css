@@ -643,3 +643,28 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 .link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0 2px; }
 .link-btn:hover { text-decoration: underline; }
 .hours-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+/* Stock categories: collapsed to one line, opened for their products and subcategories */
+.stock-cat { padding: 0; overflow: hidden; }
+.cat-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 12px 6px 6px; }
+.cat-toggle { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: left;
+  border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; padding: 10px 8px; border-radius: 8px; }
+.cat-toggle:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.cat-toggle:focus-visible { outline: 2px solid var(--ring); }
+.cat-name { font-weight: 650; font-size: 15px; }
+.chev { transition: transform .15s; color: var(--muted); flex: none; }
+.chev.open { transform: rotate(90deg); }
+.cat-actions { display: flex; align-items: center; gap: 4px; }
+.cat-body { border-top: 1px solid var(--border); }
+.stock-sub { border-top: 1px solid var(--border); }
+.stock-sub .cat-head { padding-left: 26px; }
+.stock-sub .cat-name { font-size: 14px; }
+.stock-sub .cat-body { padding-left: 20px; }
+.low-badge { background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.empty-cats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* Who has it: one line per person, full name, room for big quantities */
+.holders-cell { min-width: 230px; }
+.holder-list { display: flex; flex-direction: column; gap: 4px; }
+.holder-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.holder-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.holder-actions { display: flex; gap: 10px; }

@@ -268,6 +268,31 @@ if (!columns('events').includes('points')) {
   });
 }
 
+// Stock categories: one per sport plus "Miscellaneous" (with a "Halloween" subcategory to start).
+// Categories can have subcategories; a product sits in one (Miscellaneous when none is chosen).
+db.exec(`CREATE TABLE IF NOT EXISTS stock_categories (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id INTEGER REFERENCES stock_categories(id) ON DELETE CASCADE,
+  sport_id INTEGER UNIQUE REFERENCES event_types(id) ON DELETE SET NULL
+)`);
+if (!columns('stock_items').includes('category_id'))
+  db.exec('ALTER TABLE stock_items ADD COLUMN category_id INTEGER REFERENCES stock_categories(id) ON DELETE SET NULL');
+
+/** Makes sure every sport has its category and Miscellaneous exists; returns Miscellaneous's id. */
+export function ensureStockCategories() {
+  let misc = db.prepare("SELECT id FROM stock_categories WHERE parent_id IS NULL AND sport_id IS NULL AND name = 'Miscellaneous'").get()?.id;
+  if (!misc) {
+    misc = Number(db.prepare("INSERT INTO stock_categories (name) VALUES ('Miscellaneous')").run().lastInsertRowid);
+    db.prepare("INSERT INTO stock_categories (name, parent_id) VALUES ('Halloween', ?)").run(misc);
+  }
+  db.prepare(`INSERT INTO stock_categories (name, sport_id) SELECT et.name, et.id FROM event_types et
+    WHERE et.is_sport = 1 AND NOT EXISTS (SELECT 1 FROM stock_categories c WHERE c.sport_id = et.id)`).run();
+  db.prepare('UPDATE stock_categories SET name = (SELECT name FROM event_types WHERE id = sport_id) WHERE sport_id IS NOT NULL').run();
+  db.prepare('UPDATE stock_items SET category_id = ? WHERE category_id IS NULL').run(misc);
+  return misc;
+}
+
 /* -------------------------------------------------------- member prices */
 
 // Members — founders, premium people and anyone who has organised an event — pay only the venue's
