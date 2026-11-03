@@ -54,8 +54,9 @@ function FundsSection() {
           sub={`${money0(f.general.allocated)} from events${f.general.topups ? ` · +${money0(f.general.topups)} donations` : ''} · −${money0(f.general.reinvested)} spent`} />
         <Kpi label="All sport funds" icon={IconTrend} tone="profit" value={money0(f.sportsTotal.balance)}
           sub={`${money0(f.sportsTotal.allocated)} allocated · −${money0(f.sportsTotal.reinvested)} reinvested`} />
-        <Kpi label="Reinvested to date" value={money0(f.general.reinvested + f.sportsTotal.reinvested)}
-          sub={`${money0(f.sportsTotal.reinvested)} in sports · ${money0(f.general.reinvested)} general`} />
+        <Kpi label="Money in hand" value={money0(f.cash.balance)}
+          sub={[`${money0(f.cash.paid)} paid out`, Math.abs(f.cash.owed) >= 0.01 && `${money0(f.cash.owed)} still to pay out`,
+            f.cash.unassigned >= 0.01 && `${money0(f.cash.unassigned)} organisers’ share with no points`].filter(Boolean).join(' · ')} />
         <Kpi label="Pending from live events" value={signedMoney(pending)}
           sub="added when those events are finalized" />
       </div>

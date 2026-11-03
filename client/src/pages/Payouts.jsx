@@ -142,7 +142,23 @@ export default function Payouts() {
     { key: 'standard', label: `Founders ${pctLabel(s.foundersStandard)}`, value: r.pools.standard, color: c.founders },
     { key: 'points', label: `Organisers ${pctLabel(s.foundersPoints)}`, value: r.pools.points, color: c.general },
   ];
-  const payable = r.people.reduce((a, p) => a + p.total, 0);
+  const pay = r.payout;
+  const paidAny = !!pay.paidAt;
+  const owing = Math.abs(pay.owed) >= 0.01;
+  const markPaid = async () => {
+    const msg = paidAny
+      ? `The figures for ${monthName(month)} changed since they were paid. Record ${signedMoney(pay.owed)} more as paid (only the difference)?`
+      : `Record ${money(pay.owed)} as paid to ${r.people.filter((p) => Math.abs(p.owed) >= 0.01).length} people for ${monthName(month)}?`;
+    const live = r.liveEvents ? `\n\n${r.liveEvents} event${r.liveEvents > 1 ? 's are' : ' is'} still live and not counted yet.` : '';
+    if (!window.confirm(msg + live)) return;
+    await api.post(`/payouts/${month}/apply`);
+    reload();
+  };
+  const undoPaid = async () => {
+    if (!window.confirm(`Undo the payouts recorded for ${monthName(month)}? The month will show as unpaid again.`)) return;
+    await api.del(`/payouts/${month}`);
+    reload();
+  };
   const delContribution = async (l) => {
     if (!confirmDelete(`${l.points} points for ${l.person_name}`)) return;
     await api.del(`/contributions/${l.id}`);
@@ -164,6 +180,16 @@ export default function Payouts() {
       </div>
 
       <div className="stack">
+        {r.unpaidMonths.some((m) => m.month !== month) && (
+          <div className="unpaid-months">
+            <span className="muted">Not paid yet:</span>
+            {r.unpaidMonths.filter((m) => m.month !== month).map((m) => (
+              <button key={m.month} className="btn btn-sm" onClick={() => setMonth(m.month)}>
+                {monthName(m.month)} · {m.paid ? `${signedMoney(m.owed)} difference` : money0(m.owed)}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="grid grid-3-1" style={{ alignItems: 'start' }}>
           <div className="stack">
             <div className="card card-pad">
@@ -199,12 +225,24 @@ export default function Payouts() {
             <div className="card">
               <div className="card-pad card-head" style={{ marginBottom: 0 }}>
                 <div><h2>To pay · {monthName(month)}</h2><p>Founders’ equal share + organisers’ share by points</p></div>
-                <strong>{money(payable)}</strong>
+                <div className="payout-status">
+                  <strong>{money(pay.due)}</strong>
+                  {paidAny && <span className="badge status-completed">Paid {date(pay.paidAt)}</span>}
+                  {canEdit && owing && (
+                    <button className="btn btn-sm btn-primary" onClick={markPaid}>{paidAny ? `Pay difference ${signedMoney(pay.owed)}` : 'Mark as paid'}</button>
+                  )}
+                  {canEdit && paidAny && <button className="btn btn-sm" onClick={undoPaid}>Undo</button>}
+                </div>
               </div>
+              {paidAny && owing && (
+                <p className="hint" style={{ padding: '0 22px 12px', margin: 0 }}>
+                  {money(pay.paid)} was paid; the month’s figures have changed since, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} was overpaid`}.
+                </p>
+              )}
               <div className="table-wrap">
                 {r.people.length ? (
                   <table>
-                    <thead><tr><th>Person</th><th className="r hide-sm">Founder share</th><th className="r hide-sm">Points</th><th className="r hide-sm">Organiser share</th><th className="r">Total</th></tr></thead>
+                    <thead><tr><th>Person</th><th className="r hide-sm">Founder share</th><th className="r hide-sm">Points</th><th className="r hide-sm">Organiser share</th><th className="r">Total</th>{paidAny && <th className="r">Paid</th>}</tr></thead>
                     <tbody>
                       {r.people.map((p) => (
                         <tr key={p.id}>
@@ -219,6 +257,12 @@ export default function Payouts() {
                           </td>
                           <td className="r hide-sm">{money(p.pointsAmount)}</td>
                           <td className="r"><strong>{money(p.total)}</strong></td>
+                          {paidAny && (
+                            <td className="r">
+                              {money(p.paid)}
+                              {Math.abs(p.owed) >= 0.01 && <div className={`row-sub ${p.owed < 0 ? 'neg' : ''}`}>{signedMoney(p.owed)} {p.owed > 0 ? 'owed' : 'overpaid'}</div>}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

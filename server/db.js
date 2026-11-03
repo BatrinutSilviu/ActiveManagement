@@ -353,6 +353,20 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:hyrox-pricing'").g
   db.prepare("INSERT INTO settings (key, value) VALUES ('migrated:hyrox-pricing', ?)").run(new Date().toISOString());
 }
 
+// Payouts actually sent for a month. "Mark as paid" stores what each person was due then; if the
+// month's figures change later, paying again stores only the difference as extra rows.
+db.exec(`CREATE TABLE IF NOT EXISTS payouts (
+  id INTEGER PRIMARY KEY,
+  month TEXT NOT NULL,                    -- YYYY-MM the payout is for
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  person_name TEXT NOT NULL,
+  amount INTEGER NOT NULL,                -- bani; negative when a loss is taken back
+  paid_at TEXT NOT NULL DEFAULT (date('now')),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS payouts_month ON payouts (month)');
+
 /* --------------------------------------------------------- profit split */
 
 // Percentages of profit: founders get `foundersStandard`% split equally, organisers get

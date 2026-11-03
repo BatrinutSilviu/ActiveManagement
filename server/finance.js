@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, getSplit, splitResolver, toRon } from './db.js';
+import { db, getSplit, splitResolver, toBani, toRon } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -206,12 +206,24 @@ export function computeFounders(ym) {
     p.lines++;
   }
   for (const p of people.values()) p.pointsAmount = totalPoints ? r2((pools.points * p.points) / totalPoints) : 0;
+  // What was already sent for this month; someone paid earlier but no longer due shows as overpaid.
+  const sent = db.prepare('SELECT person_id, person_name, SUM(amount) AS amount, MAX(paid_at) AS paid_at FROM payouts WHERE month = ? GROUP BY person_id, person_name').all(ym);
+  for (const s of sent) if (!people.has(s.person_id)) person(s.person_id, s.person_name);
   const rows = [...people.values()]
-    .map((p) => ({ ...p, total: r2(p.standard + p.pointsAmount), founder: founders.some((f) => f.id === p.id) }))
+    .map((p) => {
+      const total = r2(p.standard + p.pointsAmount);
+      const paid = toRon(sent.filter((s) => s.person_id === p.id).reduce((a, s) => a + s.amount, 0));
+      return { ...p, total, paid, owed: r2(total - paid), founder: founders.some((f) => f.id === p.id) };
+    })
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  const paidAt = sent.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
   return {
     month: ym, split, profit, pools, pending, liveEvents: live.length, pendingPoints, events: done, live,
     founders: founders.length, totalPoints, people: rows, ledger,
+    payout: {
+      paidAt, due: r2(rows.reduce((a, p) => a + p.total, 0)), paid: r2(rows.reduce((a, p) => a + p.paid, 0)),
+      owed: r2(rows.reduce((a, p) => a + p.owed, 0)),
+    },
     unassignedPoints: totalPoints ? 0 : pools.points, // nobody earned points: the organisers' share is not paid out
   };
 }
@@ -241,4 +253,43 @@ export function computeSport(id) {
   });
   const fund = computeFunds().sports.find((s) => s.id === Number(id));
   return { sport, fund, months, events, fundTx };
+}
+
+/** Months that have payouts due or sent, with what is still owed for each. */
+export function computePayoutMonths() {
+  const months = db.prepare(`
+    SELECT DISTINCT strftime('%Y-%m', date) AS m FROM events WHERE status = 'completed'
+    UNION SELECT DISTINCT strftime('%Y-%m', date) FROM contributions
+    UNION SELECT DISTINCT month FROM payouts ORDER BY m`).all().map((r) => r.m);
+  return months.map((m) => {
+    const r = computeFounders(m);
+    return { month: m, ...r.payout, unassigned: r.unassignedPoints };
+  });
+}
+
+/**
+ * Money the community holds: finalized profit + donations − reinvested − payouts sent.
+ * Equals the funds + payouts still owed (+ an organisers' share nobody earned points for).
+ */
+export function computeCash(funds = computeFunds()) {
+  const months = computePayoutMonths();
+  const sum = (k) => r2(months.reduce((a, m) => a + m[k], 0));
+  const profit = r2(loadEvents("WHERE e.status = 'completed'").reduce((a, e) => a + e.profit, 0));
+  const topups = r2(funds.general.topups + funds.sportsTotal.topups);
+  const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
+  const paid = sum('paid');
+  return {
+    balance: r2(profit + topups - reinvested - paid), profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
+    unpaidMonths: months.filter((m) => Math.abs(m.owed) >= 0.01),
+  };
+}
+
+/** Records the payouts for a month: whatever each person is owed now (all of it the first time). */
+export function applyPayouts(ym, userId) {
+  const r = computeFounders(ym);
+  const due = r.people.filter((p) => Math.abs(p.owed) >= 0.01);
+  if (!due.length) return 0;
+  const ins = db.prepare('INSERT INTO payouts (month, person_id, person_name, amount, created_by) VALUES (?, ?, ?, ?, ?)');
+  for (const p of due) ins.run(ym, p.id ?? null, p.name, toBani(p.owed), userId ?? null);
+  return due.length;
 }

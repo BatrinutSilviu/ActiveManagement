@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db, getSplit, IS_MEMBER_SQL, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  computeFounders, computeFunds, computeSport, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -809,10 +809,29 @@ api.delete('/contributions/:id', (req, res) => {
 
 /* ---------------------------------------------------------------- funds */
 
-api.get('/funds', (req, res) => res.json({ ...computeFunds(), split: getSplit() }));
+api.get('/funds', (req, res) => {
+  const funds = computeFunds();
+  res.json({ ...funds, cash: computeCash(funds), split: getSplit() });
+});
 
 api.get(['/founders', '/payouts'], (req, res) => {
-  res.json(computeFounders(isMonth(req.query.month) ? req.query.month : today().slice(0, 7)));
+  const r = computeFounders(isMonth(req.query.month) ? req.query.month : today().slice(0, 7));
+  res.json({ ...r, unpaidMonths: computeCash().unpaidMonths });
+});
+
+// "Mark as paid": records what each person is owed for the month (only the difference if paid before).
+api.post('/payouts/:month/apply', (req, res) => {
+  need(isMonth(req.params.month), 'Invalid month');
+  const n = tx(() => applyPayouts(req.params.month, req.user.id));
+  need(n > 0, 'Nothing left to pay for this month');
+  res.json({ ok: true, people: n });
+});
+
+// Undo: forget every payout recorded for the month.
+api.delete('/payouts/:month', (req, res) => {
+  need(isMonth(req.params.month), 'Invalid month');
+  db.prepare('DELETE FROM payouts WHERE month = ?').run(req.params.month);
+  res.json({ ok: true });
 });
 
 api.get('/monthly', (req, res) => {
