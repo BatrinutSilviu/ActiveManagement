@@ -271,6 +271,8 @@ api.delete('/people/:id', (req, res) => {
     'This person still holds stock — move it to someone else first');
   need(!db.prepare("SELECT 1 FROM equipment WHERE person_id = ? AND state != 'lost'").get(idParam(req)),
     'This person still has equipment — give it to someone else first');
+  need(!db.prepare('SELECT 1 FROM vouchers WHERE person_id = ?').get(idParam(req)),
+    'This person won vouchers — mark them inactive instead, so that history is kept');
   need(!db.prepare('SELECT 1 FROM stock_purchases WHERE person_id = ?').get(idParam(req)),
     'This person bought stock — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_tasks WHERE person_id = ?').get(idParam(req)),
@@ -848,6 +850,8 @@ api.put('/transactions/:id', (req, res) => {
 });
 
 api.delete('/transactions/:id', (req, res) => {
+  // A voucher whose cost this was becomes unused again.
+  db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL WHERE transaction_id = ?').run(idParam(req));
   db.prepare('DELETE FROM transactions WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
@@ -989,6 +993,10 @@ api.get('/sports/summary', (req, res) => {
 api.get('/sports/:id', (req, res) => {
   const r = computeSport(idParam(req));
   if (!r) throw httpError(404, 'Sport not found');
+  // Vouchers given but not used yet: the fund will pay for them when they are.
+  r.openVouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS value FROM vouchers
+    WHERE sport_id = ? AND used_date IS NULL AND (expires IS NULL OR expires >= ?)`).get(idParam(req), today());
+  r.openVouchers.value = toRon(r.openVouchers.value);
   res.json(r);
 });
 
@@ -1169,6 +1177,88 @@ api.delete('/imports/:id', (req, res) => {
       AND NOT EXISTS (SELECT 1 FROM event_tasks p WHERE p.event_id = events.id)`).run(id);
     db.prepare('UPDATE events SET import_id = NULL WHERE import_id = ?').run(id);
     db.prepare('DELETE FROM imports WHERE id = ?').run(id);
+  });
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------- vouchers */
+
+const VOUCHER_SQL = `
+  SELECT v.*, p.name AS person_name, e.name AS event_name, e.date AS event_date, et.name AS sport_name, et.is_sport,
+    t.amount AS cost
+  FROM vouchers v JOIN people p ON p.id = v.person_id LEFT JOIN events e ON e.id = v.event_id
+  LEFT JOIN event_types et ON et.id = v.sport_id LEFT JOIN transactions t ON t.id = v.transaction_id`;
+const shapeVoucher = (v) => ({ ...v, value: toRon(v.value), cost: v.cost == null ? null : toRon(v.cost),
+  status: v.used_date ? 'used' : v.expires && v.expires < today() ? 'expired' : 'open' });
+
+api.get('/vouchers', (req, res) => {
+  const where = req.query.event_id ? 'WHERE v.event_id = ?' : '';
+  res.json(db.prepare(`${VOUCHER_SQL} ${where} ORDER BY v.used_date IS NOT NULL, v.issued_date DESC, v.id DESC`)
+    .all(...(req.query.event_id ? [Number(req.query.event_id)] : [])).map(shapeVoucher));
+});
+
+function readVoucher(b) {
+  need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(b.person_id)), 'Choose who won it');
+  need(Number(b.value) >= 0, 'The value can’t be negative');
+  const event = b.event_id ? db.prepare('SELECT id, type_id, date FROM events WHERE id = ?').get(Number(b.event_id)) : null;
+  need(!b.event_id || event, 'Event not found');
+  const sport = Number(b.sport_id) || event?.type_id || null;
+  need(sport, 'Choose the sport whose fund pays for it');
+  const issued = b.issued_date || event?.date || today();
+  need(isDate(issued) && (!b.expires || isDate(b.expires)), 'Invalid date');
+  return [event?.id ?? null, Number(b.person_id), sport, toBani(b.value), b.code?.trim() || null, b.note?.trim() || null, issued, b.expires || null];
+}
+
+api.post('/vouchers', (req, res) => {
+  const { lastInsertRowid } = db.prepare(`INSERT INTO vouchers (event_id, person_id, sport_id, value, code, note, issued_date, expires, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readVoucher(req.body), req.user.id);
+  res.json({ id: Number(lastInsertRowid) });
+});
+
+api.put('/vouchers/:id', (req, res) => {
+  db.prepare(`UPDATE vouchers SET event_id = ?, person_id = ?, sport_id = ?, value = ?, code = ?, note = ?, issued_date = ?, expires = ?
+    WHERE id = ?`).run(...readVoucher(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+const voucherCategory = () => db.prepare("SELECT id FROM categories WHERE name = 'Vouchers used' AND kind = 'expense'").get()?.id
+  ?? Number(db.prepare("INSERT INTO categories (name, kind, cost_group) VALUES ('Vouchers used', 'expense', 'benefit')").run().lastInsertRowid);
+
+// Used: what we paid the venue is spent from the voucher's sport fund (general fund if it isn't a sport).
+api.post('/vouchers/:id/use', (req, res) => {
+  const [v] = db.prepare(`${VOUCHER_SQL} WHERE v.id = ?`).all(idParam(req));
+  need(v, 'Voucher not found');
+  need(!v.used_date, 'This voucher is already used');
+  const date = req.body.date || today();
+  need(isDate(date), 'Invalid date');
+  const amount = req.body.amount === '' || req.body.amount == null ? toRon(v.value) : Number(req.body.amount);
+  need(amount >= 0, 'The amount can’t be negative');
+  tx(() => {
+    const what = `Voucher${v.code ? ` ${v.code}` : ''} used by ${v.person_name}${v.event_name ? ` (won at ${v.event_name})` : ''}`;
+    const txId = Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
+      VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(voucherCategory(), toBani(amount), date, what, v.is_sport ? v.sport_id : null, req.user.id).lastInsertRowid);
+    db.prepare('UPDATE vouchers SET used_date = ?, transaction_id = ? WHERE id = ?').run(date, txId, v.id);
+  });
+  res.json({ ok: true });
+});
+
+// Not used after all: its cost is removed from the fund again.
+api.delete('/vouchers/:id/use', (req, res) => {
+  const v = db.prepare('SELECT * FROM vouchers WHERE id = ?').get(idParam(req));
+  need(v, 'Voucher not found');
+  tx(() => {
+    if (v.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(v.transaction_id);
+    db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL WHERE id = ?').run(v.id);
+  });
+  res.json({ ok: true });
+});
+
+api.delete('/vouchers/:id', (req, res) => {
+  const v = db.prepare('SELECT * FROM vouchers WHERE id = ?').get(idParam(req));
+  need(v, 'Voucher not found');
+  tx(() => {
+    if (v.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(v.transaction_id);
+    db.prepare('DELETE FROM vouchers WHERE id = ?').run(v.id);
   });
   res.json({ ok: true });
 });

@@ -308,6 +308,25 @@ db.exec(`CREATE TABLE IF NOT EXISTS stock_purchases (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
+// Vouchers we give as prizes (e.g. padel court time won at a padel event) and the winner uses later.
+// Giving one costs nothing yet; when it's used, what we pay the venue is recorded as money spent from
+// the sport's fund (a transaction, linked here), on the day it's used.
+db.exec(`CREATE TABLE IF NOT EXISTS vouchers (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,      -- where it was won (optional)
+  person_id INTEGER NOT NULL REFERENCES people(id),               -- who won it
+  sport_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL, -- whose fund pays when it's used
+  value INTEGER NOT NULL DEFAULT 0,                               -- bani, what it's worth
+  code TEXT,
+  note TEXT,
+  issued_date TEXT NOT NULL,
+  expires TEXT,
+  used_date TEXT,
+  transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+
 /* -------------------------------------------------------- member prices */
 
 // Members — founders, premium people and anyone who has organised an event — pay only the venue's

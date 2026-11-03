@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api.js';
 import { ROLE_LABELS, UserContext } from './hooks.js';
-import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconLogout, IconMenu, IconReport, IconSettings, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
+import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconLogout, IconMenu, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Events from './pages/Events.jsx';
@@ -12,6 +12,7 @@ import Monthly from './pages/Monthly.jsx';
 import Payouts from './pages/Payouts.jsx';
 import { SportDetail, SportsList } from './pages/Sports.jsx';
 import Stock from './pages/Stock.jsx';
+import Vouchers from './pages/Vouchers.jsx';
 import Settings from './pages/Settings.jsx';
 import Import from './pages/Import.jsx';
 
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/monthly', label: 'Monthly', icon: IconReport },
   { to: '/sports', label: 'Sports', icon: IconTrophy },
   { to: '/stock', label: 'Stock', icon: IconBox },
+  { to: '/vouchers', label: 'Vouchers', icon: IconTicket },
   { to: '/transactions', label: 'Transactions', icon: IconWallet },
   { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: IconSettings },
@@ -113,6 +115,7 @@ export default function App() {
           <Route path="/sports" element={<SportsList />} />
           <Route path="/sports/:id" element={<SportDetail />} />
           <Route path="/stock" element={<Stock />} />
+          <Route path="/vouchers" element={<Vouchers />} />
           {isAdmin && <Route path="/import" element={<Import />} />}
           <Route path="/settings" element={<Settings user={auth.user} />} />
           <Route path="*" element={<Navigate to="/" />} />

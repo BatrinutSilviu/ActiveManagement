@@ -11,6 +11,7 @@ import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../co
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
+import { VoucherForm, VoucherTable } from './Vouchers.jsx';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -335,6 +336,25 @@ function Tasks({ e, reload }) {
   );
 }
 
+/** Vouchers won at this event (e.g. padel court time); their cost is paid from the sport's fund when used. */
+function EventVouchers({ e }) {
+  const { data, reload } = useApi(`/vouchers?event_id=${e.id}`);
+  const [form, setForm] = useState(null);
+  const { canEdit } = usePermissions();
+  if (!data) return null;
+  if (!data.length && !canEdit) return null;
+  return (
+    <div className="card">
+      <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+        <div><h2>Vouchers given</h2><p>Won here, used later — paid from the {e.is_sport ? `${e.type_name} fund` : 'general fund'} when used, not from this event. <Link to="/vouchers">All vouchers →</Link></p></div>
+        {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Give a voucher</button>}
+      </div>
+      {data.length > 0 && <VoucherTable list={data} reload={reload} showEvent={false} setForm={setForm} />}
+      {form && <VoucherForm voucher={form.voucher} event={e} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
+    </div>
+  );
+}
+
 // What happened to stock after an event: kept (1), partly used (2, quantity unchanged), used up (0).
 const afterKey = (k) => (k === 2 ? 'partial' : k ? 'kept' : 'used');
 const AFTER_LABELS = { kept: 'Kept — still ours', partial: 'Partly used', used: 'Used up' };
@@ -488,6 +508,7 @@ export default function EventDetail() {
           <Discounts e={e} reload={reload} />
           <StockUsage e={e} reload={reload} />
           <Tasks e={e} reload={reload} />
+          <EventVouchers e={e} />
         </div>
         <div className="stack">
           <Statement e={e} split={split} />

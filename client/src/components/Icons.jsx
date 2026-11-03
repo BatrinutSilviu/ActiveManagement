@@ -27,4 +27,5 @@ export const IconBox = (p) => <I {...p} d={<><path d="M21 8l-9-5-9 5 9 5 9-5z" /
 export const IconTrophy = (p) => <I {...p} d={<><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" /><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" /></>} />;
 export const IconCoins = (p) => <I {...p} d={<><ellipse cx="9" cy="7" rx="6" ry="3" /><path d="M3 7v5c0 1.7 2.7 3 6 3s6-1.3 6-3V7" /><path d="M9 15v2c0 1.7 2.7 3 6 3s6-1.3 6-3v-5c0-1.7-2.7-3-6-3" /></>} />;
 export const IconChevronLeft = (p) => <I {...p} d={<path d="M15 18l-6-6 6-6" />} />;
+export const IconTicket = (p) => <I {...p} d={<><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4V8z" /><path d="M14 6v12" strokeDasharray="2 2" /></>} />;
 export const IconChevronRight = (p) => <I {...p} d={<path d="M9 18l6-6-6-6" />} />;
