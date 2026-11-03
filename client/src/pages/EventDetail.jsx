@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApi, useChartColors, usePermissions } from '../hooks.js';
-import { date, money, money0, number, signedMoney } from '../format.js';
+import { date, money, money0, number, signedMoney, signedMoney2 } from '../format.js';
 import EventForm from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
@@ -36,7 +36,7 @@ function Statement({ e, split }) {
         <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.venue_mode === 'fixed' ? `${money(e.venue_cost)} fixed` : `${e.counted_participants} × ${money(e.venue_fee)}`}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
         {otherBenefits > 0 || !e.covered_fees ? <><dt>Benefits offered <span className="muted">{e.stock_cost > 0 ? `incl. ${money(e.stock_cost)} stock used` : 'water, fruit, balls…'}</span></dt><dd className={otherBenefits ? 'neg' : ''}>{otherBenefits ? '−' : ''}{money(otherBenefits)}</dd></> : null}
         {e.covered_fees > 0 && <><dt>Fees we paid <span className="muted">{e.covered_count} {e.covered_count === 1 ? 'person' : 'people'} free, paid by us</span></dt><dd className="neg">−{money(e.covered_fees)}</dd></>}
-        <dt className="total">Total profit</dt><dd className={`total ${e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</dd>
+        <dt className="total">Total profit</dt><dd className={`total ${e.profit < 0 ? 'neg' : ''}`}>{signedMoney2(e.profit)}</dd>
       </dl>
       <div className="split-bar" style={{ margin: '18px 0 14px' }} role="img" aria-label="Profit split">
         {e.profit > 0 && parts.map((p) => <div key={p.key} style={{ width: `${(p.value / e.profit) * 100}%`, background: p.color }} />)}

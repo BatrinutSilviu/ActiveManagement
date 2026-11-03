@@ -5,6 +5,8 @@ const num = new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 1 });
 export const money = (v) => (v == null ? '—' : ron.format(v));
 export const money0 = (v) => (v == null ? '—' : ron0.format(v));
 export const signedMoney = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + ron0.format(v));
+// Same with bani (2 decimals), for exact totals.
+export const signedMoney2 = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + ron.format(v));
 export const number = (v) => (v == null ? '—' : num.format(v));
 export const pct = (v) => (v == null ? '—' : `${num.format(v * 100)}%`);
 
