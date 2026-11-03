@@ -7,12 +7,21 @@ import { money, number, today } from '../format.js';
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
 
 // Create or edit an event and its points; who did which task, costs and stock are managed on the event page.
+// Fixed venue: the per-person part (what members pay) is the venue total ÷ people.
+function venueShare(next) {
+  const n = Number(next.participants) || 0, total = Number(next.venue_total) || 0, price = Number(next.participation_fee) || 0;
+  if (!n || !total) return '';
+  const each = Math.round((total / n) * 100) / 100;
+  return String(price ? Math.min(each, price) : each); // capped at the price once there is one
+}
+const withShare = (f) => (f.venue_mode === 'fixed' && venueShare(f) ? { ...f, venue_fee: venueShare(f) } : f);
+
 export default function EventForm({ event, onClose, onSaved }) {
   const { data: types } = useApi('/event-types');
   const { data: allPeople } = useApi('/people');
   const { data: rates } = useApi('/settings/points-rates');
   const { data: activities } = useApi('/activities');
-  const [f, setF] = useState(() => ({
+  const [f, setF] = useState(() => withShare({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', ...(event || {}),
   }));
@@ -20,14 +29,10 @@ export default function EventForm({ event, onClose, onSaved }) {
   const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  // With a fixed venue, the per-person part (what members pay) is the venue total ÷ people — kept up to
-  // date as people / total / price change, until it's typed by hand. It can't be more than the price.
-  const share = (next) => {
-    const n = Number(next.participants) || 0, total = Number(next.venue_total) || 0, price = Number(next.participation_fee) || 0;
-    if (!n || !total || !price) return ''; // free event / no price yet: members have nothing to pay
-    return String(Math.min(Math.round((total / n) * 100) / 100, price));
-  };
-  const [shareTouched, setShareTouched] = useState(() => !!event && event.venue_mode === 'fixed' && Number(event.venue_fee) > 0 && String(event.venue_fee) !== share(event));
+  // With a fixed venue the per-person part follows people / total / price, until it's typed by hand.
+  const share = venueShare;
+  // Calculated unless typed by hand in this form (opening an event shows the calculated value again).
+  const [shareTouched, setShareTouched] = useState(false);
   const set = (k) => (e) => {
     const next = { ...f, [k]: e.target.value };
     if (k === 'venue_fee') setShareTouched(true);
@@ -40,7 +45,8 @@ export default function EventForm({ event, onClose, onSaved }) {
     const sport = types?.find((t) => String(t.id) === e.target.value);
     const prices = sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
     const usual = activities?.find((a) => String(a.sport_id) === e.target.value);
-    setF({ ...f, ...prices, type_id: e.target.value, activity_id: usual ? usual.id : f.activity_id });
+    const next = { ...f, ...prices, type_id: e.target.value, activity_id: usual ? usual.id : f.activity_id };
+    setF(next.venue_mode === 'fixed' && !shareTouched ? withShare(next) : next);
   };
   // Points for the time the event takes come from its kind of event; the profit adds more once costs are in.
   const factor = types?.find((t) => String(t.id) === String(sportId))?.points_factor ?? 1;
@@ -55,7 +61,8 @@ export default function EventForm({ event, onClose, onSaved }) {
   const save = async () => {
     setSaving(true);
     try {
-      const body = { ...f, type_id: sportId };
+      // Members never pay more than the price (nothing for a free event).
+      const body = { ...f, type_id: sportId, venue_fee: Math.min(Number(f.venue_fee) || 0, Number(f.participation_fee) || 0) };
       if (event) {
         await api.put(`/events/${event.id}`, body);
         onSaved(event.id);
