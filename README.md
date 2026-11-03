@@ -105,10 +105,15 @@ sudo docker cp /tmp/sheet-2026.mjs active-management:/data/import/ && rm /tmp/sh
 sudo docker exec active-management node --disable-warning=ExperimentalWarning \
   server/scripts/import-sheet.js /data/import/sheet-2026.mjs
 
-# 7. Daily backups to /var/backups/active-management (kept 30 days)
+# 7. Optional: also copy backups out of the container daily, to /var/backups/active-management (kept 30 days)
 sudo cp deploy/backup-docker.sh /usr/local/bin/active-backup && sudo chmod +x /usr/local/bin/active-backup
 echo '30 3 * * * root /usr/local/bin/active-backup' | sudo tee /etc/cron.d/active-backup
 ```
+
+Backups: the app backs the database up by itself every 2 days into `/data/backups` (on the `active-data`
+volume), keeping the last 30; the deploy script adds one before every update. Admins see them in
+Settings → Backups, can back up now and download any of them — keep a copy off the server now and then.
+Change the schedule with the `BACKUP_EVERY_DAYS` / `BACKUP_KEEP` environment variables.
 
 Updating later: automatic — see "Automatic deployment" below. Manually: `git pull && docker compose up -d --build`.
 

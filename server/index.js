@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, ensureStockCategories, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
   applyPayouts, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
@@ -1172,6 +1173,19 @@ api.delete('/imports/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+/* -------------------------------------------------------------- backups */
+
+api.get('/backups', (req, res) => res.json(backupStatus()));
+
+api.post('/backups', (req, res) => res.json({ name: makeBackup('manual') }));
+
+api.get('/backups/:name/download', (req, res) => {
+  need(BACKUP_NAME.test(req.params.name), 'Unknown backup');
+  res.download(resolve(BACKUP_DIR, req.params.name), `active-${req.params.name}`, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: 'Backup not found' });
+  });
+});
+
 /* --------------------------------------------------------------- export */
 
 api.get('/export/transactions.csv', (req, res) => {
@@ -1215,3 +1229,4 @@ if (existsSync(dist)) {
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse proxy
 app.listen(port, host, () => console.log(`Active Management on http://${host}:${port}`));
+startBackupSchedule();
