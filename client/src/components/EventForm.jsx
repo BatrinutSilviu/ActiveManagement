@@ -20,7 +20,20 @@ export default function EventForm({ event, onClose, onSaved }) {
   const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // With a fixed venue, the per-person part (what members pay) is the venue total ÷ people — kept up to
+  // date as people / total / price change, until it's typed by hand. It can't be more than the price.
+  const share = (next) => {
+    const n = Number(next.participants) || 0, total = Number(next.venue_total) || 0, price = Number(next.participation_fee) || 0;
+    if (!n || !total || !price) return ''; // free event / no price yet: members have nothing to pay
+    return String(Math.min(Math.round((total / n) * 100) / 100, price));
+  };
+  const [shareTouched, setShareTouched] = useState(() => !!event && event.venue_mode === 'fixed' && Number(event.venue_fee) > 0 && String(event.venue_fee) !== share(event));
+  const set = (k) => (e) => {
+    const next = { ...f, [k]: e.target.value };
+    if (k === 'venue_fee') setShareTouched(true);
+    else if (next.venue_mode === 'fixed' && !shareTouched && ['participants', 'venue_total', 'participation_fee', 'venue_mode'].includes(k)) next.venue_fee = share(next);
+    setF(next);
+  };
   const sportId = f.type_id || types?.[0]?.id;
   // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue) and its usual kind of event.
   const changeSport = (e) => {
@@ -76,12 +89,6 @@ export default function EventForm({ event, onClose, onSaved }) {
           <input type="date" value={f.date} onChange={set('date')} required />
           <span className="hint">The event counts in this month’s statistics</span>
         </label>
-        <label className="field">Number of people
-          <input type="number" min="0" value={f.participants} onChange={set('participants')} placeholder="0" />
-        </label>
-        <label className="field">Price (RON / person)
-          <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
-        </label>
         <label className="field">Venue cost
           <select value={f.venue_mode} onChange={set('venue_mode')}>
             <option value="per_person">Per participant</option>
@@ -89,15 +96,27 @@ export default function EventForm({ event, onClose, onSaved }) {
           </select>
           <span className="hint">{fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant'}</span>
         </label>
-        {fixedVenue && (
+        {fixedVenue ? (
           <label className="field">Venue total (RON)
             <input type="number" min="0" step="0.01" value={f.venue_total} onChange={set('venue_total')} placeholder="0" />
             <span className="hint">Or leave 0 and add the venue as a cost on the event page</span>
           </label>
-        )}
-        <label className="field">{fixedVenue ? 'Members pay (RON / person)' : 'Venue’s part (RON / person)'}
+        ) : <div className="hide-sm" />}
+        <label className="field">Number of people
+          <input type="number" min="0" value={f.participants} onChange={set('participants')} placeholder="0" />
+        </label>
+        <label className="field">Price (RON / person)
+          <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
+        </label>
+        <label className="field">{fixedVenue ? 'Venue per person (RON) — members pay this' : 'Venue’s part (RON / person)'}
           <input type="number" min="0" step="0.01" max={fee || undefined} value={f.venue_fee} onChange={set('venue_fee')} placeholder="0" />
-          <span className="hint">{fixedVenue ? 'Optional member price; doesn’t change the venue cost' : 'Members pay only this.'}</span>
+          <span className="hint">{fixedVenue
+            ? (shareTouched
+              ? <>Set by hand{share(f) && share(f) !== String(f.venue_fee) ? <> · <button type="button" className="link-btn" onClick={() => { setShareTouched(false); setF({ ...f, venue_fee: share(f) }); }}>use {money(Number(share(f)))} (total ÷ people)</button></> : null}</>
+              : people && Number(f.venue_total)
+                ? `${money(Number(f.venue_total))} ÷ ${people} people${fee && Number(f.venue_total) / people > fee ? ' — more than the price, so members pay the full price' : ''}`
+                : 'Worked out from the venue total and the number of people')
+            : 'Members pay only this.'}</span>
         </label>
         <div className="full fee-preview">
           Income from fees: <strong>{money(feeIncome)}</strong>
