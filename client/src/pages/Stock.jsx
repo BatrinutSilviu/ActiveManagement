@@ -323,7 +323,7 @@ function Category({ cat, cats, items, open, toggle, run, setForm, selected, setS
   const remove = () => window.confirm(`Delete the subcategory ${cat.name}? Its products move to the category above.`)
     && run(() => api.del(`/stock/categories/${cat.id}`));
   return (
-    <div className={sub ? 'stock-sub' : 'card stock-cat'}>
+    <div className={sub ? 'stock-sub' : `card stock-cat ${t.count ? '' : 'is-empty'}`}>
       <div className="cat-head">
         <button className="cat-toggle" onClick={() => toggle(cat.id)} aria-expanded={isOpen}>
           <IconChevronRight width="16" className={`chev ${isOpen ? 'open' : ''}`} />
@@ -374,11 +374,8 @@ export default function Stock() {
   const run = async (fn) => { try { await fn(); setError(null); refresh(); } catch (e) { setError(e.message); refresh(); } };
 
   if (!items || !allPeople || !cats) return null;
-  // Big categories with products are listed; empty ones wait in a short line below until opened.
+  // Every big category (one per sport, then Miscellaneous) is listed, collapsed until opened.
   const top = cats.filter((c) => !c.parent_id);
-  const hasItems = (c) => items.some((i) => i.category_id === c.id || cats.some((x) => x.parent_id === c.id && x.id === i.category_id));
-  const shown = top.filter((c) => hasItems(c) || open.includes(c.id));
-  const empty = top.filter((c) => !shown.includes(c));
   const totalValue = items.reduce((s, i) => s + i.value, 0);
   const holders = people.map((p) => ({
     ...p, items: items.flatMap((i) => i.holdings.filter((h) => h.person_id === p.id).map((h) => ({ ...h, item: i }))),
@@ -423,14 +420,8 @@ export default function Stock() {
                 <button className="btn btn-sm btn-ghost" onClick={() => setSelected(new Set())}>Clear</button>
               </div>
             )}
-            {shown.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
+            {top.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
             {!items.length && <div className="card empty">No products yet. Add water, fruit, balls… with their price.</div>}
-            {empty.length > 0 && (
-              <div className="empty-cats">
-                <span className="muted">No products yet:</span>
-                {empty.map((c) => <button key={c.id} className="btn btn-sm btn-ghost" onClick={() => toggle(c.id)}>{c.name}</button>)}
-              </div>
-            )}
           </div>
         ) : (
           <div className="grid grid-2">

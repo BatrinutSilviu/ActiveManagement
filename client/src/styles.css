@@ -645,6 +645,7 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 
 /* Stock categories: collapsed to one line, opened for their products and subcategories */
 .stock-cat { padding: 0; overflow: hidden; }
+.stock-cat.is-empty .cat-name { color: var(--muted); }
 .cat-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 12px 6px 6px; }
 .cat-toggle { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: left;
   border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; padding: 10px 8px; border-radius: 8px; }
@@ -660,7 +661,6 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 .stock-sub .cat-name { font-size: 14px; }
 .stock-sub .cat-body { padding-left: 20px; }
 .low-badge { background: color-mix(in srgb, var(--warning) 16%, transparent); }
-.empty-cats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 /* Who has it: one line per person, full name, room for big quantities */
 .holders-cell { min-width: 230px; }
 .holder-list { display: flex; flex-direction: column; gap: 4px; }
