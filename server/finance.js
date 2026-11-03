@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, getSplit, getTaskShares, splitResolver, toBani, toRon } from './db.js';
+import { db, getPointsRates, getSplit, getTaskShares, splitResolver, toBani, toRon } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -45,7 +45,14 @@ export function splitProfit(profit, split = getSplit()) {
   };
 }
 
-export function shapeEvent(e, split = getSplit()) {
+/** Points an event earns: hours before / during / after at their rates, plus points per so many RON of profit. */
+export function eventPoints(e, profit, rates = getPointsRates()) {
+  const time = e.hours_before * rates.before + e.hours_during * rates.during + e.hours_after * rates.after;
+  const money = rates.moneyStep > 0 && profit > 0 ? (profit / rates.moneyStep) * rates.moneyPoints : 0;
+  return { time: r2(time), money: r2(money), total: r2(time + money) };
+}
+
+export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
   // Fee income = people × fee − discounts − what members don't pay (they pay only the venue's part).
@@ -58,8 +65,10 @@ export function shapeEvent(e, split = getSplit()) {
   const benefits = r2(toRon(e.benefit_tx) + stockCost + coveredFees);
   const income = r2(feeIncome + otherIncome), expenses = r2(organizing + benefits);
   const profit = r2(income - expenses);
-  const { benefit_tx, ...rest } = e;
+  const { benefit_tx, points: pointsSet, ...rest } = e;
+  const auto = eventPoints(e, profit, rates);
   return {
+    points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
     ...rest, budget: toRon(e.budget), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
     fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees,
     income, expenses, profit, split: splitProfit(profit, split),
@@ -68,8 +77,8 @@ export function shapeEvent(e, split = getSplit()) {
 
 // Each event is split with the targets of its own month.
 function rawEvents(where = '', params = [], order = 'ORDER BY e.date') {
-  const splitFor = splitResolver();
-  return db.prepare(`${EVENT_SQL} ${where} ${order}`).all(...params).map((e) => shapeEvent(e, splitFor(e.date.slice(0, 7))));
+  const splitFor = splitResolver(), rates = getPointsRates();
+  return db.prepare(`${EVENT_SQL} ${where} ${order}`).all(...params).map((e) => shapeEvent(e, splitFor(e.date.slice(0, 7)), rates));
 }
 
 /**
@@ -78,14 +87,20 @@ function rawEvents(where = '', params = [], order = 'ORDER BY e.date') {
  */
 export function taskLines(where = '1', params = []) {
   const shares = getTaskShares();
-  return db.prepare(`
+  const lines = db.prepare(`
     SELECT t.id, t.event_id, t.task, t.person_id, t.free, p.name AS person_name, p.is_founder, e.points AS event_points,
       e.name AS title, e.date, e.status, a.name AS activity_name,
       (SELECT COUNT(*) FROM event_tasks x WHERE x.event_id = t.event_id AND x.task = t.task) AS sharing
     FROM event_tasks t JOIN events e ON e.id = t.event_id JOIN people p ON p.id = t.person_id
     LEFT JOIN activities a ON a.id = e.activity_id
-    WHERE ${where} ORDER BY e.date, t.id`).all(...params)
-    .map((l) => ({ ...l, points: r2((l.event_points * (shares[l.task] || 0)) / 100 / l.sharing) }));
+    WHERE ${where} ORDER BY e.date, t.id`).all(...params);
+  // An event's points depend on its profit unless typed by hand, so they come from the shaped event.
+  const ids = [...new Set(lines.map((l) => l.event_id))];
+  const points = new Map(ids.length ? rawEvents(`WHERE e.id IN (${ids.map(() => '?').join(',')})`, ids).map((e) => [e.id, e.points]) : []);
+  return lines.map((l) => {
+    const total = points.get(l.event_id) ?? 0;
+    return { ...l, event_points: total, points: r2((total * (shares[l.task] || 0)) / 100 / l.sharing) };
+  });
 }
 
 /**

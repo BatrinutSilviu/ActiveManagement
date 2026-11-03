@@ -10,7 +10,7 @@ import { confirmDelete } from '../components/Modal.jsx';
 import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
-import { activityPoints, scaleLabel, scales, TASK_LABELS, TASKS } from '../points.js';
+import { TASK_LABELS, TASKS } from '../points.js';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -251,17 +251,17 @@ function Attendees({ e, reload }) {
 /** The event's points, shared between its tasks; people on a task share its points equally. */
 function Tasks({ e, reload }) {
   const { data: people } = useApi('/people');
-  const { data: activities } = useApi('/activities');
-  const act = activities?.find((a) => a.id === e.activity_id);
-  const suggested = act ? activityPoints(act, 'organizer', e.participants, e.fee_gross) : null;
   const [error, setError] = useState(null);
+  const [byHand, setByHand] = useState(false);
   const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (err) { setError(err.message); } };
   const byTask = (t) => e.tasks.filter((l) => l.task === t);
   const unassigned = TASKS.filter((t) => !byTask(t).length);
   const freePoints = e.tasks.filter((l) => l.free).reduce((a, l) => a + l.points, 0);
   const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
-  const setPoints = (v) => Number(v) !== e.points && run(() => api.put(`/events/${e.id}/points`, { points: v }));
+  const setPoints = (v) => run(() => api.put(`/events/${e.id}/points`, { points: v })).then(() => setByHand(false));
+  const auto = e.points_auto;
+  const hours = e.hours_before + e.hours_during + e.hours_after;
 
   return (
     <div className="card">
@@ -272,14 +272,18 @@ function Tasks({ e, reload }) {
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="card-pad task-total" style={{ paddingTop: 0 }}>
         <span>Event points</span>
-        {canEdit
+        {canEdit && (byHand || e.points_manual)
           ? <input key={e.points} className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={e.points} aria-label="Event points"
-            onBlur={(ev) => setPoints(ev.target.value)} />
+            autoFocus={byHand} onBlur={(ev) => ev.target.value !== '' && Number(ev.target.value) !== e.points && setPoints(ev.target.value)} />
           : <strong>{number(e.points)}</strong>}
-        {act && <span className="muted">{act.name}{scales(act) ? ` (${scaleLabel(act)})` : ''}: {number(suggested)} pts</span>}
-        {canEdit && suggested != null && suggested !== e.points && (
-          <button className="btn btn-sm" onClick={() => setPoints(suggested)}>Use {number(suggested)}</button>
-        )}
+        {e.points_manual
+          ? <span className="badge">Set by hand</span>
+          : <span className="muted">{number(auto.time)} for {number(hours)}h ({number(e.hours_before)} before · {number(e.hours_during)} during · {number(e.hours_after)} after)
+            {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit</span>}
+        {canEdit && (e.points_manual
+          ? <button className="btn btn-sm" onClick={() => setPoints(null)}>Use automatic ({number(auto.total)})</button>
+          : !byHand && <button className="btn btn-sm" onClick={() => setByHand(true)}>Set by hand</button>)}
+        {!e.points_manual && !hours && <span className="hint">Add the hours in Edit event</span>}
       </div>
       <div className="table-wrap">
         <table>

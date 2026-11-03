@@ -246,6 +246,36 @@ function ProfitSplit() {
   );
 }
 
+/** How an event's points are worked out: hours spent and profit made. */
+function PointsRates() {
+  const { data, reload } = useApi('/settings/points-rates');
+  const [f, setF] = useState(null);
+  const [msg, setMsg] = useState(null);
+  if (!data) return null;
+  const v = f || data;
+  const input = (k, step = 0.5) => (
+    <input className="select-sm num-input" type="number" min="0" step={step} value={v[k]} onChange={(e) => setF({ ...v, [k]: e.target.value })} style={{ width: 80 }} />
+  );
+  const save = async (e) => {
+    e.preventDefault();
+    try { await api.put('/settings/points-rates', v); setMsg({ ok: true, text: 'Saved. Every event’s points use the new rates (except those set by hand).' }); setF(null); reload(); }
+    catch (err) { setMsg({ ok: false, text: err.message }); }
+  };
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>Event points</h2><p>Each event earns points for the time spent on it and the profit it made; they’re then shared between its tasks.</p></div></div>
+      {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
+      <form onSubmit={save} className="stack" style={{ gap: 10 }}>
+        <span className="inline-num">{input('before')} points per hour before the event (preparing)</span>
+        <span className="inline-num">{input('during')} points per hour during the event</span>
+        <span className="inline-num">{input('after')} points per hour after the event (wrapping up)</span>
+        <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
+        <div><button className="btn" disabled={!f}>Save rates</button></div>
+      </form>
+    </div>
+  );
+}
+
 /** How an event's points are shared between its tasks. */
 function TaskShares() {
   const { data, reload } = useApi('/settings/task-shares');
@@ -280,7 +310,6 @@ function TaskShares() {
 
 function Activities() {
   const { data, reload } = useApi('/activities');
-  const { data: sports } = useApi('/event-types');
   const [error, run] = useAction(reload);
   const blank = { name: '', organizer_points: '', organizer_max: '', sport_id: '' };
   const [f, setF] = useState(blank);
@@ -291,32 +320,18 @@ function Activities() {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Points table</h2><p>What an event of each activity is worth in total, shared between its tasks. Leave “max” empty for a fixed value (or no cap). “Grows with the event” adds points per so many people and per so many RON of fees (people × price). The sport sets the default activity for its events.</p></div>
+        <div><h2>Points table</h2><p>Points for work outside events (a partnership, a promo stand…), added on the Payouts page. Leave “max” empty for a fixed value. Events earn points from their hours and profit instead.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th>Grows with the event</th><th>Default for sport</th><th className="r">Used</th><th /></tr></thead>
+          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th className="r">Used</th><th /></tr></thead>
           <tbody>
             {data?.map((a) => (
               <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}-${a.people_step}-${a.people_points}-${a.money_step}-${a.money_points}`}>
                 <td>{a.name}</td>
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
-                <td>
-                  <span className="inline-num" style={{ whiteSpace: 'nowrap' }}>+{field(a, 'people_points', { placeholder: '—', style: { width: 56 }, 'aria-label': 'Points per people step' })} per
-                    {' '}{field(a, 'people_step', { placeholder: '—', step: 1, style: { width: 64 }, 'aria-label': 'People step' })} people</span>
-                  <br />
-                  <span className="inline-num" style={{ whiteSpace: 'nowrap' }}>+{field(a, 'money_points', { placeholder: '—', style: { width: 56 }, 'aria-label': 'Points per money step' })} per
-                    {' '}{field(a, 'money_step', { placeholder: '—', step: 50, style: { width: 64 }, 'aria-label': 'RON step' })} RON</span>
-                </td>
-                <td>
-                  <select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }}
-                    onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>
-                    <option value="">—</option>
-                    {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-                  </select>
-                </td>
                 <td className="r muted">{a.uses}</td>
                 <td className="r">
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(a.name); if (n) run(() => api.put(`/activities/${a.id}`, { ...a, name: n })); }}><IconEdit /></button>
@@ -500,8 +515,11 @@ export default function Settings({ user }) {
       <div className="stack">
         <People />
         <Discounts />
+        <div className="grid grid-2">
+          <PointsRates />
+          <TaskShares />
+        </div>
         <Activities />
-        <TaskShares />
         <div className="grid grid-2">
           <ProfitSplit />
           <Sports />

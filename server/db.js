@@ -381,6 +381,28 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:hyrox-pricing'").g
   db.prepare("INSERT INTO settings (key, value) VALUES ('migrated:hyrox-pricing', ?)").run(new Date().toISOString());
 }
 
+// An event's points come from the time spent on it and the money it made (see getPointsRates):
+// hours before (preparing), during and after (wrapping up), plus points per so many RON of profit.
+// points_manual = 1 keeps the points typed by hand in events.points instead.
+if (!columns('events').includes('hours_before')) {
+  db.exec(`ALTER TABLE events ADD COLUMN hours_before REAL NOT NULL DEFAULT 0;
+    ALTER TABLE events ADD COLUMN hours_during REAL NOT NULL DEFAULT 0;
+    ALTER TABLE events ADD COLUMN hours_after REAL NOT NULL DEFAULT 0;
+    ALTER TABLE events ADD COLUMN points_manual INTEGER NOT NULL DEFAULT 0;`);
+  // Events that already have points (from their organisers) keep them, so past payouts don't change.
+  db.exec('UPDATE events SET points_manual = 1 WHERE points > 0');
+}
+
+export const DEFAULT_POINTS_RATES = { before: 1, during: 1, after: 1, moneyStep: 100, moneyPoints: 1 };
+export function getPointsRates() {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'points_rates'").get();
+  return { ...DEFAULT_POINTS_RATES, ...(row ? JSON.parse(row.value) : {}) };
+}
+export function setPointsRates(rates) {
+  db.prepare("INSERT INTO settings (key, value) VALUES ('points_rates', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(JSON.stringify(rates));
+}
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {

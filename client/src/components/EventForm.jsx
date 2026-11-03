@@ -3,51 +3,34 @@ import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
 import { money, number, today } from '../format.js';
-import { activityPoints, scaleLabel, scales } from '../points.js';
 
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
-export const DEFAULT_POINTS = 2;
 
 // Create or edit an event and its points; who did which task, costs and stock are managed on the event page.
 export default function EventForm({ event, onClose, onSaved }) {
   const { data: types } = useApi('/event-types');
   const { data: allPeople } = useApi('/people');
-  const { data: activities } = useApi('/activities');
+  const { data: rates } = useApi('/settings/points-rates');
   const [f, setF] = useState(() => ({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', ...(event || {}),
-    points: event ? event.points : DEFAULT_POINTS,
+    hours_before: event?.hours_before || '', hours_during: event?.hours_during || '', hours_after: event?.hours_after || '',
   }));
   // A new event can start with one organiser on every task; tasks are changed on the event page.
   const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  // The event's points follow its size for activities that scale, until edited by hand.
-  const [pointsTouched, setPointsTouched] = useState(!!event);
-  const suggest = (a, next) => activityPoints(a, 'organizer', Number(next.participants) || 0,
-    (Number(next.participants) || 0) * (Number(next.participation_fee) || 0));
-  const set = (k) => (e) => {
-    const next = { ...f, [k]: e.target.value };
-    setF(next);
-    const a = activities?.find((x) => String(x.id) === String(next.activity_id));
-    if (a && scales(a) && !pointsTouched && ['participants', 'participation_fee'].includes(k))
-      setF({ ...next, points: suggest(a, next) });
-  };
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const sportId = f.type_id || types?.[0]?.id;
-  // Choosing an activity from the points table fills in the event's points.
-  const applyActivity = (activityId, next = f) => {
-    const a = activities?.find((x) => String(x.id) === String(activityId));
-    setF({ ...next, activity_id: activityId, ...(a ? { points: suggest(a, next) } : {}) });
-    if (a) setPointsTouched(false);
-  };
   // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue).
   const changeSport = (e) => {
-    const match = activities?.find((a) => String(a.sport_id) === e.target.value);
     const sport = types?.find((t) => String(t.id) === e.target.value);
     const prices = sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
-    applyActivity(match ? match.id : '', { ...f, ...prices, type_id: e.target.value });
+    setF({ ...f, ...prices, type_id: e.target.value });
   };
-  const activity = activities?.find((x) => String(x.id) === String(f.activity_id));
+  // Points for the time spent; the profit adds more once the event's costs are in.
+  const timePoints = rates ? (Number(f.hours_before) || 0) * rates.before + (Number(f.hours_during) || 0) * rates.during
+    + (Number(f.hours_after) || 0) * rates.after : 0;
   const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
   const feeIncome = people * fee;
   const fixedVenue = f.venue_mode === 'fixed';
@@ -86,14 +69,6 @@ export default function EventForm({ event, onClose, onSaved }) {
           <select value={sportId || ''} onChange={changeSport}>
             {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-        </label>
-        <label className="field">Activity (for points)
-          <select value={f.activity_id || ''} onChange={(e) => applyActivity(e.target.value)}>
-            <option value="">— not in the points table —</option>
-            {activities?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          {activity && <span className="hint">{activity.organizer_max ? `${activity.organizer_points}–${activity.organizer_max}` : activity.organizer_points} pts
-            {scales(activity) ? ` ${scaleLabel(activity)} (now ${number(suggest(activity, f))})` : ''}</span>}
         </label>
         <label className="field">Date
           <input type="date" value={f.date} onChange={set('date')} required />
@@ -148,10 +123,14 @@ export default function EventForm({ event, onClose, onSaved }) {
             <input type="date" value={f.end_date || ''} min={f.date} onChange={set('end_date')} />
           </label>
         )}
-        <div className="full form-section">Points <span className="hint">— shared between the event’s tasks; they decide each organiser’s share of the month’s payout</span></div>
-        <label className="field">Points for this event
-          <input type="number" min="0" step="0.5" value={f.points} onChange={(e) => { setPointsTouched(true); setF({ ...f, points: e.target.value }); }} />
-        </label>
+        <div className="full form-section">Time spent <span className="hint">— with the profit, it sets the event’s points, shared between its tasks</span></div>
+        <div className="full hours-grid">
+          <label className="field">Hours before<input type="number" min="0" step="0.5" value={f.hours_before} onChange={set('hours_before')} placeholder="0" /><span className="hint">Preparing</span></label>
+          <label className="field">Hours during<input type="number" min="0" step="0.5" value={f.hours_during} onChange={set('hours_during')} placeholder="0" /><span className="hint">The event itself</span></label>
+          <label className="field">Hours after<input type="number" min="0" step="0.5" value={f.hours_after} onChange={set('hours_after')} placeholder="0" /><span className="hint">Wrapping up</span></label>
+        </div>
+        {rates && <p className="hint full" style={{ margin: 0 }}>{number(Math.round(timePoints * 100) / 100)} points for time
+          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints)} per ${number(rates.moneyStep)} RON of profit` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
         {!event && (
           <label className="field">Organiser
             <select value={lead} onChange={(e) => setLead(e.target.value)}>
