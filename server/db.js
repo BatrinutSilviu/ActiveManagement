@@ -482,6 +482,14 @@ export function eventTaskShares(skipped = '', shares = getTaskShares()) {
   return Object.fromEntries(TASKS.map((t) => [t, off.has(t) || !total ? 0 : ((Number(shares[t]) || 0) * 100) / total]));
 }
 
+// Price set as two parts (venue part + community part). With a fixed venue the venue part is the total ÷
+// people, which rarely divides exactly (465 / 21 = 22.142857…): fees then count the venue total itself plus
+// the community part × people, so the venue is exactly covered and the community gets exactly its part.
+if (!columns('events').includes('price_parts')) {
+  db.exec(`ALTER TABLE events ADD COLUMN price_parts INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE events ADD COLUMN community_fee INTEGER NOT NULL DEFAULT 0;   -- bani per person`);
+}
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {

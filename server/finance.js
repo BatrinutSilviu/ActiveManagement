@@ -16,7 +16,9 @@ const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
 export const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
     ${SKIPPED} AS free_skip_count, ${COUNTED} AS counted_participants,
-    ${COUNTED} * e.participation_fee AS fee_gross,
+    CASE WHEN e.price_parts = 1 AND e.venue_mode = 'fixed' AND e.participants > 0
+      THEN ROUND(e.venue_total * ${COUNTED} * 1.0 / e.participants) + ${COUNTED} * e.community_fee
+      ELSE ${COUNTED} * e.participation_fee END AS fee_gross,
     CASE WHEN e.venue_mode = 'fixed' THEN e.venue_total ELSE ${COUNTED} * e.venue_fee END AS venue_cost,
     (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discounts,
     (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discount_count,
@@ -73,7 +75,7 @@ export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   const auto = eventPoints(e, profit, rates);
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
-    ...rest, budget: toRon(e.budget), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
+    ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
     fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees,
     income, expenses, profit, split: splitProfit(profit, split),
   };

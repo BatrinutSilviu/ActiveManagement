@@ -30,7 +30,9 @@ function Statement({ e, split }) {
         <div><h2>Event statement</h2><p>{e.status === 'completed' ? 'Finalized — included in the funds' : 'Live — added to the funds when finalized'}</p></div>
       </div>
       <dl className="statement">
-        <dt>Income from fees <span className="muted">{e.counted_participants} × {money(e.participation_fee)}{e.free_skip_count > 0 ? ` · ${e.free_skip_count} free not counted` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
+        <dt>Income from fees <span className="muted">{e.price_parts && e.venue_mode === 'fixed'
+          ? `venue ${money(e.counted_participants === e.participants ? e.venue_total : Math.round(e.venue_total * e.counted_participants / e.participants * 100) / 100)} + ${e.counted_participants} × ${money(e.community_fee)} community`
+          : `${e.counted_participants} × ${money(e.participation_fee)}`}{e.free_skip_count > 0 ? ` · ${e.free_skip_count} free not counted` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
         {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} members paid only {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
         {e.discounts > 0 && <><dt>Discounts <span className="muted">{e.discount_count} people paid less</span></dt><dd className="neg">−{money(e.discounts)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}

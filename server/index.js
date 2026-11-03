@@ -646,6 +646,13 @@ const addTask = (eventId, task, personId, free = false) => {
 };
 
 // Venue paid per participant, or one fixed amount for the event.
+// Two-part price (venue + community) or one total; see events.price_parts.
+function savePriceParts(id, b) {
+  if (!('price_parts' in b)) return;
+  need(!(Number(b.community_fee) < 0), 'The community part can’t be negative');
+  db.prepare('UPDATE events SET price_parts = ?, community_fee = ? WHERE id = ?').run(b.price_parts ? 1 : 0, b.price_parts ? toBani(b.community_fee) : 0, id);
+}
+
 function saveVenue(id, b) {
   const mode = b.venue_mode === 'fixed' ? 'fixed' : 'per_person';
   need(!(Number(b.venue_total) < 0), 'The venue cost can’t be negative');
@@ -658,6 +665,7 @@ api.post('/events', (req, res) => {
       INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, budget, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
     saveVenue(id, req.body);
+    savePriceParts(id, req.body);
     // One organiser doing everything: put them on every task (change it on the event page).
     if (req.body.lead_id) for (const t of TASKS) addTask(id, t, req.body.lead_id);
     return id;
@@ -670,6 +678,7 @@ api.put('/events/:id', (req, res) => {
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
       participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
   if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
+  savePriceParts(idParam(req), req.body);
   // A new price changes what each discount (and the member price) is worth at this event.
   const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
   for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {

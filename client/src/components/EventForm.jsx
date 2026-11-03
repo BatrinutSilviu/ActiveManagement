@@ -36,9 +36,11 @@ export default function EventForm({ event, onClose, onSaved }) {
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', community: '', ...(event || {}),
-  }, 'total', true));
-  // Which side was typed last: the two parts, or the total price.
-  const [from, setFrom] = useState('total');
+    ...(event?.price_parts ? { community: String(event.community_fee) } : {}),
+  }, event?.price_parts ? 'parts' : 'total', true));
+  // Which side was typed last: the two parts (stored as such: fees = venue total + community part × people,
+  // exact even when the venue doesn't divide evenly), or the total price.
+  const [from, setFrom] = useState(event?.price_parts ? 'parts' : 'total');
   // A new event can start with one organiser on every task; tasks are changed on the event page.
   const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
@@ -82,7 +84,8 @@ export default function EventForm({ event, onClose, onSaved }) {
     try {
       // Members never pay more than the price (nothing for a free event).
       const { community, ...rest } = f;
-      const body = { ...rest, type_id: sportId, venue_fee: Math.min(Number(f.venue_fee) || 0, Number(f.participation_fee) || 0) };
+      const body = { ...rest, type_id: sportId, venue_fee: Math.min(Number(f.venue_fee) || 0, Number(f.participation_fee) || 0),
+        price_parts: from === 'parts', community_fee: Number(community) || 0 };
       if (event) {
         await api.put(`/events/${event.id}`, body);
         onSaved(event.id);
@@ -151,7 +154,9 @@ export default function EventForm({ event, onClose, onSaved }) {
             <span className="price-op" aria-hidden="true">=</span>
             <label className="field">Total price (RON)
               <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
-              <span className="hint">{from === 'parts' ? 'Venue part + community part' : 'What each person pays'}</span>
+              <span className="hint">{from === 'parts'
+                ? (fixedVenue ? 'Venue part + community part · the profit counts the community part × people exactly' : 'Venue part + community part')
+                : 'What each person pays'}</span>
             </label>
           </div>
         </div>
