@@ -296,7 +296,7 @@ function ProfitSplit() {
   );
 }
 
-/** How an event's points are worked out: hours spent and profit made. */
+/** Points for the money an event made, and for buying stock. */
 function PointsRates() {
   const { data, reload } = useApi('/settings/points-rates');
   const [f, setF] = useState(null);
@@ -313,12 +313,9 @@ function PointsRates() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Event points</h2><p>Each event earns points for the time spent on it and the profit it made; they’re then shared between its tasks. Buying stock earns points too.</p></div></div>
+      <div className="card-head"><div><h2>Event points</h2><p>Each event earns its kind of event’s points (points table below) plus points for the profit it made; they’re then shared between its tasks. Buying stock earns points too.</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 10 }}>
-        <span className="inline-num">{input('before')} points per hour before the event (preparing)</span>
-        <span className="inline-num">{input('during')} points per hour during the event</span>
-        <span className="inline-num">{input('after')} points per hour after the event (wrapping up)</span>
         <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
         <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
         <span className="inline-num">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</span>
@@ -363,6 +360,7 @@ function TaskShares() {
 
 function Activities() {
   const { data, reload } = useApi('/activities');
+  const { data: sports } = useApi('/event-types');
   const [error, run] = useAction(reload);
   const blank = { name: '', organizer_points: '', organizer_max: '', sport_id: '' };
   const [f, setF] = useState(blank);
@@ -373,18 +371,25 @@ function Activities() {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Points table</h2><p>Points for work outside events (a partnership, a promo stand…), added on the Payouts page. Leave “max” empty for a fixed value. Events earn points from their hours and profit instead.</p></div>
+        <div><h2>Points table</h2><p>What each kind of event is worth for the time it takes (events also get points for their profit), and points for work outside events (a partnership, a promo stand…) added on the Payouts page. The sport sets the usual kind for its new events.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th className="r">Used</th><th /></tr></thead>
+          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th>Usual for sport</th><th className="r">Used</th><th /></tr></thead>
           <tbody>
             {data?.map((a) => (
               <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}-${a.people_step}-${a.people_points}-${a.money_step}-${a.money_points}`}>
                 <td>{a.name}</td>
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
+                <td>
+                  <select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }} aria-label={`${a.name}: usual for which sport`}
+                    onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>
+                    <option value="">—</option>
+                    {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                  </select>
+                </td>
                 <td className="r muted">{a.uses}</td>
                 <td className="r">
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(a.name); if (n) run(() => api.put(`/activities/${a.id}`, { ...a, name: n })); }}><IconEdit /></button>

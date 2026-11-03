@@ -138,7 +138,7 @@ api.put('/settings/starting-balance', (req, res) => {
 api.get('/settings/points-rates', (req, res) => res.json(getPointsRates()));
 
 api.put('/settings/points-rates', (req, res) => {
-  const rates = Object.fromEntries(['before', 'during', 'after', 'moneyStep', 'moneyPoints', 'itemsStep', 'itemsPoints', 'merchStep', 'merchPoints'].map((k) => [k, Number(req.body[k])]));
+  const rates = Object.fromEntries(['moneyStep', 'moneyPoints', 'itemsStep', 'itemsPoints', 'merchStep', 'merchPoints'].map((k) => [k, Number(req.body[k])]));
   need(Object.values(rates).every((v) => Number.isFinite(v) && v >= 0), 'Rates must be positive numbers');
   setPointsRates(rates);
   res.json(rates);
@@ -622,15 +622,7 @@ api.get('/events/:id', (req, res) => {
 });
 
 // The event's points, shared out between its tasks.
-// Hours spent before / during / after the event; with the profit they set the event's points.
-function saveHours(id, b) {
-  if (!['hours_before', 'hours_during', 'hours_after'].some((k) => k in b)) return;
-  const h = (k) => { need(!(Number(b[k]) < 0), 'Hours can’t be negative'); return Number(b[k]) || 0; };
-  db.prepare('UPDATE events SET hours_before = ?, hours_during = ?, hours_after = ? WHERE id = ?')
-    .run(h('hours_before'), h('hours_during'), h('hours_after'), id);
-}
-
-// Points typed by hand instead of worked out from hours and profit; null = automatic again.
+// Points typed by hand instead of worked out from the activity and profit; null = automatic again.
 function savePoints(id, b) {
   if (!('points' in b)) return;
   if (b.points === null || b.points === '') return db.prepare('UPDATE events SET points_manual = 0 WHERE id = ?').run(id);
@@ -659,7 +651,6 @@ api.post('/events', (req, res) => {
       INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, budget, notes, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
     saveVenue(id, req.body);
-    saveHours(id, req.body);
     // One organiser doing everything: put them on every task (change it on the event page).
     if (req.body.lead_id) for (const t of TASKS) addTask(id, t, req.body.lead_id);
     return id;
@@ -672,7 +663,6 @@ api.put('/events/:id', (req, res) => {
     UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
       participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
   if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
-  saveHours(idParam(req), req.body);
   // A new price changes what each discount (and the member price) is worth at this event.
   const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
   for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {

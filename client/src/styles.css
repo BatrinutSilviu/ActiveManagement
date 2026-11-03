@@ -642,7 +642,6 @@ select.badge { width: auto; border: 0; cursor: pointer; }
 .task-chip .icon-btn { padding: 4px; }
 .link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0 2px; }
 .link-btn:hover { text-decoration: underline; }
-.hours-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
 /* Stock categories: collapsed to one line, opened for their products and subcategories */
 .stock-cat { padding: 0; overflow: hidden; }

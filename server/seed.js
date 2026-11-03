@@ -94,7 +94,6 @@ tx(() => {
   const add = (eventId, kind, category, amount, date, description, fund = null) =>
     insTx.run(eventId, kind, cat(category, kind), toBani(amount), date, description, pick(['Card', 'Bank transfer', 'Cash']), fund, admin.id);
   const insTask = db.prepare('INSERT INTO event_tasks (event_id, task, person_id, free) VALUES (?, ?, ?, ?)');
-  const setHours = db.prepare('UPDATE events SET hours_before = ?, hours_during = ?, hours_after = ? WHERE id = ?');
 
   const today = new Date().toISOString().slice(0, 10);
   const thisMonth = today.slice(0, 7);
@@ -120,8 +119,7 @@ tx(() => {
         toBani(special ? fee * 1.5 : fee), toBani(between(vmin, vmax) * (special ? 2 : 1) + 150), admin.id).lastInsertRowid);
       if (status === 'cancelled') continue;
 
-      // Time spent on the event (sets its points with the profit) and who did each task (sometimes for free).
-      setHours.run(between(1, 4), between(2, special ? 6 : 3), between(0, 2), id);
+      // Who did each task (sometimes for free).
       const org = pick(people);
       const co = pick(people.filter((p) => p.id !== org.id));
       for (const t of TASKS) insTask.run(id, t, org.id, t === 'announce' && rand() < 0.2 ? 1 : 0);

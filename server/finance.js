@@ -14,7 +14,7 @@ const SKIPPED = "(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id
 const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
 
 export const EVENT_SQL = `
-  SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name,
+  SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
     ${SKIPPED} AS free_skip_count, ${COUNTED} AS counted_participants,
     ${COUNTED} * e.participation_fee AS fee_gross,
     CASE WHEN e.venue_mode = 'fixed' THEN e.venue_total ELSE ${COUNTED} * e.venue_fee END AS venue_cost,
@@ -46,12 +46,12 @@ export function splitProfit(profit, split = getSplit()) {
 }
 
 /**
- * Points an event earns: hours before / during / after at their rates, plus points per so many RON
- * of profit, all times its kind's multiplier (e.g. Social events × 1.5).
+ * Points an event earns: its activity's points from the points table (what the time it takes is
+ * worth), plus points per so many RON of profit, all times its kind's multiplier (e.g. Social × 1.5).
  */
 export function eventPoints(e, profit, rates = getPointsRates()) {
   const factor = e.points_factor ?? 1;
-  const time = (e.hours_before * rates.before + e.hours_during * rates.during + e.hours_after * rates.after) * factor;
+  const time = (e.activity_points || 0) * factor;
   const money = rates.moneyStep > 0 && profit > 0 ? (profit / rates.moneyStep) * rates.moneyPoints * factor : 0;
   return { time: r2(time), money: r2(money), total: r2(time + money), factor };
 }

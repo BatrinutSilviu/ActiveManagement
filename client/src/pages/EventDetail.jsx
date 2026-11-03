@@ -261,7 +261,6 @@ function Tasks({ e, reload }) {
   const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
   const setPoints = (v) => run(() => api.put(`/events/${e.id}/points`, { points: v })).then(() => setByHand(false));
   const auto = e.points_auto;
-  const hours = e.hours_before + e.hours_during + e.hours_after;
 
   return (
     <div className="card">
@@ -278,12 +277,12 @@ function Tasks({ e, reload }) {
           : <strong>{number(e.points)}</strong>}
         {e.points_manual
           ? <span className="badge">Set by hand</span>
-          : <span className="muted">{number(auto.time)} for {number(hours)}h ({number(e.hours_before)} before · {number(e.hours_during)} during · {number(e.hours_after)} after)
+          : <span className="muted">{number(auto.time)} for {e.activity_name || 'the time (no kind of event chosen)'}
             {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit{auto.factor !== 1 ? ` · ${e.type_name} × ${number(auto.factor)}` : ''}</span>}
         {canEdit && (e.points_manual
           ? <button className="btn btn-sm" onClick={() => setPoints(null)}>Use automatic ({number(auto.total)})</button>
           : !byHand && <button className="btn btn-sm" onClick={() => setByHand(true)}>Set by hand</button>)}
-        {!e.points_manual && !hours && <span className="hint">Add the hours in Edit event</span>}
+        {!e.points_manual && !e.activity_id && <span className="hint">Choose the kind of event in Edit event</span>}
       </div>
       <div className="table-wrap">
         <table>

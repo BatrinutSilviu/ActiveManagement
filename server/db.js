@@ -428,7 +428,8 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:hyrox-pricing'").g
 }
 
 // An event's points come from the time spent on it and the money it made (see getPointsRates):
-// hours before (preparing), during and after (wrapping up), plus points per so many RON of profit.
+// (The hours columns are no longer used: the time an event takes is now in its activity's points, see
+// eventPoints.) plus points per so many RON of profit.
 // points_manual = 1 keeps the points typed by hand in events.points instead.
 if (!columns('events').includes('hours_before')) {
   db.exec(`ALTER TABLE events ADD COLUMN hours_before REAL NOT NULL DEFAULT 0;
@@ -440,7 +441,7 @@ if (!columns('events').includes('hours_before')) {
 }
 
 // Stock purchases earn the buyer points per so many RON spent, at a rate for each kind of purchase.
-export const DEFAULT_POINTS_RATES = { before: 1, during: 1, after: 1, moneyStep: 100, moneyPoints: 1,
+export const DEFAULT_POINTS_RATES = { moneyStep: 100, moneyPoints: 1,
   itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1 };
 export function getPointsRates() {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'points_rates'").get();
