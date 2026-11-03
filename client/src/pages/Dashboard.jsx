@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { qs } from '../api.js';
 import { useApi, useChartColors, usePermissions, usePersistentState } from '../hooks.js';
-import { change, date, money0, MONTHS, MONTHS_LONG, number, pct, signedMoney } from '../format.js';
+import { change, date, money, money0, MONTHS, MONTHS_LONG, number, pct, signedMoney } from '../format.js';
 import Kpi from '../components/Kpi.jsx';
 import EventForm from '../components/EventForm.jsx';
 import { BarList, CumulativeChart, EventProfitList, IncomeExpenseChart, Legend, ProfitChart, SignedBarList } from '../components/Charts.jsx';
@@ -30,6 +30,41 @@ export function PeriodFilters({ year, setYear, type, setType, allowAll = true })
 export const pctLabel = (v) => `${Math.round(v * 10) / 10}%`;
 export const monthName = (ym) => `${MONTHS_LONG[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
+/** The money the community has in its account, and what that money is (funds, payouts still to send…). */
+function AccountSection() {
+  const { data: f } = useApi('/funds');
+  if (!f) return null;
+  const c = f.cash;
+  const parts = [
+    { label: 'In the funds', value: c.funds, hint: 'general + sport funds, to reinvest', to: '/sports' },
+    { label: 'Still to pay out', value: c.owed, hint: 'founders’ and organisers’ payouts not sent yet', to: '/payouts' },
+    { label: 'Organisers’ share with no points', value: c.unassigned, hint: 'nobody earned points in those months', to: '/payouts' },
+  ].filter((p) => Math.abs(p.value) >= 0.01);
+  return (
+    <section className="card card-pad account-card">
+      <div className="account-main">
+        <span className="kpi-label">Money in the account</span>
+        <strong className={`account-value ${c.balance < 0 ? 'neg' : ''}`}>{money(c.balance)}</strong>
+        <span className="muted">Starting balance + finalized events’ profit + donations − reinvested − payouts sent. Compare it with the bank statement now and then.</span>
+      </div>
+      <div className="account-parts">
+        {parts.map((p) => (
+          <Link key={p.label} to={p.to} className="account-part">
+            <span>{p.label}<small>{p.hint}</small></span>
+            <strong className={p.value < 0 ? 'neg' : ''}>{money0(p.value)}</strong>
+          </Link>
+        ))}
+        {c.openVouchers.n > 0 && (
+          <Link to="/vouchers" className="account-part note">
+            <span>Unused vouchers<small>already in the funds above; paid when they’re used</small></span>
+            <strong>{money0(c.openVouchers.value)}</strong>
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** Chart 1: live totals of the general fund and each sport's reinvestment fund. */
 function FundsSection() {
   const navigate = useNavigate();
@@ -54,9 +89,8 @@ function FundsSection() {
           sub={`${f.general.starting ? `${money0(f.general.starting)} starting · ` : ''}${money0(f.general.allocated)} from events${f.general.topups ? ` · +${money0(f.general.topups)} donations` : ''} · −${money0(f.general.reinvested)} spent`} />
         <Kpi label="All sport funds" icon={IconTrend} tone="profit" value={money0(f.sportsTotal.balance)}
           sub={`${f.sportsTotal.starting ? `${money0(f.sportsTotal.starting)} starting · ` : ''}${money0(f.sportsTotal.allocated)} allocated · −${money0(f.sportsTotal.reinvested)} reinvested`} />
-        <Kpi label="Money in hand" value={money0(f.cash.balance)}
-          sub={[f.cash.starting && `${money0(f.cash.starting)} starting balance`, `${money0(f.cash.paid)} paid out`, Math.abs(f.cash.owed) >= 0.01 && `${money0(f.cash.owed)} still to pay out`,
-            f.cash.unassigned >= 0.01 && `${money0(f.cash.unassigned)} organisers’ share with no points`].filter(Boolean).join(' · ')} />
+        <Kpi label="Reinvested to date" value={money0(f.general.reinvested + f.sportsTotal.reinvested)}
+          sub={`${money0(f.sportsTotal.reinvested)} in sports · ${money0(f.general.reinvested)} general`} />
         <Kpi label="Pending from live events" value={signedMoney(pending)}
           sub="added when those events are finalized" />
       </div>
@@ -310,6 +344,7 @@ export default function Dashboard() {
         {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>}
       </div>
       <div className="stack" style={{ gap: 40 }}>
+        <AccountSection />
         <FundsSection />
         <FoundersSection />
         <YearOverview />

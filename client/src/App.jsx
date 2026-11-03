@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api.js';
-import { ROLE_LABELS, UserContext } from './hooks.js';
+import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
 import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconLogout, IconMenu, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -28,6 +28,19 @@ const NAV = [
   { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ];
+
+/** Always-visible money in the account (refreshed on every page change). */
+function AccountBalance({ path }) {
+  const { data, reload } = useApi('/funds');
+  useEffect(() => { reload(); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!data) return null;
+  return (
+    <NavLink to="/" className="side-balance" title="Money in the account — see the Dashboard for what it is">
+      <span>In the account</span>
+      <strong>{new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON', maximumFractionDigits: 0 }).format(data.cash.balance)}</strong>
+    </NavLink>
+  );
+}
 
 const initials = (name) => name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
@@ -84,6 +97,7 @@ export default function App() {
           <span className="brand-mark"><IconActivity width="19" height="19" color="#fff" /></span>
           <div>Active<small>Community admin</small></div>
         </div>
+        <AccountBalance path={location.pathname} />
         <div className="nav-section">Overview</div>
         {nav.slice(0, 5).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>

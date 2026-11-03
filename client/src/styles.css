@@ -676,3 +676,20 @@ tr.row-picked td { background: var(--accent-soft); }
 .move-bar { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 14px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,.08); }
 .move-bar select { flex: 1 1 220px; max-width: 320px; }
+
+/* Money in the account: big card on the Dashboard, small figure in the sidebar */
+.account-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: center; }
+.account-main { display: flex; flex-direction: column; gap: 6px; }
+.account-value { font-size: 40px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; color: var(--text); }
+.account-parts { display: flex; flex-direction: column; gap: 4px; }
+.account-part { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  color: var(--text); text-decoration: none; border: 1px solid var(--border); }
+.account-part:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.account-part small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.account-part.note { border-style: dashed; }
+.account-part.note strong { color: var(--muted); font-weight: 600; }
+@media (max-width: 760px) { .account-card { grid-template-columns: 1fr; } .account-value { font-size: 32px; } }
+.side-balance { display: flex; flex-direction: column; gap: 2px; margin: 0 4px 18px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--side-text-strong) 8%, transparent); color: var(--side-text); text-decoration: none; font-size: 11.5px; }
+.side-balance strong { color: var(--side-text-strong); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.side-balance:hover { background: color-mix(in srgb, var(--side-text-strong) 13%, transparent); }

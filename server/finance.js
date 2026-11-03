@@ -377,7 +377,12 @@ export function computeCash(funds = computeFunds()) {
   const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
   const paid = sum('paid');
   const starting = r2(funds.general.starting + funds.sportsTotal.starting);
+  // Vouchers given but not used yet: still in the account, but the funds will pay them out.
+  const today = new Date().toISOString().slice(0, 10);
+  const vouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS value FROM vouchers
+    WHERE used_date IS NULL AND (expires IS NULL OR expires >= ?)`).get(today);
   return {
+    funds: r2(funds.general.balance + funds.sportsTotal.balance), openVouchers: { n: vouchers.n, value: toRon(vouchers.value) },
     balance: r2(starting + profit + topups - reinvested - paid), starting, profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
     unpaidMonths: months.filter((m) => Math.abs(m.owed) >= 0.01),
   };
