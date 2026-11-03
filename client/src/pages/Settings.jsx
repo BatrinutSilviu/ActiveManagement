@@ -25,14 +25,14 @@ function Sports() {
   const [name, setName] = useState('');
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Sports</h2><p>Each sport has its own reinvestment fund, and default prices for new events: the full price, and the venue’s part of it — all that members pay. Untick “Sport fund” for event types that aren’t a sport (e.g. Social): their community share all goes to the general fund.</p></div></div>
+      <div className="card-head"><div><h2>Sports</h2><p>Each sport has its own reinvestment fund, and default prices for new events: the full price, and the venue’s part of it — all that members pay. Untick “Sport fund” for event types that aren’t a sport (e.g. Social): their community share all goes to the general fund. “Points ×” multiplies the points their events earn for time and profit.</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
-          <thead><tr><th>Sport</th><th className="r">Price</th><th className="r">Venue</th><th className="hide-sm">Sport fund</th><th className="r hide-sm">Events</th><th /></tr></thead>
+          <thead><tr><th>Sport</th><th className="r">Price</th><th className="r">Venue</th><th className="r">Points ×</th><th className="hide-sm">Sport fund</th><th className="r hide-sm">Events</th><th /></tr></thead>
           <tbody>
             {data?.map((t) => (
-              <tr key={`${t.id}-${t.default_fee}-${t.default_venue_fee}-${t.is_sport}`}>
+              <tr key={`${t.id}-${t.default_fee}-${t.default_venue_fee}-${t.is_sport}-${t.points_factor}`}>
                 <td>{t.name}</td>
                 {['default_fee', 'default_venue_fee'].map((k) => (
                   <td className="r" key={k}>
@@ -41,6 +41,11 @@ function Sports() {
                       onBlur={(e) => Number(e.target.value) !== t[k] && run(() => api.put(`/event-types/${t.id}`, { [k]: Number(e.target.value) || 0 }))} />
                   </td>
                 ))}
+                <td className="r">
+                  <input className="select-sm num-input" type="number" min="0.1" step="0.1" defaultValue={t.points_factor} style={{ width: 70 }}
+                    aria-label={`${t.name} points multiplier`}
+                    onBlur={(e) => Number(e.target.value) > 0 && Number(e.target.value) !== t.points_factor && run(() => api.put(`/event-types/${t.id}`, { points_factor: Number(e.target.value) }))} />
+                </td>
                 <td className="hide-sm">
                   <input type="checkbox" checked={!!t.is_sport} aria-label={`${t.name} has a sport fund`}
                     onChange={(e) => run(() => api.put(`/event-types/${t.id}`, { is_sport: e.target.checked }))} />

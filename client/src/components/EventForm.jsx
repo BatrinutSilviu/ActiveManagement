@@ -29,8 +29,9 @@ export default function EventForm({ event, onClose, onSaved }) {
     setF({ ...f, ...prices, type_id: e.target.value });
   };
   // Points for the time spent; the profit adds more once the event's costs are in.
-  const timePoints = rates ? (Number(f.hours_before) || 0) * rates.before + (Number(f.hours_during) || 0) * rates.during
-    + (Number(f.hours_after) || 0) * rates.after : 0;
+  const factor = types?.find((t) => String(t.id) === String(sportId))?.points_factor ?? 1;
+  const timePoints = rates ? ((Number(f.hours_before) || 0) * rates.before + (Number(f.hours_during) || 0) * rates.during
+    + (Number(f.hours_after) || 0) * rates.after) * factor : 0;
   const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
   const feeIncome = people * fee;
   const fixedVenue = f.venue_mode === 'fixed';
@@ -130,7 +131,7 @@ export default function EventForm({ event, onClose, onSaved }) {
           <label className="field">Hours after<input type="number" min="0" step="0.5" value={f.hours_after} onChange={set('hours_after')} placeholder="0" /><span className="hint">Wrapping up</span></label>
         </div>
         {rates && <p className="hint full" style={{ margin: 0 }}>{number(Math.round(timePoints * 100) / 100)} points for time
-          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints)} per ${number(rates.moneyStep)} RON of profit` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
+          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints * factor)} per ${number(rates.moneyStep)} RON of profit` : ''}{factor !== 1 ? ` (× ${number(factor)} for this kind of event)` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
         {!event && (
           <label className="field">Organiser
             <select value={lead} onChange={(e) => setLead(e.target.value)}>

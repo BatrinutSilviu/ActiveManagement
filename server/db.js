@@ -376,6 +376,12 @@ if (!columns('event_types').includes('is_sport')) {
     WHERE name = 'Social event' AND sport_id IS NULL`).run();
 }
 
+// Some kinds of event earn more points for the same time and profit: e.g. Social × 1.5.
+if (!columns('event_types').includes('points_factor')) {
+  db.exec('ALTER TABLE event_types ADD COLUMN points_factor REAL NOT NULL DEFAULT 1');
+  db.prepare("UPDATE event_types SET points_factor = 1.5 WHERE name = 'Social' COLLATE NOCASE").run();
+}
+
 // The venue is paid either per participant (venue_fee × people) or as one fixed amount for the
 // whole event (venue_total). With a fixed venue, venue_fee is only what members pay.
 if (!columns('events').includes('venue_mode'))

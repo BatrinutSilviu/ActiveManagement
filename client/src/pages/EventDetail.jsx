@@ -279,7 +279,7 @@ function Tasks({ e, reload }) {
         {e.points_manual
           ? <span className="badge">Set by hand</span>
           : <span className="muted">{number(auto.time)} for {number(hours)}h ({number(e.hours_before)} before · {number(e.hours_during)} during · {number(e.hours_after)} after)
-            {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit</span>}
+            {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit{auto.factor !== 1 ? ` · ${e.type_name} × ${number(auto.factor)}` : ''}</span>}
         {canEdit && (e.points_manual
           ? <button className="btn btn-sm" onClick={() => setPoints(null)}>Use automatic ({number(auto.total)})</button>
           : !byHand && <button className="btn btn-sm" onClick={() => setByHand(true)}>Set by hand</button>)}
