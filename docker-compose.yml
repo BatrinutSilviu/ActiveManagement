@@ -11,6 +11,9 @@ services:
     restart: unless-stopped
     volumes:
       - active-data:/data
+    environment:
+      # Shared secret the padel and hikes apps use to push their events here (empty = disabled).
+      - INTEGRATION_TOKEN=${INTEGRATION_TOKEN:-}
     networks:
       - traefik
     labels:

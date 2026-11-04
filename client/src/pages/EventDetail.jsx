@@ -571,6 +571,9 @@ export default function EventDetail() {
             <span className="badge">{e.type_name}</span>
             {e.activity_name && <span className="badge">{e.activity_name}</span>}
             {!!e.training && <span className="badge badge-training">Training</span>}
+            {e.source && (e.external_url
+              ? <a className="badge" href={e.external_url} target="_blank" rel="noreferrer" title={`Created from the ${e.source} app; changes there update it here`}>From the {e.source} app ↗</a>
+              : <span className="badge" title={`Created from the ${e.source} app; changes there update it here`}>From the {e.source} app</span>)}
             <StatusBadge status={e.status} />
             <span>{date(e.date)}{e.end_date ? ` – ${date(e.end_date)}` : ''}</span>
             {e.location && <span>· {e.location}</span>}

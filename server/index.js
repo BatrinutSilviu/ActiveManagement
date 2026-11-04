@@ -1,4 +1,6 @@
 import express from 'express';
+import { timingSafeEqual } from 'node:crypto';
+import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from './sync.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +67,77 @@ api.post('/auth/logout', (req, res) => {
   destroySession(req, res);
   res.json({ ok: true });
 });
+
+/* ------------------------------------------- events pushed from other apps */
+
+// The padel and hikes apps push every created / changed / deleted tournament or hike here, with the
+// shared secret INTEGRATION_TOKEN as a Bearer token. Body: { source: 'padel' | 'hikes', id, deleted?, record }.
+// - New: created as a live event, unless dated before SYNC_FROM or a hike draft.
+// - Changed: only the fields whose value changed in that app since the last push are updated, so
+//   corrections made here are kept. Finalized events are never changed.
+// - Deleted there: cancelled here (never deleted: it may already have costs).
+api.post('/integrations/events', (req, res) => {
+  const token = process.env.INTEGRATION_TOKEN;
+  if (!token) throw httpError(503, 'Integration not configured (INTEGRATION_TOKEN)');
+  const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  const want = Buffer.from(token);
+  if (given.length !== want.length || !timingSafeEqual(given, want)) throw httpError(401, 'Wrong integration token');
+  const { source, id, deleted, record } = req.body || {};
+  need(SOURCES[source], 'Unknown source');
+  need(id, 'Missing id');
+  res.json(tx(() => upsertSyncedEvent(source, String(id), deleted ? null : record)));
+});
+
+function upsertSyncedEvent(source, externalId, record) {
+  const ev = db.prepare('SELECT * FROM events WHERE source = ? AND external_id = ?').get(source, externalId);
+  const label = SOURCES[source].label;
+  if (!record) {
+    if (!ev) return { action: 'ignored', reason: 'not here' };
+    if (ev.status === 'completed') return { action: 'ignored', reason: 'finalized', id: ev.id };
+    db.prepare(`UPDATE events SET status = 'cancelled', notes = TRIM(COALESCE(notes, '') || ?), synced_at = datetime('now') WHERE id = ?`)
+      .run(`\n\nDeleted in the ${label} on ${today()}.`, ev.id);
+    return { action: 'cancelled', id: ev.id };
+  }
+  const m = SOURCES[source].map(record);
+  need(isDate(m.date), 'The record has no valid date');
+  const url = record.url || null;
+  if (!ev) {
+    if (m.date < SYNC_FROM) return { action: 'ignored', reason: `dated before ${SYNC_FROM}` };
+    if (m.draft) return { action: 'ignored', reason: 'draft' };
+    const sport = db.prepare('SELECT * FROM event_types WHERE name = ? COLLATE NOCASE').get(m.sport)
+      ?? { id: Number(db.prepare('INSERT INTO event_types (name) VALUES (?)').run(m.sport).lastInsertRowid) };
+    const activity = (m.activity && db.prepare('SELECT id FROM activities WHERE name = ? COLLATE NOCASE').get(m.activity))
+      || db.prepare('SELECT id FROM activities WHERE sport_id = ? ORDER BY sort LIMIT 1').get(sport.id);
+    const fee = toBani(m.participation_fee);
+    const venue = Math.min(m.venue_fee == null ? sport.default_venue_fee || 0 : toBani(m.venue_fee), fee);
+    const id = Number(db.prepare(`
+      INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, notes,
+        source, external_id, external_url, sync_data, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
+      m.name, sport.id, activity?.id ?? null, m.date, m.end_date, m.location, m.status, m.participants, fee, venue, m.notes || null,
+      source, externalId, url, JSON.stringify(m)).lastInsertRowid);
+    return { action: 'created', id };
+  }
+  if (ev.status === 'completed') return { action: 'ignored', reason: 'finalized', id: ev.id };
+  const before = JSON.parse(ev.sync_data || '{}');
+  const changed = SYNCED_FIELDS.filter((k) => k in m && JSON.stringify(m[k]) !== JSON.stringify(before[k]));
+  const set = {};
+  for (const k of changed) {
+    if (k === 'participation_fee') set[k] = toBani(m[k]);
+    else if (k === 'venue_fee') { if (m[k] != null) set[k] = toBani(m[k]); }
+    else if (k === 'status') { if (m.status === 'cancelled' || ev.status === 'cancelled') set.status = m.status; }
+    else set[k] = m[k] ?? null;
+  }
+  if ('participation_fee' in set || 'venue_fee' in set) {
+    const fee = set.participation_fee ?? ev.participation_fee;
+    set.venue_fee = Math.min(set.venue_fee ?? ev.venue_fee, fee);
+  }
+  const keys = Object.keys(set);
+  db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?, `).join('')}external_url = ?, sync_data = ?, synced_at = datetime('now') WHERE id = ?`)
+    .run(...keys.map((k) => set[k]), url ?? ev.external_url, JSON.stringify(m), ev.id);
+  if ('participation_fee' in set || 'venue_fee' in set) repriceEvent(ev.id);
+  return { action: keys.length ? 'updated' : 'unchanged', id: ev.id, fields: keys };
+}
 
 api.use(requireAuth, checkRole);
 
@@ -695,16 +768,20 @@ api.put('/events/:id', (req, res) => {
     if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
     savePriceParts(idParam(req), req.body);
     saveTraining(idParam(req), req.body);
-    // A new price changes what each discount (and the member price) is worth at this event.
-    const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
-    for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {
-      const value = d.member ? memberReduction(fee, venue) : d.value;
-      db.prepare('UPDATE event_discounts SET value = ?, amount = ? WHERE id = ?').run(value, discountAmount(d.kind, value, fee), d.id);
-    }
-    syncTrainingVouchers(idParam(req));
+    repriceEvent(idParam(req));
   });
   res.json({ ok: true });
 });
+
+/** A new price changes what each discount (and the member price) and each voucher used there is worth. */
+function repriceEvent(id) {
+  const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(id) || {};
+  for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(id)) {
+    const value = d.member ? memberReduction(fee, venue) : d.value;
+    db.prepare('UPDATE event_discounts SET value = ?, amount = ? WHERE id = ?').run(value, discountAmount(d.kind, value, fee), d.id);
+  }
+  syncTrainingVouchers(id);
+}
 
 api.put('/events/:id/status', (req, res) => {
   need(['planned', 'completed', 'cancelled'].includes(req.body.status), 'Invalid status');

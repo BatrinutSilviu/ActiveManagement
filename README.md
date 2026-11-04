@@ -77,6 +77,28 @@ npm run import:sheet -- data/import/sheet-2026.mjs           # import (needs the
 It creates the founders, any missing sports/categories, the events (past ones finalized, the rest live)
 and fund movements as one import that can be undone from the Import page. Running it twice is refused.
 
+## Events from the padel and hikes apps
+
+Tournaments created in the padel app (padel.activetimisoara.ro) and hikes / via ferratas published in the hikes app
+(hikes.activetimisoara.ro) become events here automatically. Both apps push every change to
+`POST /api/integrations/events` with a shared secret; the mapping is in `server/sync.js`.
+
+- Created as live events; nothing dated before `SYNC_FROM` (default 2026-11-04) and no hike drafts.
+- Padel: name, date, entry fee, confirmed players, type and level (in the notes); sport Padel. No location or venue part.
+- Hikes: title, dates, destination, confirmed participants, price (hike: entry fee + accommodation, with the
+  accommodation as the venue part; via ferrata: its total price), meeting point/time, difficulty and description
+  (in the notes); sport Hiking, kind of event Day hike / Weekend at a cabin + hike / Via ferrata.
+- Later changes only update the fields that changed in that app, so corrections made here are kept.
+  Finalized events are never changed. Cancelled or deleted there → cancelled here (never deleted).
+- The event page links back to the tournament / hike.
+
+Setup — one secret shared by the three apps (e.g. `openssl rand -hex 32`):
+- here, in the server's `.env`: `INTEGRATION_TOKEN=<secret>`
+- padel backend and hikes app `.env`: `MANAGEMENT_SYNC_URL=https://management.activetimisoara.ro/api/integrations/events`
+  and `MANAGEMENT_SYNC_TOKEN=<secret>`
+
+Then `docker compose up -d` in each app. Without these settings, nothing is sent and the endpoint refuses pushes.
+
 ## Deploying with Docker + Traefik (management.activetimisoara.ro)
 
 The app ships as a Docker image (`Dockerfile`) and a compose file with Traefik labels (`docker-compose.yml`).

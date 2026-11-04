@@ -500,6 +500,17 @@ if (!columns('vouchers').includes('percent'))
   db.exec(`ALTER TABLE vouchers ADD COLUMN percent REAL;                                     -- NULL = fixed value
     ALTER TABLE vouchers ADD COLUMN used_event_id INTEGER REFERENCES events(id) ON DELETE SET NULL; -- the training it was used at`);
 
+// Events pushed from the community's other apps (padel / hikes, see server/sync.js): which app and record
+// they came from, a link back, and the fields as last pushed (JSON) so later pushes only change what changed there.
+if (!columns('events').includes('source')) {
+  db.exec(`ALTER TABLE events ADD COLUMN source TEXT;
+    ALTER TABLE events ADD COLUMN external_id TEXT;
+    ALTER TABLE events ADD COLUMN external_url TEXT;
+    ALTER TABLE events ADD COLUMN sync_data TEXT;
+    ALTER TABLE events ADD COLUMN synced_at TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS events_external ON events (source, external_id) WHERE external_id IS NOT NULL;`);
+}
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {
