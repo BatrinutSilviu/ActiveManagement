@@ -104,7 +104,8 @@ export function SportDetail() {
       <div className="stack">
         <div className="grid grid-kpi">
           <Kpi label="Left to reinvest" hero value={money0(fund.balance)} sub={[fund.starting && `incl. ${money0(fund.starting)} starting balance`, fund.pending ? `${signedMoney(fund.pending)} pending from live events` : 'available now',
-            r.openVouchers?.n && `${money0(r.openVouchers.value)} in ${r.openVouchers.n} unused voucher${r.openVouchers.n > 1 ? 's' : ''} still to pay`].filter(Boolean).join(' · ')} />
+            r.openVouchers?.n > r.openVouchers?.pct && `${money0(r.openVouchers.value)} in ${r.openVouchers.n - r.openVouchers.pct} unused voucher${r.openVouchers.n - r.openVouchers.pct > 1 ? 's' : ''} still to pay`,
+            r.openVouchers?.pct && `${r.openVouchers.pct} training voucher${r.openVouchers.pct > 1 ? 's' : ''} (% off) not used yet`].filter(Boolean).join(' · ')} />
           <Kpi label="Earned for the fund" icon={IconTrend} tone="profit" value={money0(fund.allocated)} sub={`from ${fund.events} finalized events`} />
           <Kpi label="Reinvested" value={money0(fund.reinvested)} sub={fund.topups ? `+${money0(fund.topups)} added directly` : `${r.fundTx.filter((t) => t.kind === 'expense').length} purchases`} />
         </div>

@@ -11,7 +11,7 @@ import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../co
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
-import { VoucherForm, VoucherTable } from './Vouchers.jsx';
+import { VoucherForm, VoucherTable, voucherWorth } from './Vouchers.jsx';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -380,6 +380,73 @@ function EventVouchers({ e }) {
   );
 }
 
+/**
+ * A training session: % off vouchers of its sport used here. The person pays that % less; the same amount is
+ * spent from the sport's fund, so this training's fees and profit stay as if they had paid in full.
+ */
+function TrainingVouchers({ e }) {
+  const { data: used, reload: reloadUsed } = useApi(`/vouchers?used_event_id=${e.id}`);
+  const { data: all, reload: reloadAll } = useApi('/vouchers');
+  const [pick, setPick] = useState('');
+  const [error, setError] = useState(null);
+  const { canEdit } = usePermissions();
+  if (!used || !all) return null;
+  const reload = () => { reloadUsed(); reloadAll(); };
+  const run = async (fn) => { try { await fn(); setError(null); reload(); return true; } catch (err) { setError(err.message); return false; } };
+  const here = new Set(used.map((v) => v.person_id));
+  const usable = all.filter((v) => v.status === 'open' && v.percent != null && v.sport_id === e.type_id
+    && (!v.expires || e.date <= v.expires) && !here.has(v.person_id));
+  const chosen = usable.find((v) => String(v.id) === pick);
+  // What the person pays here before the voucher: the price, less any discount they already have.
+  const worth = (v) => {
+    const d = e.discountList.find((x) => x.person_id === v.person_id);
+    return Math.round(Math.max(e.participation_fee - (d?.amount || 0), 0) * v.percent) / 100;
+  };
+  const total = used.reduce((a, v) => a + (v.cost || 0), 0);
+  const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
+  const use = async (ev) => {
+    ev.preventDefault();
+    if (await run(() => api.post(`/vouchers/${pick}/use`, { event_id: e.id }))) setPick('');
+  };
+  return (
+    <div className="card">
+      <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+        <div><h2>Vouchers used here</h2><p>Training session: % off vouchers of {e.type_name} can be used. They pay less; the {fund} pays the difference, so this training’s profit stays whole. <Link to="/vouchers">All vouchers →</Link></p></div>
+        {total > 0 && <span className="muted">{money(total)} from the {fund}</span>}
+      </div>
+      {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
+      {used.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Person</th><th className="r">Paid by the fund</th>{canEdit && <th />}</tr></thead>
+            <tbody>
+              {used.map((v) => (
+                <tr key={v.id}>
+                  <td className="cell-wrap">{v.person_name}<div className="row-sub">{[voucherWorth(v), v.code, v.event_name && `won at ${v.event_name}`].filter(Boolean).join(' · ')}</div></td>
+                  <td className="r">{money(v.cost || 0)}</td>
+                  {canEdit && <td className="r actions">
+                    <button className="icon-btn" aria-label="Not used here" title="Not used here — the voucher becomes unused again"
+                      onClick={() => window.confirm(`${v.person_name}’s voucher wasn’t used here? It becomes unused again and its cost leaves the ${fund}.`) && run(() => api.del(`/vouchers/${v.id}/use`))}><IconTrash /></button>
+                  </td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {canEdit && (usable.length ? (
+        <form className="inline-form" onSubmit={use}>
+          <select className="select-sm" value={pick} onChange={(ev) => setPick(ev.target.value)} required>
+            <option value="">Voucher…</option>
+            {usable.map((v) => <option key={v.id} value={v.id}>{v.person_name} · {voucherWorth(v)}{v.code ? ` · ${v.code}` : ''}</option>)}
+          </select>
+          <button className="btn btn-sm" disabled={!chosen}>Use{chosen ? ` · ${money(worth(chosen))} from the fund` : ''}</button>
+        </form>
+      ) : <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>{used.length ? 'No other unused' : 'No unused'} % off vouchers of {e.type_name}. Give them on the event where they were won.</p>)}
+    </div>
+  );
+}
+
 // What happened to stock after an event: kept (1), partly used (2, quantity unchanged), used up (0).
 const afterKey = (k) => (k === 2 ? 'partial' : k ? 'kept' : 'used');
 const AFTER_LABELS = { kept: 'Kept — still ours', partial: 'Partly used', used: 'Used up' };
@@ -498,6 +565,7 @@ export default function EventDetail() {
           <p style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="badge">{e.type_name}</span>
             {e.activity_name && <span className="badge">{e.activity_name}</span>}
+            {!!e.training && <span className="badge badge-training">Training</span>}
             <StatusBadge status={e.status} />
             <span>{date(e.date)}{e.end_date ? ` – ${date(e.end_date)}` : ''}</span>
             {e.location && <span>· {e.location}</span>}
@@ -531,6 +599,7 @@ export default function EventDetail() {
           </div>
           <Attendees e={e} reload={reload} />
           <Discounts e={e} reload={reload} />
+          {!!e.training && <TrainingVouchers key={`${e.participation_fee}-${e.discounts}-${e.member_discounts}-${e.discountList.length}`} e={e} />}
           <StockUsage e={e} reload={reload} />
           <Tasks e={e} reload={reload} />
           <EventVouchers e={e} />

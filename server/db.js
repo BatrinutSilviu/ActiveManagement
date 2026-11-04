@@ -490,6 +490,16 @@ if (!columns('events').includes('price_parts')) {
     ALTER TABLE events ADD COLUMN community_fee INTEGER NOT NULL DEFAULT 0;   -- bani per person`);
 }
 
+// Training sessions the community runs (events.training = 1). A voucher can be a percentage off one
+// (vouchers.percent) instead of a fixed value: it's worth nothing until it's used at a training, then
+// it's worth that % of what the person pays there. That amount is spent from the voucher's sport fund
+// (its transaction), so the person pays less but the training's own fees and profit stay whole.
+if (!columns('events').includes('training'))
+  db.exec('ALTER TABLE events ADD COLUMN training INTEGER NOT NULL DEFAULT 0');
+if (!columns('vouchers').includes('percent'))
+  db.exec(`ALTER TABLE vouchers ADD COLUMN percent REAL;                                     -- NULL = fixed value
+    ALTER TABLE vouchers ADD COLUMN used_event_id INTEGER REFERENCES events(id) ON DELETE SET NULL; -- the training it was used at`);
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {

@@ -70,7 +70,7 @@ export default function Events() {
                 <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
                   <td className="hide-sm">{date(e.date)}</td>
                   <td className="cell-wrap">
-                    <div className="row-title">{e.name}</div>
+                    <div className="row-title">{e.name}{!!e.training && <> <span className="badge badge-training">Training</span></>}</div>
                     <div className="row-sub hide-sm">{e.location}</div>
                     <div className="row-sub show-sm">{date(e.date)} · {e.type_name}{e.status !== 'completed' && <> · <StatusBadge status={e.status} /></>}</div>
                   </td>

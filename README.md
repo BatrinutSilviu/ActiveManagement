@@ -53,6 +53,10 @@ Accounts created before roles existed are admins. The server enforces the roles;
 - Only **finalized** events count. Events start as *live*; their share shows as "pending" until finalized.
 - Transactions not tied to an event are **fund movements**: spending = reinvestment from the general fund
   or a sport fund; income (e.g. donations) is added to that fund directly, without splitting.
+- **Vouchers** (prizes won at events) are a fixed value, or a % off a *training session* (an event with
+  “Training session” ticked). A % voucher is valued only when it's used at a training of its sport: that % of what
+  the person pays there is spent from the sport's fund, so the person pays less but the training's profit is unchanged.
+  The amount follows the training's price and the person's discount there.
 - Everything is attributed to the event's date (month). Money is stored as integer bani.
 - In the DB, status `planned` = Live and `completed` = Finalized.
 

@@ -380,11 +380,14 @@ api.post('/events/:id/discounts', (req, res) => {
     if (e.status) throw e;
     throw httpError(400, 'This person already pays a reduced price at this event');
   }
+  syncTrainingVouchers(ev.id); // a voucher used here is a % of what's left to pay
   res.json({ ok: true });
 });
 
 api.delete('/event-discounts/:id', (req, res) => {
+  const d = db.prepare('SELECT event_id FROM event_discounts WHERE id = ?').get(idParam(req));
   db.prepare('DELETE FROM event_discounts WHERE id = ?').run(idParam(req));
+  if (d) syncTrainingVouchers(d.event_id);
   res.json({ ok: true });
 });
 
@@ -659,6 +662,16 @@ function saveVenue(id, b) {
   db.prepare('UPDATE events SET venue_mode = ?, venue_total = ? WHERE id = ?').run(mode, mode === 'fixed' ? toBani(b.venue_total) : 0, id);
 }
 
+// A training session: vouchers can be used at it (see vouchers.percent).
+function saveTraining(id, b) {
+  if (!('training' in b)) return;
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  const used = db.prepare('SELECT COUNT(*) n FROM vouchers WHERE used_event_id = ? AND sport_id <> ?').get(id, ev.type_id).n
+    + (b.training ? 0 : db.prepare('SELECT COUNT(*) n FROM vouchers WHERE used_event_id = ?').get(id).n);
+  need(!used, 'Vouchers were used at this training — undo them first (they’re listed on the event page)');
+  db.prepare('UPDATE events SET training = ? WHERE id = ?').run(b.training ? 1 : 0, id);
+}
+
 api.post('/events', (req, res) => {
   const id = tx(() => {
     const id = Number(db.prepare(`
@@ -666,6 +679,7 @@ api.post('/events', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readEvent(req.body), req.user.id).lastInsertRowid);
     saveVenue(id, req.body);
     savePriceParts(id, req.body);
+    saveTraining(id, req.body);
     // One organiser doing everything: put them on every task (change it on the event page).
     if (req.body.lead_id) for (const t of TASKS) addTask(id, t, req.body.lead_id);
     return id;
@@ -674,17 +688,21 @@ api.post('/events', (req, res) => {
 });
 
 api.put('/events/:id', (req, res) => {
-  db.prepare(`
-    UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
-      participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
-  if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
-  savePriceParts(idParam(req), req.body);
-  // A new price changes what each discount (and the member price) is worth at this event.
-  const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
-  for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {
-    const value = d.member ? memberReduction(fee, venue) : d.value;
-    db.prepare('UPDATE event_discounts SET value = ?, amount = ? WHERE id = ?').run(value, discountAmount(d.kind, value, fee), d.id);
-  }
+  tx(() => {
+    db.prepare(`
+      UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
+        participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
+    if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
+    savePriceParts(idParam(req), req.body);
+    saveTraining(idParam(req), req.body);
+    // A new price changes what each discount (and the member price) is worth at this event.
+    const { participation_fee: fee = 0, venue_fee: venue = 0 } = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req)) || {};
+    for (const d of db.prepare('SELECT * FROM event_discounts WHERE event_id = ?').all(idParam(req))) {
+      const value = d.member ? memberReduction(fee, venue) : d.value;
+      db.prepare('UPDATE event_discounts SET value = ?, amount = ? WHERE id = ?').run(value, discountAmount(d.kind, value, fee), d.id);
+    }
+    syncTrainingVouchers(idParam(req));
+  });
   res.json({ ok: true });
 });
 
@@ -698,6 +716,8 @@ api.put('/events/:id/status', (req, res) => {
 api.delete('/events/:id', (req, res) => {
   tx(() => {
     for (const s of db.prepare('SELECT * FROM event_stock WHERE event_id = ?').all(idParam(req))) returnStock(s);
+    // Vouchers used at it become unused again, and their cost leaves the fund.
+    for (const v of db.prepare('SELECT * FROM vouchers WHERE used_event_id = ?').all(idParam(req))) unuseVoucher(v);
     db.prepare('DELETE FROM events WHERE id = ?').run(idParam(req));
   });
   res.json({ ok: true });
@@ -905,7 +925,7 @@ api.put('/transactions/:id', (req, res) => {
 
 api.delete('/transactions/:id', (req, res) => {
   // A voucher whose cost this was becomes unused again.
-  db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL WHERE transaction_id = ?').run(idParam(req));
+  db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE transaction_id = ?').run(idParam(req));
   db.prepare('DELETE FROM transactions WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
@@ -1049,7 +1069,7 @@ api.get('/sports/:id', (req, res) => {
   const r = computeSport(idParam(req));
   if (!r) throw httpError(404, 'Sport not found');
   // Vouchers given but not used yet: the fund will pay for them when they are.
-  r.openVouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS value FROM vouchers
+  r.openVouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS value, COALESCE(SUM(percent IS NOT NULL), 0) AS pct FROM vouchers
     WHERE sport_id = ? AND used_date IS NULL AND (expires IS NULL OR expires >= ?)`).get(idParam(req), today());
   r.openVouchers.value = toRon(r.openVouchers.value);
   res.json(r);
@@ -1240,71 +1260,124 @@ api.delete('/imports/:id', (req, res) => {
 
 const VOUCHER_SQL = `
   SELECT v.*, p.name AS person_name, e.name AS event_name, e.date AS event_date, et.name AS sport_name, et.is_sport,
-    t.amount AS cost
+    t.amount AS cost, ue.name AS used_event_name
   FROM vouchers v JOIN people p ON p.id = v.person_id LEFT JOIN events e ON e.id = v.event_id
-  LEFT JOIN event_types et ON et.id = v.sport_id LEFT JOIN transactions t ON t.id = v.transaction_id`;
+  LEFT JOIN event_types et ON et.id = v.sport_id LEFT JOIN transactions t ON t.id = v.transaction_id
+  LEFT JOIN events ue ON ue.id = v.used_event_id`;
 const shapeVoucher = (v) => ({ ...v, value: toRon(v.value), cost: v.cost == null ? null : toRon(v.cost),
   status: v.used_date ? 'used' : v.expires && v.expires < today() ? 'expired' : 'open' });
 
 api.get('/vouchers', (req, res) => {
-  const where = req.query.event_id ? 'WHERE v.event_id = ?' : '';
-  res.json(db.prepare(`${VOUCHER_SQL} ${where} ORDER BY v.used_date IS NOT NULL, v.issued_date DESC, v.id DESC`)
-    .all(...(req.query.event_id ? [Number(req.query.event_id)] : [])).map(shapeVoucher));
+  const where = [], params = [];
+  if (req.query.event_id) { where.push('v.event_id = ?'); params.push(Number(req.query.event_id)); }
+  if (req.query.used_event_id) { where.push('v.used_event_id = ?'); params.push(Number(req.query.used_event_id)); }
+  res.json(db.prepare(`${VOUCHER_SQL} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY v.used_date IS NOT NULL, v.issued_date DESC, v.id DESC`).all(...params).map(shapeVoucher));
 });
 
+// A voucher is worth a fixed value, or a percentage off a training session (b.percent; value then 0).
 function readVoucher(b) {
   need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(b.person_id)), 'Choose who won it');
-  need(Number(b.value) >= 0, 'The value can’t be negative');
+  const percent = b.kind === 'percent' ? Number(b.percent) : null;
+  need(percent == null || (percent > 0 && percent <= 100), 'The discount must be between 1 and 100%');
+  need(percent != null || Number(b.value) >= 0, 'The value can’t be negative');
   const event = b.event_id ? db.prepare('SELECT id, type_id, date FROM events WHERE id = ?').get(Number(b.event_id)) : null;
   need(!b.event_id || event, 'Event not found');
   const sport = Number(b.sport_id) || event?.type_id || null;
   need(sport, 'Choose the sport whose fund pays for it');
   const issued = b.issued_date || event?.date || today();
   need(isDate(issued) && (!b.expires || isDate(b.expires)), 'Invalid date');
-  return [event?.id ?? null, Number(b.person_id), sport, toBani(b.value), b.code?.trim() || null, b.note?.trim() || null, issued, b.expires || null];
+  return [event?.id ?? null, Number(b.person_id), sport, percent == null ? toBani(b.value) : 0, percent,
+    b.code?.trim() || null, b.note?.trim() || null, issued, b.expires || null];
 }
 
 api.post('/vouchers', (req, res) => {
-  const { lastInsertRowid } = db.prepare(`INSERT INTO vouchers (event_id, person_id, sport_id, value, code, note, issued_date, expires, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readVoucher(req.body), req.user.id);
+  const { lastInsertRowid } = db.prepare(`INSERT INTO vouchers (event_id, person_id, sport_id, value, percent, code, note, issued_date, expires, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readVoucher(req.body), req.user.id);
   res.json({ id: Number(lastInsertRowid) });
 });
 
 api.put('/vouchers/:id', (req, res) => {
-  db.prepare(`UPDATE vouchers SET event_id = ?, person_id = ?, sport_id = ?, value = ?, code = ?, note = ?, issued_date = ?, expires = ?
-    WHERE id = ?`).run(...readVoucher(req.body), idParam(req));
+  const old = db.prepare('SELECT * FROM vouchers WHERE id = ?').get(idParam(req));
+  need(old, 'Voucher not found');
+  const row = readVoucher(req.body);
+  need(!old.used_date || (old.percent == null) === (row[4] == null), 'Undo its use before changing what kind of voucher it is');
+  need(!old.used_event_id || row[2] === old.sport_id && row[1] === old.person_id,
+    'It was used at a training — undo that first to change who has it or its sport');
+  tx(() => {
+    db.prepare(`UPDATE vouchers SET event_id = ?, person_id = ?, sport_id = ?, value = ?, percent = ?, code = ?, note = ?, issued_date = ?, expires = ?
+      WHERE id = ?`).run(...row, idParam(req));
+    if (old.used_event_id) syncTrainingVouchers(old.used_event_id); // a new percentage changes what it's worth
+  });
   res.json({ ok: true });
 });
 
 const voucherCategory = () => db.prepare("SELECT id FROM categories WHERE name = 'Vouchers used' AND kind = 'expense'").get()?.id
   ?? Number(db.prepare("INSERT INTO categories (name, kind, cost_group) VALUES ('Vouchers used', 'expense', 'benefit')").run().lastInsertRowid);
 
-// Used: what we paid the venue is spent from the voucher's sport fund (general fund if it isn't a sport).
+const voucherText = (v, training) => `Voucher${v.code ? ` ${v.code}` : ''}${v.percent != null ? ` −${v.percent}%` : ''} used by ${v.person_name}`
+  + `${training ? ` at ${training.name}` : ''}${v.event_name ? ` (won at ${v.event_name})` : ''}`;
+
+/** What a percentage voucher is worth at a training: its % of what that person pays there (price − their discount). */
+function trainingVoucherAmount(v, ev) {
+  const d = db.prepare('SELECT amount FROM event_discounts WHERE event_id = ? AND person_id = ?').get(ev.id, v.person_id);
+  return Math.round((Math.max(ev.participation_fee - (d?.amount || 0), 0) * v.percent) / 100);
+}
+
+/** Keeps the vouchers used at a training in line with it: amount (price, discounts, %) and date. */
+function syncTrainingVouchers(eventId) {
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  if (!ev) return;
+  for (const v of db.prepare('SELECT * FROM vouchers WHERE used_event_id = ? AND percent IS NOT NULL').all(eventId)) {
+    db.prepare('UPDATE transactions SET amount = ?, date = ? WHERE id = ?').run(trainingVoucherAmount(v, ev), ev.date, v.transaction_id);
+    db.prepare('UPDATE vouchers SET used_date = ? WHERE id = ?').run(ev.date, v.id);
+  }
+}
+
+/** Not used after all: its cost is removed from the fund again. */
+function unuseVoucher(v) {
+  if (v.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(v.transaction_id);
+  db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE id = ?').run(v.id);
+}
+
+// Used. A fixed-value voucher: what we paid the venue (body.amount) on body.date. A percentage voucher:
+// at a training of its sport (body.event_id), worth its % of what the person pays there, on the training's date.
+// Either way the cost is spent from the voucher's sport fund (general fund if it isn't a sport).
 api.post('/vouchers/:id/use', (req, res) => {
   const [v] = db.prepare(`${VOUCHER_SQL} WHERE v.id = ?`).all(idParam(req));
   need(v, 'Voucher not found');
   need(!v.used_date, 'This voucher is already used');
-  const date = req.body.date || today();
-  need(isDate(date), 'Invalid date');
-  const amount = req.body.amount === '' || req.body.amount == null ? toRon(v.value) : Number(req.body.amount);
-  need(amount >= 0, 'The amount can’t be negative');
+  let date, amount, training = null;
+  if (v.percent != null) {
+    training = db.prepare('SELECT * FROM events WHERE id = ?').get(Number(req.body.event_id));
+    need(training, 'Choose the training it was used at');
+    need(training.training, `${training.name} isn’t a training session — tick “Training session” on it first`);
+    need(training.type_id === v.sport_id, `This is a ${v.sport_name} voucher; ${training.name} is another sport`);
+    need(training.status !== 'cancelled', 'That training was cancelled');
+    need(!v.expires || training.date <= v.expires, `The voucher was only valid until ${v.expires}`);
+    need(!db.prepare('SELECT 1 FROM vouchers WHERE used_event_id = ? AND person_id = ?').get(training.id, v.person_id),
+      `${v.person_name} already used a voucher at this training`);
+    date = training.date;
+    amount = trainingVoucherAmount(v, training);
+  } else {
+    date = req.body.date || today();
+    need(isDate(date), 'Invalid date');
+    const ron = req.body.amount === '' || req.body.amount == null ? toRon(v.value) : Number(req.body.amount);
+    need(ron >= 0, 'The amount can’t be negative');
+    amount = toBani(ron);
+  }
   tx(() => {
-    const what = `Voucher${v.code ? ` ${v.code}` : ''} used by ${v.person_name}${v.event_name ? ` (won at ${v.event_name})` : ''}`;
     const txId = Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
-      VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(voucherCategory(), toBani(amount), date, what, v.is_sport ? v.sport_id : null, req.user.id).lastInsertRowid);
-    db.prepare('UPDATE vouchers SET used_date = ?, transaction_id = ? WHERE id = ?').run(date, txId, v.id);
+      VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(voucherCategory(), amount, date, voucherText(v, training), v.is_sport ? v.sport_id : null, req.user.id).lastInsertRowid);
+    db.prepare('UPDATE vouchers SET used_date = ?, transaction_id = ?, used_event_id = ? WHERE id = ?').run(date, txId, training?.id ?? null, v.id);
   });
   res.json({ ok: true });
 });
 
-// Not used after all: its cost is removed from the fund again.
 api.delete('/vouchers/:id/use', (req, res) => {
   const v = db.prepare('SELECT * FROM vouchers WHERE id = ?').get(idParam(req));
   need(v, 'Voucher not found');
-  tx(() => {
-    if (v.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(v.transaction_id);
-    db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL WHERE id = ?').run(v.id);
-  });
+  tx(() => unuseVoucher(v));
   res.json({ ok: true });
 });
 
@@ -1312,7 +1385,7 @@ api.delete('/vouchers/:id', (req, res) => {
   const v = db.prepare('SELECT * FROM vouchers WHERE id = ?').get(idParam(req));
   need(v, 'Voucher not found');
   tx(() => {
-    if (v.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(v.transaction_id);
+    unuseVoucher(v);
     db.prepare('DELETE FROM vouchers WHERE id = ?').run(v.id);
   });
   res.json({ ok: true });

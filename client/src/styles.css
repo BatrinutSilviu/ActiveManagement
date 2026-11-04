@@ -392,6 +392,7 @@ tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--axis)
 .status-completed { background: color-mix(in srgb, var(--good) 13%, transparent); color: var(--good-text); }
 .status-completed .dot { background: var(--good); }
 .status-cancelled .dot { background: var(--muted); }
+.badge-training { background: color-mix(in srgb, var(--founders) 12%, transparent); color: var(--founders); }
 .kind-income { color: var(--good-text); }
 .kind-expense { color: var(--bad-text); }
 .kind-pill { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; margin-right: 8px; vertical-align: middle; }

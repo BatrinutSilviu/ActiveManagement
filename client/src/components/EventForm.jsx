@@ -35,7 +35,7 @@ export default function EventForm({ event, onClose, onSaved }) {
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', venue_total: '', budget: '', notes: '', community: '', ...(event || {}),
+    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(event || {}),
     ...(event?.price_parts ? { community: String(event.community_fee) } : {}),
   }, event?.price_parts ? 'parts' : 'total', true));
   // Which side was typed last: the two parts (stored as such: fees = venue total + community part × people,
@@ -118,6 +118,10 @@ export default function EventForm({ event, onClose, onSaved }) {
         <label className="field">Date
           <input type="date" value={f.date} onChange={set('date')} required />
           <span className="hint">The event counts in this month’s statistics</span>
+        </label>
+        <label className="field full check-field">
+          <input type="checkbox" checked={!!f.training} onChange={(e) => setF({ ...f, training: e.target.checked ? 1 : 0 })} />
+          <span>Training session <span className="hint">— run by the community; % off vouchers of this sport can be used here, paid from its fund</span></span>
         </label>
         <label className="field">Venue cost
           <select value={f.venue_mode} onChange={set('venue_mode')}>
