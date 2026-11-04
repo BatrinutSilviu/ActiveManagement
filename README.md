@@ -35,7 +35,11 @@ Accounts created before roles existed are admins. The server enforces the roles;
 
 ## How the numbers are calculated
 
-- **Event profit** = participants × price − discounts − member prices + other income − organizing costs − benefits offered.
+- **Event profit** = participants × price − member prices + other income − organizing costs − benefits offered.
+- **Discounts** (saved discounts, one-off amounts) and **free entries we pay for** don't reduce an event's profit: its fees
+  count those people as paid in full, and the amount is spent from the **general community fund** once the event is
+  finalized. Member prices are different: that money is simply never received, so it lowers the event's fee income.
+  Free entries "as if they hadn't signed up" bring no fee and add no costs.
 - **Member prices:** an event's price can include a *venue's part* per person (e.g. Hyrox: 50 RON, 40 to the venue).
   Everyone's venue part (participants × venue part) is an organizing cost; members — founders, people marked Premium,
   and anyone who has organised an event — pay only the venue part, so a Hyrox standard payer leaves 10 RON and a member 0.

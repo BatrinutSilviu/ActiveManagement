@@ -59,7 +59,7 @@ export default function Monthly() {
           <div className="card kpi"><div className="kpi-label"><i className="kpi-key" style={{ background: c.sportfund }} />Sport funds {sportPct}</div>
             <div className="kpi-value">{money0(m.sport)}</div><div className="kpi-sub">{money0(m.reinvestedSport)} reinvested this month</div></div>
           <div className="card kpi"><div className="kpi-label"><i className="kpi-key" style={{ background: c.general }} />General fund {generalPct}</div>
-            <div className="kpi-value">{money0(m.general)}</div><div className="kpi-sub">{money0(m.reinvestedGeneral)} spent this month</div></div>
+            <div className="kpi-value">{money0(m.general)}</div><div className="kpi-sub">{money0(m.reinvestedGeneral)} spent this month{m.discounts ? ` (incl. ${money0(m.discounts)} event discounts)` : ''}</div></div>
         </div>
 
         <div className="card card-pad">

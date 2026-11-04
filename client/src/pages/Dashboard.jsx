@@ -88,7 +88,7 @@ function FundsSection() {
       </div>
       <div className="grid grid-kpi">
         <Kpi label="General community fund" hero value={money0(f.general.balance)}
-          sub={`${f.general.starting ? `${money0(f.general.starting)} starting · ` : ''}${money0(f.general.allocated)} from events${f.general.topups ? ` · +${money0(f.general.topups)} donations` : ''} · −${money0(f.general.reinvested)} spent`} />
+          sub={`${f.general.starting ? `${money0(f.general.starting)} starting · ` : ''}${money0(f.general.allocated)} from events${f.general.topups ? ` · +${money0(f.general.topups)} donations` : ''} · −${money0(f.general.reinvested)} spent${f.general.discounts ? ` (incl. ${money0(f.general.discounts)} event discounts)` : ''}`} />
         <Kpi label="All sport funds" icon={IconTrend} tone="profit" value={money0(f.sportsTotal.balance)}
           sub={`${f.sportsTotal.starting ? `${money0(f.sportsTotal.starting)} starting · ` : ''}${money0(f.sportsTotal.allocated)} allocated · −${money0(f.sportsTotal.reinvested)} reinvested`} />
         <Kpi label="Reinvested to date" value={money0(f.general.reinvested + f.sportsTotal.reinvested)}

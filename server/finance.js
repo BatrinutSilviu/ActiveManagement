@@ -61,14 +61,18 @@ export function eventPoints(e, profit, rates = getPointsRates()) {
 export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
-  // Fee income = people × fee − discounts − what members don't pay (they pay only the venue's part).
+  // Fee income = people × fee − what members don't pay (they pay only the venue's part).
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
-  // without signing up aren't counted at all; fees we pay for someone are a benefit cost.
+  // without signing up aren't counted at all.
+  // Discounts and fees we pay for someone (free, paid by us) come out of the general community fund,
+  // not the event: its fees count as if those people paid in full, and `fund_paid` is spent from the
+  // general fund once the event is finalized (see computeFunds / computeYear).
   const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts), memberDiscounts = toRon(e.member_discounts);
-  const feeIncome = r2(feeGross - discounts - memberDiscounts), otherIncome = toRon(e.other_income);
+  const feeIncome = r2(feeGross - memberDiscounts), otherIncome = toRon(e.other_income);
   const venueCost = toRon(e.venue_cost), stockCost = toRon(e.stock_cost), coveredFees = toRon(e.covered_fees);
+  const fundPaid = r2(discounts + coveredFees);
   const organizing = r2(toRon(e.organizing) + venueCost);
-  const benefits = r2(toRon(e.benefit_tx) + stockCost + coveredFees);
+  const benefits = r2(toRon(e.benefit_tx) + stockCost);
   const income = r2(feeIncome + otherIncome), expenses = r2(organizing + benefits);
   const profit = r2(income - expenses);
   const { benefit_tx, points: pointsSet, ...rest } = e;
@@ -76,7 +80,7 @@ export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
     ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
-    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees,
+    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, fund_paid: fundPaid,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }
@@ -176,10 +180,11 @@ export function loadFundTx(where = '', params = []) {
 }
 
 const sports = () => db.prepare('SELECT id, name, is_sport FROM event_types ORDER BY name').all();
-const blankFund = () => ({ starting: 0, allocated: 0, topups: 0, reinvested: 0, balance: 0, pending: 0, events: 0 });
+// reinvested = everything spent from the fund; for the general fund that includes event discounts (discounts).
+const blankFund = () => ({ starting: 0, allocated: 0, topups: 0, reinvested: 0, discounts: 0, balance: 0, pending: 0, events: 0 });
 
 function finishFund(f) {
-  for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'pending']) f[k] = r2(f[k]);
+  for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'discounts', 'pending']) f[k] = r2(f[k]);
   f.balance = r2(f.starting + f.allocated + f.topups - f.reinvested);
   return f;
 }
@@ -195,11 +200,13 @@ export function computeFunds() {
     const s = bySport.get(e.type_id);
     if (e.status === FINALIZED) {
       general.allocated += e.split.general;
+      general.reinvested += e.fund_paid; // the event's discounts are paid by the general fund
+      general.discounts += e.fund_paid;
       s.allocated += e.split.sport;
       s.events++;
       general.events++;
     } else {
-      general.pending += e.split.general;
+      general.pending += e.split.general - e.fund_paid;
       s.pending += e.split.sport;
     }
   }
@@ -214,7 +221,7 @@ export function computeFunds() {
     general: finishFund(general),
     sports: list,
     sportsTotal: finishFund(list.reduce((a, s) => {
-      for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'pending', 'events']) a[k] += s[k];
+      for (const k of ['starting', 'allocated', 'topups', 'reinvested', 'discounts', 'pending', 'events']) a[k] += s[k];
       return a;
     }, blankFund())),
   };
@@ -228,7 +235,7 @@ export function computeYear(year) {
   const list = sports();
   const months = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1, income: 0, expenses: 0, profit: 0, founders: 0, standard: 0, points: 0, general: 0, sport: 0,
-    reinvestedGeneral: 0, reinvestedSport: 0, topups: 0, events: 0, live: 0,
+    reinvestedGeneral: 0, reinvestedSport: 0, discounts: 0, topups: 0, events: 0, live: 0,
     bySport: Object.fromEntries(list.map((s) => [s.id, { allocated: 0, reinvested: 0, profit: 0, events: 0 }])),
   }));
   const events = loadEvents("WHERE strftime('%Y', e.date) = ? AND e.status != 'cancelled'", [y]);
@@ -237,6 +244,7 @@ export function computeYear(year) {
     if (e.status !== FINALIZED) { m.live++; continue; }
     m.events++;
     m.income += e.income; m.expenses += e.expenses; m.profit += e.profit;
+    m.reinvestedGeneral += e.fund_paid; m.discounts += e.fund_paid; // discounts are paid by the general fund
     for (const k of ['founders', 'standard', 'points', 'general', 'sport']) m[k] += e.split[k];
     const s = m.bySport[e.type_id];
     s.allocated += e.split.sport; s.profit += e.profit; s.events++;

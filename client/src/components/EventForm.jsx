@@ -168,8 +168,8 @@ export default function EventForm({ event, onClose, onSaved }) {
           Income from fees: <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({people} × {money(fee)})</span>
           {venueCost > 0 && <> · venue: <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ' (fixed)' : ` (${people} × ${money(venue)})`}</span></>}
-          <span className="muted">{event?.discounts || event?.member_discounts
-            ? ` · − ${money(event.discounts + event.member_discounts)} discounts & member prices`
+          <span className="muted">{event?.member_discounts || event?.fund_paid
+            ? `${event.member_discounts ? ` · − ${money(event.member_discounts)} member prices` : ''}${event.fund_paid ? ` · ${money(event.fund_paid)} discounts paid by the general fund` : ''}`
             : ' · members and discounts are added on the event page'}</span>
         </div>
         <label className="field">Location

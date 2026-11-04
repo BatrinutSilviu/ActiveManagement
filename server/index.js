@@ -1142,7 +1142,7 @@ api.get('/stats', (req, res) => {
   const incomeByCategory = byCategory('income');
   const feeIncome = r2(held.reduce((s, e) => s + e.fee_income, 0));
   const discountsGiven = r2(held.reduce((s, e) => s + e.discounts, 0));
-  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × price − discounts)', total: feeIncome });
+  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × price − member prices)', total: feeIncome });
   const merge = (list) => [...list.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + x.total), new Map())]
     .map(([name, total]) => ({ name, total: r2(total) })).sort((a, b) => b.total - a.total);
 
