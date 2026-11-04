@@ -53,6 +53,11 @@ Accounts created before roles existed are admins. The server enforces the roles;
   - 30% organisers, shared each month in proportion to points: organisers/co-organisers of that month's
     finalized events, plus standalone contributions (partnerships, promo events…).
   - Points come from the points table (Settings → Points table); each event picks an activity from it.
+  - An event's points are an **estimate** during its month (time points + its own profit's points). When the month
+    is over — automatically on the 1st (hourly check), or with *Calculate / Recalculate* in the Points review on the
+    Payouts page — each finalized event's profit points are multiplied by month's profit ÷ profit of the events that
+    made one, and frozen. Losses therefore lower everyone's profit points; time points and points set by hand don't
+    change. A later change to the month marks it *out of date* until recalculated.
   - Losses are split the same way (they reduce the funds).
 - Only **finalized** events count. Events start as *live*; their share shows as "pending" until finalized.
 - Transactions not tied to an event are **fund movements**: spending = reinvestment from the general fund

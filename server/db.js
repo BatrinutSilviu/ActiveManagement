@@ -536,6 +536,18 @@ db.exec(`CREATE TABLE IF NOT EXISTS partner_prizes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
+// An event's points are an estimate until its month is closed: then each event's profit points are
+// scaled to what it really contributed to the month's profit (see finance.js, computeRealPoints) and
+// stored here, frozen, per event: { [eventId]: { time, money, total, manual } }.
+db.exec(`CREATE TABLE IF NOT EXISTS month_points (
+  month TEXT PRIMARY KEY,                 -- YYYY-MM
+  data TEXT NOT NULL,
+  profit INTEGER NOT NULL,                -- bani, the month's profit when calculated
+  scale REAL NOT NULL,                    -- what each event's profit points were multiplied by
+  calculated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  calculated_by INTEGER REFERENCES users(id) ON DELETE SET NULL   -- NULL = automatically on the 1st
+)`);
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {

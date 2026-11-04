@@ -85,10 +85,90 @@ export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   };
 }
 
-// Each event is split with the targets of its own month.
-function rawEvents(where = '', params = [], order = 'ORDER BY e.date') {
+// Each event is split with the targets of its own month. In a closed month, events use their real
+// points (points_estimate keeps the estimate); `real = false` gives the estimates only.
+function rawEvents(where = '', params = [], order = 'ORDER BY e.date', real = true) {
   const splitFor = splitResolver(), rates = getPointsRates();
-  return db.prepare(`${EVENT_SQL} ${where} ${order}`).all(...params).map((e) => shapeEvent(e, splitFor(e.date.slice(0, 7)), rates));
+  const closed = real ? closedMonths() : new Map();
+  return db.prepare(`${EVENT_SQL} ${where} ${order}`).all(...params).map((e) => {
+    const s = shapeEvent(e, splitFor(e.date.slice(0, 7)), rates);
+    const fixed = closed.get(s.date.slice(0, 7))?.data[s.id];
+    s.points_estimate = s.points;
+    s.points_real = fixed && !s.points_manual ? fixed : null;
+    if (s.points_real) s.points = fixed.total;
+    return s;
+  });
+}
+
+/* ------------------------------------------------- real points per month */
+
+// During the month an event's points are an estimate: its time points + its own profit's points.
+// When the month closes, the month's profit decides: each finalized event's profit points are
+// multiplied by (month's profit ÷ the profit of the events that made one), so the profit points
+// shared out match what the month really made — events at a loss pull everyone's down, and if the
+// month made nothing there are none. Time points and points set by hand don't change.
+
+const closedMonths = () => new Map(db.prepare('SELECT * FROM month_points').all()
+  .map((r) => [r.month, { ...r, data: JSON.parse(r.data), profit: toRon(r.profit) }]));
+
+/** What the month's real points are with today's numbers (not stored). */
+export function computeRealPoints(ym) {
+  const events = rawEvents("WHERE strftime('%Y-%m', e.date) = ? AND e.status = 'completed'", [ym], 'ORDER BY e.date', false);
+  const profit = r2(events.reduce((a, e) => a + e.profit, 0));
+  const gains = events.reduce((a, e) => a + Math.max(e.profit, 0), 0);
+  const scale = gains > 0 ? Math.min(Math.max(profit, 0) / gains, 1) : 0;
+  return {
+    month: ym, profit, gains: r2(gains), scale,
+    events: events.map((e) => {
+      const money = e.points_manual ? null : r2(e.points_auto.money * scale);
+      return { id: e.id, name: e.name, date: e.date, type_name: e.type_name, profit: e.profit, estimate: e.points_estimate,
+        manual: !!e.points_manual, time: e.points_auto.time, money_estimate: e.points_auto.money, money,
+        total: e.points_manual ? e.points_estimate : r2(e.points_auto.time + money) };
+    }),
+  };
+}
+
+/** Calculates and freezes a month's real points (userId null = automatic). */
+export function closeMonth(ym, userId = null) {
+  const r = computeRealPoints(ym);
+  const data = Object.fromEntries(r.events.map((e) => [e.id, { time: e.time, money: e.money, total: e.total, manual: e.manual }]));
+  db.prepare(`INSERT INTO month_points (month, data, profit, scale, calculated_at, calculated_by) VALUES (?, ?, ?, ?, datetime('now'), ?)
+    ON CONFLICT(month) DO UPDATE SET data = excluded.data, profit = excluded.profit, scale = excluded.scale,
+      calculated_at = excluded.calculated_at, calculated_by = excluded.calculated_by`)
+    .run(ym, JSON.stringify(data), toBani(r.profit), r.scale, userId);
+  return r;
+}
+
+/** The monthly review: estimates, the frozen real points, and whether they're out of date. */
+export function reviewMonth(ym) {
+  const row = db.prepare('SELECT m.*, u.name AS by_name FROM month_points m LEFT JOIN users u ON u.id = m.calculated_by WHERE month = ?').get(ym);
+  const now = computeRealPoints(ym);
+  const stored = row ? JSON.parse(row.data) : null;
+  const same = stored && now.events.length === Object.keys(stored).length
+    && now.events.every((e) => stored[e.id] && Math.abs(stored[e.id].total - e.total) < 0.01);
+  const live = db.prepare("SELECT COUNT(*) n FROM events WHERE strftime('%Y-%m', date) = ? AND status = 'planned'").get(ym).n;
+  return {
+    month: ym, now, live,
+    closed: row ? { at: row.calculated_at, by: row.by_name || null, auto: row.calculated_by == null, profit: toRon(row.profit), scale: row.scale,
+      data: stored, outOfDate: !same } : null,
+    canClose: ym < new Date().toISOString().slice(0, 7),
+  };
+}
+
+/** On the 1st (checked hourly): every past month with finalized events and no real points yet gets them. */
+export function closeDueMonths() {
+  const current = new Date().toISOString().slice(0, 7);
+  const due = db.prepare(`SELECT DISTINCT strftime('%Y-%m', date) AS m FROM events WHERE status = 'completed'
+    AND strftime('%Y-%m', date) < ? AND strftime('%Y-%m', date) NOT IN (SELECT month FROM month_points) ORDER BY m`).all(current);
+  for (const { m } of due) {
+    try { closeMonth(m); console.log(`Real points calculated for ${m}`); } catch (e) { console.error(`Real points for ${m} failed:`, e.message); }
+  }
+  return due.map((d) => d.m);
+}
+
+export function startPointsSchedule() {
+  setTimeout(closeDueMonths, 30 * 1000).unref();
+  setInterval(closeDueMonths, 60 * 60 * 1000).unref();
 }
 
 /**

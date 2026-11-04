@@ -289,8 +289,13 @@ function Tasks({ e, reload }) {
           : <strong>{number(e.points)}</strong>}
         {e.points_manual
           ? <span className="badge">Set by hand</span>
-          : <span className="muted">{number(auto.time)} for {e.activity_name || 'the time (no kind of event chosen)'}
-            {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit{auto.factor !== 1 ? ` · ${e.type_name} × ${number(auto.factor)}` : ''}</span>}
+          : e.points_real
+            ? <><span className="badge status-completed" title="Calculated when the month closed, from the month's profit">Real</span>
+              <span className="muted">{number(e.points_real.time)} for the time + {number(e.points_real.money)} for its share of the month’s profit
+                {' '}(estimate was {number(e.points_estimate)}) · <Link to="/payouts">month review</Link></span></>
+            : <><span className="badge" title="Final once the month is over: the profit points follow the whole month's profit">Estimate</span>
+              <span className="muted">{number(auto.time)} for {e.activity_name || 'the time (no kind of event chosen)'}
+              {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit{auto.factor !== 1 ? ` · ${e.type_name} × ${number(auto.factor)}` : ''}</span></>}
         {canEdit && (e.points_manual
           ? <button className="btn btn-sm" onClick={() => setPoints(null)}>Use automatic ({number(auto.total)})</button>
           : !byHand && <button className="btn btn-sm" onClick={() => setByHand(true)}>Set by hand</button>)}

@@ -8,7 +8,7 @@ import { db, ensureStockCategories, eventTaskShares, getPointsRates, getStarting
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  applyPayouts, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, closeMonth, reviewMonth, startPointsSchedule, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -1127,6 +1127,21 @@ api.delete('/payouts/:month', (req, res) => {
   res.json({ ok: true });
 });
 
+// Monthly review of points: estimates vs. the real points calculated when the month closed.
+api.get('/points-review/:month', (req, res) => {
+  need(/^\d{4}-\d{2}$/.test(req.params.month), 'Invalid month');
+  res.json(reviewMonth(req.params.month));
+});
+
+// Calculate (or recalculate) a past month's real points now.
+api.post('/points-review/:month', (req, res) => {
+  const ym = req.params.month;
+  need(/^\d{4}-\d{2}$/.test(ym), 'Invalid month');
+  need(ym < today().slice(0, 7), 'Real points are calculated once the month is over');
+  closeMonth(ym, req.user.id);
+  res.json(reviewMonth(ym));
+});
+
 api.get('/monthly', (req, res) => {
   const year = /^\d{4}$/.test(req.query.year || '') ? req.query.year : today().slice(0, 4);
   res.json(computeYear(year));
@@ -1619,3 +1634,4 @@ const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse proxy
 app.listen(port, host, () => console.log(`Active Management on http://${host}:${port}`));
 startBackupSchedule();
+startPointsSchedule();
