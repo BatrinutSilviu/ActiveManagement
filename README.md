@@ -61,6 +61,8 @@ Accounts created before roles existed are admins. The server enforces the roles;
   “Training session” ticked). A % voucher is valued only when it's used at a training of its sport: that % of what
   the person pays there is spent from the sport's fund, so the person pays less but the training's profit is unchanged.
   The amount follows the training's price and the person's discount there.
+- **Partner prizes** (Partners page, and on each event) record what partners give — e.g. rackets from a padel club.
+  They're not our money, so they never count in any profit, fund or payout; their estimated value is only shown.
 - Everything is attributed to the event's date (month). Money is stored as integer bani.
 - In the DB, status `planned` = Live and `completed` = Finalized.
 

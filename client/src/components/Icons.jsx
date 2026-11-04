@@ -29,3 +29,4 @@ export const IconCoins = (p) => <I {...p} d={<><ellipse cx="9" cy="7" rx="6" ry=
 export const IconChevronLeft = (p) => <I {...p} d={<path d="M15 18l-6-6 6-6" />} />;
 export const IconTicket = (p) => <I {...p} d={<><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4V8z" /><path d="M14 6v12" strokeDasharray="2 2" /></>} />;
 export const IconChevronRight = (p) => <I {...p} d={<path d="M9 18l6-6-6-6" />} />;
+export const IconGift = (p) => <I {...p} d={<><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13M5 12v9h14v-9" /><path d="M12 8H8.5a2.5 2.5 0 1 1 0-5C11 3 12 8 12 8zM12 8h3.5a2.5 2.5 0 1 0 0-5C13 3 12 8 12 8z" /></>} />;

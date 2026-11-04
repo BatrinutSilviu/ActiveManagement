@@ -511,6 +511,31 @@ if (!columns('events').includes('source')) {
     CREATE UNIQUE INDEX IF NOT EXISTS events_external ON events (source, external_id) WHERE external_id IS NOT NULL;`);
 }
 
+// Partners (clubs, shops, sponsors…) and the prizes they give at our events. Only a record of what
+// partners contributed: their prizes never count in any profit, fund or payout.
+db.exec(`CREATE TABLE IF NOT EXISTS partners (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  sport_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,  -- NULL = any sport
+  contact TEXT,
+  notes TEXT,
+  active INTEGER NOT NULL DEFAULT 1
+)`);
+db.exec(`CREATE TABLE IF NOT EXISTS partner_prizes (
+  id INTEGER PRIMARY KEY,
+  partner_id INTEGER NOT NULL REFERENCES partners(id),
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,      -- where it was given (optional)
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,     -- who won it (optional)
+  winner_name TEXT,                                               -- or a winner who isn't in People
+  prize TEXT NOT NULL,
+  qty INTEGER NOT NULL DEFAULT 1 CHECK (qty > 0),
+  value INTEGER,                                                  -- bani, estimated value of all of it; informative only
+  date TEXT NOT NULL,
+  note TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+
 // Share of an event's points for each task, in %; they add up to 100.
 export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
 export function getTaskShares() {

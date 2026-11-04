@@ -12,6 +12,7 @@ import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
 import { VoucherForm, VoucherTable, voucherWorth } from './Vouchers.jsx';
+import { NOT_COUNTED, PrizeForm, PrizeTable } from './Partners.jsx';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -452,6 +453,27 @@ function TrainingVouchers({ e }) {
   );
 }
 
+/** Prizes partners gave at this event: a record only, not counted in the event's money. */
+function PartnerPrizes({ e }) {
+  const { data, reload } = useApi(`/partner-prizes?event_id=${e.id}`);
+  const [form, setForm] = useState(null);
+  const { canEdit } = usePermissions();
+  if (!data) return null;
+  if (!data.length && !canEdit) return null;
+  const value = data.reduce((a, p) => a + (p.value || 0), 0);
+  return (
+    <div className="card">
+      <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+        <div><h2>Partner prizes</h2><p>{NOT_COUNTED}. <Link to="/partners">All partners →</Link></p></div>
+        {canEdit ? <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Partner prize</button>
+          : value > 0 && <span className="muted">≈ {money0(value)}</span>}
+      </div>
+      {data.length > 0 && <PrizeTable list={data} reload={reload} showEvent={false} setForm={setForm} />}
+      {form && <PrizeForm prize={form.prize} event={e} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
+    </div>
+  );
+}
+
 // What happened to stock after an event: kept (1), partly used (2, quantity unchanged), used up (0).
 const afterKey = (k) => (k === 2 ? 'partial' : k ? 'kept' : 'used');
 const AFTER_LABELS = { kept: 'Kept — still ours', partial: 'Partly used', used: 'Used up' };
@@ -611,6 +633,7 @@ export default function EventDetail() {
           <StockUsage e={e} reload={reload} />
           <Tasks e={e} reload={reload} />
           <EventVouchers e={e} />
+          <PartnerPrizes e={e} />
         </div>
         <div className="stack">
           <Statement e={e} split={split} />
