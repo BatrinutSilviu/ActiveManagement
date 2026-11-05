@@ -243,11 +243,11 @@ if (!db.prepare('SELECT 1 FROM activities LIMIT 1').get()) {
 // Event tasks. An event is worth `events.points`; each task gets a fixed share of that (set in
 // Settings, see getTaskShares) and the people on a task share its points equally. Someone doing a
 // task for free (free = 1) gives their points to the community: that money goes to the event's sport fund.
-export const TASKS = ['announce', 'signups', 'fees', 'hosting', 'buying'];
+export const TASKS = ['announce', 'signups', 'fees', 'logistics', 'hosting', 'buying'];
 db.exec(`CREATE TABLE IF NOT EXISTS event_tasks (
   id INTEGER PRIMARY KEY,
   event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  task TEXT NOT NULL CHECK (task IN ('announce', 'signups', 'fees', 'hosting', 'buying')),
+  task TEXT NOT NULL CHECK (task IN ('announce', 'signups', 'fees', 'logistics', 'hosting', 'buying')),
   person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
   free INTEGER NOT NULL DEFAULT 0
 )`);
@@ -262,7 +262,7 @@ if (!columns('events').includes('points')) {
       const rows = db.prepare('SELECT * FROM event_people WHERE event_id = ? ORDER BY role DESC, points DESC, id').all(ev.event_id);
       const lead = rows.find((r) => r.role === 'organizer') || rows[0];
       db.prepare('UPDATE events SET points = ? WHERE id = ?').run(lead.points, ev.event_id);
-      for (const t of TASKS) ins.run(ev.event_id, t, lead.person_id);
+      for (const t of ['announce', 'signups', 'fees', 'hosting', 'buying']) ins.run(ev.event_id, t, lead.person_id);
       for (const r of rows) if (r.person_id !== lead.person_id) ins.run(ev.event_id, 'hosting', r.person_id);
     }
   });
@@ -475,6 +475,36 @@ export function setPointsRates(rates) {
 if (!columns('events').includes('skipped_tasks')) db.exec("ALTER TABLE events ADD COLUMN skipped_tasks TEXT NOT NULL DEFAULT ''");
 // Tasks whose points were typed by hand for this event, as JSON { task: points }; the others follow the event's points.
 if (!columns('events').includes('task_points')) db.exec("ALTER TABLE events ADD COLUMN task_points TEXT NOT NULL DEFAULT '{}'");
+
+// "Organising logistics" (venue, providers, partners — not the participants) came after the first five tasks.
+// Existing events get it as "not needed", so their points don't change; new events have it like any task.
+// Its 10% comes proportionally from the other shares.
+if (!db.prepare("SELECT sql FROM sqlite_master WHERE name = 'event_tasks'").get().sql.includes('logistics')) {
+  tx(() => {
+    db.exec(`CREATE TABLE event_tasks_new (
+      id INTEGER PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      task TEXT NOT NULL CHECK (task IN ('announce', 'signups', 'fees', 'logistics', 'hosting', 'buying')),
+      person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+      free INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO event_tasks_new SELECT id, event_id, task, person_id, free FROM event_tasks;
+    DROP TABLE event_tasks;
+    ALTER TABLE event_tasks_new RENAME TO event_tasks;
+    CREATE INDEX IF NOT EXISTS event_tasks_event ON event_tasks (event_id);`);
+    db.exec("UPDATE events SET skipped_tasks = CASE WHEN skipped_tasks = '' THEN 'logistics' ELSE skipped_tasks || ',logistics' END");
+    const saved = db.prepare("SELECT value FROM settings WHERE key = 'task_shares'").get();
+    if (saved) {
+      const s = JSON.parse(saved.value);
+      if (s.logistics === undefined) {
+        // Every other share × 0.9: with logistics "not needed" they scale back to exactly what they were.
+        for (const k of Object.keys(s)) s[k] = Math.round((Number(s[k]) || 0) * 0.9 * 100) / 100;
+        s.logistics = 10;
+        db.prepare("UPDATE settings SET value = ? WHERE key = 'task_shares'").run(JSON.stringify(s));
+      }
+    }
+  });
+}
 export const manualTaskPoints = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
 
 /** Each task's share (%) for one event: the needed tasks share 100% in proportion to their usual shares. */
@@ -552,7 +582,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS month_points (
 )`);
 
 // Share of an event's points for each task, in %; they add up to 100.
-export const DEFAULT_TASK_SHARES = { announce: 15, signups: 15, fees: 15, hosting: 40, buying: 15 };
+export const DEFAULT_TASK_SHARES = { announce: 13.5, signups: 13.5, fees: 13.5, logistics: 10, hosting: 36, buying: 13.5 };
 export function getTaskShares() {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'task_shares'").get();
   return { ...DEFAULT_TASK_SHARES, ...(row ? JSON.parse(row.value) : {}) };

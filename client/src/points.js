@@ -19,8 +19,8 @@ export function activityPoints(a, role, participants = 0, fees = 0) {
 }
 
 // The tasks an event's points are shared between (shares in % are set in Settings).
-export const TASKS = ['announce', 'signups', 'fees', 'hosting', 'buying'];
+export const TASKS = ['announce', 'signups', 'fees', 'logistics', 'hosting', 'buying'];
 export const TASK_LABELS = {
-  announce: 'Announcing the event', signups: 'Managing sign-ups', fees: 'Collecting the fees',
+  announce: 'Announcing the event', signups: 'Managing sign-ups', fees: 'Collecting the fees', logistics: 'Organising logistics',
   hosting: 'Hosting the event', buying: 'Buying items / prizes',
 };
