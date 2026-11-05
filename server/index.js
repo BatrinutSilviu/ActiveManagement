@@ -1200,6 +1200,23 @@ api.post('/payouts/:month/to-fund', (req, res) => {
   res.json({ ok: true, people: n });
 });
 
+// Every payout ever recorded, newest first: one entry per payment (month + day paid), with who got what.
+api.get('/payouts/history', (req, res) => {
+  const rows = db.prepare(`SELECT month, paid_at, to_fund, person_name, amount FROM payouts
+    ORDER BY paid_at DESC, month DESC, to_fund, person_name`).all();
+  const groups = new Map();
+  for (const r of rows) {
+    const key = `${r.paid_at}|${r.month}|${r.to_fund}`;
+    if (!groups.has(key)) groups.set(key, { month: r.month, paidAt: r.paid_at, toFund: !!r.to_fund, total: 0, people: [] });
+    const g = groups.get(key);
+    g.people.push({ name: r.person_name, amount: toRon(r.amount) });
+    g.total = r2(g.total + toRon(r.amount));
+  }
+  const list = [...groups.values()];
+  res.json({ payments: list, paid: r2(list.filter((g) => !g.toFund).reduce((a, g) => a + g.total, 0)),
+    toFund: r2(list.filter((g) => g.toFund).reduce((a, g) => a + g.total, 0)) });
+});
+
 // Undo: forget every payout recorded for the month.
 api.delete('/payouts/:month', (req, res) => {
   need(isMonth(req.params.month), 'Invalid month');
