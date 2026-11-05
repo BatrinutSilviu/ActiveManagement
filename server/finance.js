@@ -307,6 +307,8 @@ export function computeFunds() {
       s.pending += e.split.sport;
     }
   }
+  // Payouts left to the community: the general fund gets them instead of the people.
+  general.allocated += toRon(db.prepare('SELECT COALESCE(SUM(amount), 0) AS s FROM payouts WHERE to_fund = 1').get().s);
   for (const t of loadFundTx()) {
     const f = t.fund_sport_id ? bySport.get(t.fund_sport_id) : general;
     if (!f) continue;
@@ -346,6 +348,8 @@ export function computeYear(year) {
     const s = m.bySport[e.type_id];
     s.allocated += e.split.sport; s.profit += e.profit; s.events++;
   }
+  for (const p of db.prepare("SELECT month, SUM(amount) AS s FROM payouts WHERE to_fund = 1 AND substr(month, 1, 4) = ? GROUP BY month").all(y))
+    months[monthOf(p.month) - 1].general += toRon(p.s); // payouts left to the general fund
   for (const t of loadFundTx("AND strftime('%Y', t.date) = ?", [y])) {
     const m = months[monthOf(t.date) - 1];
     if (t.kind === 'income') { m.topups += t.amount; continue; }
@@ -413,13 +417,15 @@ export function computeFounders(ym) {
   for (const p of people.values()) p.points = r2(p.points);
   for (const p of people.values()) p.pointsAmount = totalPoints ? r2((pools.points * p.points) / totalPoints) : 0;
   // What was already sent for this month; someone paid earlier but no longer due shows as overpaid.
-  const sent = db.prepare('SELECT person_id, person_name, SUM(amount) AS amount, MAX(paid_at) AS paid_at FROM payouts WHERE month = ? GROUP BY person_id, person_name').all(ym);
+  const sent = db.prepare(`SELECT person_id, person_name, SUM(amount) AS amount, SUM(CASE WHEN to_fund = 1 THEN amount ELSE 0 END) AS to_fund,
+    MAX(paid_at) AS paid_at FROM payouts WHERE month = ? GROUP BY person_id, person_name`).all(ym);
   for (const s of sent) if (!people.has(s.person_id)) person(s.person_id, s.person_name);
   const rows = [...people.values()]
     .map((p) => {
       const total = r2(p.standard + p.pointsAmount);
-      const paid = toRon(sent.filter((s) => s.person_id === p.id).reduce((a, s) => a + s.amount, 0));
-      return { ...p, total, paid, owed: r2(total - paid), founder: founders.some((f) => f.id === p.id) };
+      const mine = sent.filter((s) => s.person_id === p.id);
+      const paid = toRon(mine.reduce((a, s) => a + s.amount, 0)), toFund = toRon(mine.reduce((a, s) => a + s.to_fund, 0));
+      return { ...p, total, paid, toFund, owed: r2(total - paid), founder: founders.some((f) => f.id === p.id) };
     })
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   const paidAt = sent.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
@@ -428,7 +434,7 @@ export function computeFounders(ym) {
     founders: founders.length, totalPoints, freePoints, people: rows, ledger,
     payout: {
       paidAt, due: r2(rows.reduce((a, p) => a + p.total, 0)), paid: r2(rows.reduce((a, p) => a + p.paid, 0)),
-      owed: r2(rows.reduce((a, p) => a + p.owed, 0)),
+      owed: r2(rows.reduce((a, p) => a + p.owed, 0)), toFund: r2(rows.reduce((a, p) => a + p.toFund, 0)),
     },
     unassignedPoints: totalPoints ? 0 : pools.points, // nobody earned points: the organisers' share is not paid out
   };
@@ -483,7 +489,7 @@ export function computeCash(funds = computeFunds()) {
   const profit = r2(loadEvents("WHERE e.status = 'completed'").reduce((a, e) => a + e.profit, 0));
   const topups = r2(funds.general.topups + funds.sportsTotal.topups);
   const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
-  const paid = sum('paid');
+  const paid = r2(sum('paid') - sum('toFund')); // left to the fund: still in the account
   const starting = r2(funds.general.starting + funds.sportsTotal.starting);
   // Vouchers given but not used yet: still in the account, but the funds will pay them out.
   const today = new Date().toISOString().slice(0, 10);
@@ -500,15 +506,16 @@ export function computeCash(funds = computeFunds()) {
 /** Records the payouts for a month: whatever each person is owed now (all of it the first time). */
 // `amounts` ({ personId: RON }) records what was really sent, e.g. a round 700 each; without it,
 // whatever each person is owed. `date` is when it was paid (today by default).
-export function applyPayouts(ym, userId, { amounts, date } = {}) {
+// `toFund`: what everyone is still owed goes to the general community fund instead of being sent.
+export function applyPayouts(ym, userId, { amounts, date, toFund = false } = {}) {
   const r = computeFounders(ym);
-  const lines = amounts
+  const lines = toFund ? r.people.filter((p) => p.owed >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed })) : amounts
     ? Object.entries(amounts).map(([id, v]) => ({ id: Number(id), amount: Number(v) || 0 })).filter((l) => Math.abs(l.amount) >= 0.01)
       .map((l) => ({ ...l, name: r.people.find((p) => p.id === l.id)?.name || db.prepare('SELECT name FROM people WHERE id = ?').get(l.id)?.name }))
     : r.people.filter((p) => Math.abs(p.owed) >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }));
   if (lines.some((l) => !l.name)) throw Object.assign(new Error('Unknown person'), { status: 400 });
-  const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by)
-    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?)`);
-  for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null);
+  const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by, to_fund)
+    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?)`);
+  for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null, toFund ? 1 : 0);
   return lines.length;
 }

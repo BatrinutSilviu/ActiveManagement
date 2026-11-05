@@ -250,6 +250,12 @@ export default function Payouts() {
   const paidAny = !!pay.paidAt;
   const owing = Math.abs(pay.owed) >= 0.01;
   const markPaid = () => setPaying(true);
+  const restToFund = async () => {
+    const owed = r.people.filter((p) => p.owed >= 0.01);
+    if (!window.confirm(`Give the rest to the general community fund instead of paying it?\n\n${owed.map((p) => `${p.name}: ${money(p.owed)}`).join('\n')}\n\n${money(owed.reduce((a, p) => a + p.owed, 0))} goes to the general fund and ${monthName(month)} counts as settled.`)) return;
+    await api.post(`/payouts/${month}/to-fund`);
+    reload();
+  };
   const undoPaid = async () => {
     if (!window.confirm(`Undo the payouts recorded for ${monthName(month)}? The month will show as unpaid again.`)) return;
     await api.del(`/payouts/${month}`);
@@ -328,6 +334,10 @@ export default function Payouts() {
                   {canEdit && (!paidAny || pay.owed >= 0.01) && (
                     <button className="btn btn-sm btn-primary" onClick={markPaid}>{paidAny ? `Pay the rest ${money(pay.owed)}` : 'Mark as paid'}</button>
                   )}
+                  {canEdit && pay.owed >= 0.01 && (
+                    <button className="btn btn-sm" onClick={restToFund} title="Not paid to the founders / organisers: it goes to the general community fund">
+                      {paidAny ? 'Rest' : 'All'} to community fund</button>
+                  )}
                   {canEdit && paidAny && <button className="btn btn-sm" onClick={undoPaid}>Undo</button>}
                 </div>
               </div>
@@ -335,6 +345,9 @@ export default function Payouts() {
                 <p className="hint" style={{ padding: '0 22px 12px', margin: 0 }}>
                   {money(pay.paid)} was paid against {money(pay.due)} calculated, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} more was paid than calculated`}.
                 </p>
+              )}
+              {pay.toFund >= 0.01 && (
+                <p className="hint" style={{ padding: '0 22px 12px', margin: 0 }}>{money(pay.toFund)} of it went to the general community fund instead of being paid out.</p>
               )}
               <div className="table-wrap">
                 {r.people.length ? (
@@ -357,6 +370,7 @@ export default function Payouts() {
                           {paidAny && (
                             <td className="r">
                               {money(p.paid)}
+                              {p.toFund >= 0.01 && <div className="row-sub">incl. {money(p.toFund)} to the fund</div>}
                               {Math.abs(p.owed) >= 0.01 && <div className={`row-sub ${p.owed < 0 ? 'neg' : ''}`}>{signedMoney(p.owed)} {p.owed > 0 ? 'owed' : 'overpaid'}</div>}
                             </td>
                           )}

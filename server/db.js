@@ -623,6 +623,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS payouts (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS payouts_month ON payouts (month)');
+// to_fund = 1: not sent to the person — what they were still owed went to the general community fund instead.
+if (!columns('payouts').includes('to_fund')) db.exec('ALTER TABLE payouts ADD COLUMN to_fund INTEGER NOT NULL DEFAULT 0');
 
 /* ----------------------------------------------------- starting balance */
 

@@ -1011,7 +1011,7 @@ api.get('/stats/period', (req, res) => {
   const done = loadEvents(`WHERE e.status = 'completed' ${evWhere}`, evParams);
   const live = loadEvents(`WHERE e.status = 'planned' ${evWhere}`, evParams);
   const fund = loadFundTx(y ? `AND strftime('${fmt}', t.date) = ?` : '', evParams);
-  const paid = toRon(db.prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM payouts ${y ? `WHERE strftime('${fmt}', paid_at) = ?` : ''}`).get(...evParams).s);
+  const paid = toRon(db.prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM payouts WHERE to_fund = 0 ${y ? `AND strftime('${fmt}', paid_at) = ?` : ''}`).get(...evParams).s);
   const sum = (l, f) => r2(l.reduce((a, x) => a + f(x), 0));
   const fees = sum(done, (e) => e.fee_income), eventProfit = sum(done, (e) => e.profit);
   const fundNet = sum(fund, (t) => (t.kind === 'income' ? t.amount : -t.amount));
@@ -1177,6 +1177,14 @@ api.post('/payouts/:month/apply', (req, res) => {
   need(!req.body.date || isDate(req.body.date), 'Invalid date');
   const n = tx(() => applyPayouts(req.params.month, req.user.id, { amounts: req.body.amounts, date: req.body.date }));
   need(n > 0, 'Enter at least one amount paid');
+  res.json({ ok: true, people: n });
+});
+
+// What's still owed for the month goes to the general community fund instead of the people.
+api.post('/payouts/:month/to-fund', (req, res) => {
+  need(isMonth(req.params.month), 'Invalid month');
+  const n = tx(() => applyPayouts(req.params.month, req.user.id, { toFund: true }));
+  need(n > 0, 'Nothing is owed for this month');
   res.json({ ok: true, people: n });
 });
 
