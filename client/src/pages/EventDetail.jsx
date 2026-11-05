@@ -299,7 +299,7 @@ function Tasks({ e, reload }) {
                 {' '}+ {number(e.points_real.impact ?? 0)} impact (estimate was {number(e.points_estimate)}) · <Link to="/payouts">month review</Link></span></>
             : <><span className="badge" title="Final on the 1st of the next month: the profit points follow the whole month's profit">Estimate</span>
               <span className="muted">{number(auto.time)} time ({e.activity_name || 'no kind of event chosen'})
-              {' '}+ {number(auto.people)} for {number(e.counted_participants || 0)} participants
+              {' '}+ {number(auto.people)} for {number(e.counted_participants || 0)} participants{e.counted_participants > 0 && auto.peopleScale < 1 ? ` (${Math.round(auto.peopleScale * 100)}% — profit per person is low)` : ''}
               {' '}+ {number(auto.money)} for {signedMoney(e.profit)} profit
               {' '}+ {number(auto.impact)} impact{auto.factor !== 1 ? ` · ${e.type_name} × ${number(auto.factor)}` : ''}</span></>}
         {canEdit && (e.points_manual

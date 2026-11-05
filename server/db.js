@@ -461,11 +461,11 @@ if (!columns('events').includes('hours_before')) {
 
 // Stock purchases earn the buyer points per so many RON spent, at a rate for each kind of purchase.
 // An event's points have four parts, each with its own weight (×): time (points table), participants
-// (points per so many people), profit (points per so many RON, scaled to the month's profit on the 1st)
+// (points per so many people, in full only when the event made at least `peopleProfit` RON per person), profit (points per so many RON, scaled to the month's profit on the 1st)
 // and impact (what was special: a collaboration, a special guest…, see event_highlights).
 export const DEFAULT_POINTS_RATES = { moneyStep: 100, moneyPoints: 1,
   itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1,
-  peopleStep: 10, peoplePoints: 1, collabPoints: 3, guestPoints: 3, specialPoints: 3,
+  peopleStep: 10, peoplePoints: 1, peopleProfit: 20, collabPoints: 3, guestPoints: 3, specialPoints: 3,
   wTime: 1, wPeople: 1, wProfit: 1, wImpact: 1 };
 export const POINTS_RATE_KEYS = Object.keys(DEFAULT_POINTS_RATES);
 export function getPointsRates() {

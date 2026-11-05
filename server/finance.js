@@ -51,17 +51,20 @@ export function splitProfit(profit, split = getSplit()) {
 /**
  * Points an event earns, in four parts, each times its weight from Settings and the sport's multiplier:
  *   time   — its activity's points from the points table (what organising it takes)
- *   people — points per so many participants (counted ones)
+ *   people — points per so many participants (counted ones), times how much profit they brought: in full
+ *            from `peopleProfit` RON of profit per person, less below it, none for an event without profit
  *   money  — points per so many RON of profit; an estimate until the month closes (see computeRealPoints)
  *   impact — the points of what made it special (collaboration, special guest…)
  */
 export function eventPoints(e, profit, rates = getPointsRates()) {
   const factor = e.points_factor ?? 1;
   const time = (e.activity_points || 0) * rates.wTime * factor;
-  const people = rates.peopleStep > 0 ? ((e.counted_participants || 0) / rates.peopleStep) * rates.peoplePoints * rates.wPeople * factor : 0;
+  const count = e.counted_participants || 0;
+  const peopleScale = profit <= 0 || !count ? 0 : rates.peopleProfit > 0 ? Math.min(profit / count / rates.peopleProfit, 1) : 1;
+  const people = rates.peopleStep > 0 ? (count / rates.peopleStep) * rates.peoplePoints * peopleScale * rates.wPeople * factor : 0;
   const money = rates.moneyStep > 0 && profit > 0 ? (profit / rates.moneyStep) * rates.moneyPoints * rates.wProfit * factor : 0;
   const impact = (e.impact_points || 0) * rates.wImpact * factor;
-  return { time: r2(time), people: r2(people), money: r2(money), impact: r2(impact), total: r2(time + people + money + impact), factor };
+  return { time: r2(time), people: r2(people), peopleScale: r2(peopleScale), money: r2(money), impact: r2(impact), total: r2(time + people + money + impact), factor };
 }
 
 export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {

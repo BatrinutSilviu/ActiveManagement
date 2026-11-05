@@ -321,7 +321,7 @@ function PointsRates() {
         <span className="inline-num">Time {input('wTime', 0.1)} · Participants {input('wPeople', 0.1)} · Profit {input('wProfit', 0.1)} · Impact {input('wImpact', 0.1)}</span>
         <div className="form-section" style={{ marginTop: 6 }}>Rates</div>
         <span className="inline-num">Time: the kind of event’s points (points table below)</span>
-        <span className="inline-num">{input('peoplePoints')} points per {input('peopleStep', 1)} participants</span>
+        <span className="inline-num">{input('peoplePoints')} points per {input('peopleStep', 1)} participants — in full when the event made at least {input('peopleProfit', 1)} RON profit per person, less below that, none without profit</span>
         <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
         <span className="inline-num">Impact, usual points: collaboration {input('collabPoints')} · special guest {input('guestPoints')} · special event {input('specialPoints')}</span>
         <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
