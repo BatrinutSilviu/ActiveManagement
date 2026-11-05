@@ -72,7 +72,7 @@ api.post('/auth/logout', (req, res) => {
 
 // The padel and hikes apps push every created / changed / deleted tournament or hike here, with the
 // shared secret INTEGRATION_TOKEN as a Bearer token. Body: { source: 'padel' | 'hikes', id, deleted?, record }.
-// - New: created as a live event, unless dated before SYNC_FROM or a hike draft.
+// - New: created as a live event (hike drafts too), unless dated before SYNC_FROM.
 // - Changed: only the fields whose value changed in that app since the last push are updated, so
 //   corrections made here are kept. Finalized events are never changed.
 // - Deleted there: cancelled here (never deleted: it may already have costs).
@@ -120,7 +120,6 @@ function upsertSyncedEvent(source, externalId, record) {
   const url = record.url || null;
   if (!ev) {
     if (m.date < SYNC_FROM) return { action: 'ignored', reason: `dated before ${SYNC_FROM}` };
-    if (m.draft) return { action: 'ignored', reason: 'draft' };
     // Already entered here by hand (same day and sport, same name or tournament number): link it instead
     // of creating a duplicate. Its fields stay as they are; later changes in the other app are applied.
     const own = findHandMade(m);

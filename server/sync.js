@@ -44,7 +44,7 @@ export function mapPadel(t) {
 }
 
 /**
- * A hike or via ferrata (hikes app's Hike + confirmedCount + url). Drafts aren't created.
+ * A hike or via ferrata (hikes app's Hike + confirmedCount + url). Drafts are synced too (noted as drafts).
  * Hike price = entry fee, plus accommodation when there is one (the accommodation is the venue's part).
  * Via ferrata: the hikes app keeps its total price in accommodationPrice.
  */
@@ -65,8 +65,8 @@ export function mapHike(h) {
     participation_fee: price,
     venue_fee: lodging || null,
     status: h.status === 'cancelled' ? 'cancelled' : 'planned',
-    draft: h.status === 'draft',
     notes: lines(
+      h.status === 'draft' ? 'Draft in the hikes app (not published yet)' : null,
       via ? 'Via ferrata' : `Hike${h.difficulty ? ` · ${DIFFICULTY[h.difficulty] || h.difficulty}` : ''}`,
       h.meetingPoint || h.meetingTime ? `Meeting: ${[h.meetingTime, h.meetingPoint].filter(Boolean).join(' · ')}` : null,
       h.startingPoint ? `Start: ${h.startingPoint}` : null,

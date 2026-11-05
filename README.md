@@ -90,7 +90,7 @@ Tournaments created in the padel app (padel.activetimisoara.ro) and hikes / via 
 (hikes.activetimisoara.ro) become events here automatically. Both apps push every change to
 `POST /api/integrations/events` with a shared secret; the mapping is in `server/sync.js`.
 
-- Created as live events; nothing dated before `SYNC_FROM` (default 2026-11-04) and no hike drafts.
+- Created as live events (hike drafts too, noted as drafts); nothing dated before `SYNC_FROM` (default 2026-11-04).
 - Padel: name, date, entry fee, confirmed players, type and level (in the notes); sport Padel. No location or venue part.
 - Hikes: title, dates, destination, confirmed participants, price (hike: entry fee + accommodation, with the
   accommodation as the venue part; via ferrata: its total price), meeting point/time, difficulty and description
