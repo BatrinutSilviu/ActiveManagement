@@ -359,12 +359,15 @@ export default function Payouts() {
                         <tr key={p.id}>
                           <td>
                             <strong>{p.name}</strong>{p.founder && <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span>}
-                            <div className="row-sub show-sm">{money0(p.standard)} founder · {money0(p.pointsAmount)} organiser ({number(p.points)}p)</div>
+                            <div className="row-sub show-sm">{money0(p.standard)} founder · {money0(p.pointsAmount)} organiser ({number(p.points)}p)
+                              {p.freePoints > 0 ? ` · ${number(p.freePoints)}p free` : ''}{p.pendingPoints > 0 ? ` · ${number(p.pendingPoints)}p live` : ''}</div>
                           </td>
                           <td className="r hide-sm">{money(p.standard)}</td>
                           <td className="r hide-sm">
                             {number(p.points)}
                             {r.totalPoints > 0 && <span className="muted"> · {Math.round((p.points / r.totalPoints) * 100)}%</span>}
+                            {p.freePoints > 0 && <div className="row-sub">+ {number(p.freePoints)} done for free</div>}
+                            {p.pendingPoints > 0 && <div className="row-sub">+ {number(p.pendingPoints)} from live events</div>}
                           </td>
                           <td className="r hide-sm">{money(p.pointsAmount)}</td>
                           <td className="r"><strong>{money(p.total)}</strong></td>

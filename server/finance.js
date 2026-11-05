@@ -410,15 +410,18 @@ export function computeFounders(ym) {
 
   const founders = db.prepare('SELECT id, name FROM people WHERE is_founder = 1 AND active = 1 ORDER BY name').all();
   const people = new Map();
-  const person = (id, name) => people.get(id) || people.set(id, { id, name, standard: 0, points: 0, pointsAmount: 0, lines: 0 }).get(id);
+  const person = (id, name) => people.get(id) || people.set(id, { id, name, standard: 0, points: 0, pointsAmount: 0, lines: 0, freePoints: 0, pendingPoints: 0 }).get(id);
   for (const f of founders) person(f.id, f.name).standard = r2(pools.standard / founders.length);
+  // Everyone with points this month is listed: points done for free (their money goes to a fund) and
+  // points from live events (paid once the event is finalized) show next to them but earn nothing now.
+  for (const l of linesOf(live)) person(l.person_id, l.person_name).pendingPoints += l.points;
   for (const l of ledger) {
-    if (l.free) continue; // done for free: the community's points
+    if (l.free) { person(l.person_id, l.person_name).freePoints += l.points; continue; } // done for free: the community's points
     const p = person(l.person_id, l.person_name);
     p.points += l.points;
     p.lines++;
   }
-  for (const p of people.values()) p.points = r2(p.points);
+  for (const p of people.values()) { p.points = r2(p.points); p.freePoints = r2(p.freePoints); p.pendingPoints = r2(p.pendingPoints); }
   for (const p of people.values()) p.pointsAmount = totalPoints ? r2((pools.points * p.points) / totalPoints) : 0;
   // What was already sent for this month; someone paid earlier but no longer due shows as overpaid.
   const sent = db.prepare(`SELECT person_id, person_name, SUM(amount) AS amount, SUM(CASE WHEN to_fund = 1 THEN amount ELSE 0 END) AS to_fund,
