@@ -201,6 +201,9 @@ scp data/import/sheet-2026.mjs you@server:/tmp/                 # from your comp
 sudo -u active mkdir -p /opt/active-management/data/import
 sudo install -o active -m 600 /tmp/sheet-2026.mjs /opt/active-management/data/import/ && rm /tmp/sheet-2026.mjs
 cd /opt/active-management && sudo -u active DB_PATH=/var/lib/active-management/active.db npm run import:sheet -- data/import/sheet-2026.mjs
+# Later, after the sheet changes: update the data file the same way, then preview and apply
+sudo -u active DB_PATH=/var/lib/active-management/active.db npm run sync:sheet -- data/import/sheet-2026.mjs           # preview
+sudo -u active DB_PATH=/var/lib/active-management/active.db npm run sync:sheet -- data/import/sheet-2026.mjs --apply
 
 # 6. Daily backups (kept 30 days in /var/lib/active-management/backups)
 sudo cp deploy/backup.sh /usr/local/bin/active-backup && sudo chmod +x /usr/local/bin/active-backup
