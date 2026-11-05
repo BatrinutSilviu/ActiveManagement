@@ -13,6 +13,7 @@ import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
 import { VoucherForm, VoucherTable, voucherWorth } from './Vouchers.jsx';
 import { NOT_COUNTED, PrizeForm, PrizeTable } from './Partners.jsx';
+import Select from '../components/Select.jsx';
 
 /** The per-event statement the founders asked for: income, costs, profit and how it is split. */
 function Statement({ e, split }) {
@@ -150,14 +151,14 @@ function Discounts({ e, reload }) {
         </div>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
-        <select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
+        <Select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
           <option value="">Person…</option>
           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => (
             <option key={p.id} value={p.id}>{p.name}{p.is_founder ? ' · founder' : organisers.has(p.id) ? ' · organiser' : p.is_member && memberPrice ? ' · member' : p.discount_ids.length ? ' ★' : ''}</option>
           ))}
           <option value="new">+ New person…</option>
-        </select>
-        <select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
+        </Select>
+        <Select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
           <option value="" disabled={!!person}>Discount…</option>
           <option value="free-skip">Free — doesn’t pay, not counted (no cost to us)</option>
           <option value="free-paid">Free — we pay their fee (counts as a cost)</option>
@@ -173,7 +174,7 @@ function Discounts({ e, reload }) {
             </optgroup>
           )}
           <option value="custom">One-off amount…</option>
-        </select>
+        </Select>
         {f.discount_id === 'custom' && (
           <input className="select-sm num-input" type="number" min="0.01" step="0.01" placeholder="RON" value={f.amount}
             onChange={(ev) => setF({ ...f, amount: ev.target.value })} required aria-label="Discount amount" />
@@ -354,11 +355,11 @@ function Tasks({ e, reload }) {
                       ))}
                       {!lines.length && <span className="muted">Nobody yet</span>}
                       {canEdit && (
-                        <select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
+                        <Select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
                           onChange={(ev) => ev.target.value && run(() => api.post(`/events/${e.id}/tasks`, { task: t, person_id: ev.target.value }))}>
                           <option value="">Add…</option>
                           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
+                        </Select>
                       )}
                     </div>
                   </td>
@@ -441,16 +442,16 @@ function Impact({ e, reload }) {
       {f && (
         <form onSubmit={save} className="card-pad form-grid" style={{ paddingTop: 0 }}>
           <label className="field">What was special
-            <select value={f.kind} onChange={set('kind')}>
+            <Select value={f.kind} onChange={set('kind')}>
               {Object.entries(HIGHLIGHT_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
+            </Select>
           </label>
           {f.kind === 'collab' && (
             <label className="field">Partner (optional)
-              <select value={f.partner_id} onChange={set('partner_id')}>
+              <Select value={f.partner_id} onChange={set('partner_id')}>
                 <option value="">— not a saved partner —</option>
                 {(partners || []).filter((p) => p.active || String(p.id) === String(f.partner_id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </Select>
             </label>
           )}
           <label className="field">{f.kind === 'guest' ? 'Guest' : f.kind === 'collab' ? 'Collaboration with' : 'What'}
@@ -545,10 +546,10 @@ function TrainingVouchers({ e }) {
       )}
       {canEdit && (usable.length ? (
         <form className="inline-form" onSubmit={use}>
-          <select className="select-sm" value={pick} onChange={(ev) => setPick(ev.target.value)} required>
+          <Select className="select-sm" value={pick} onChange={(ev) => setPick(ev.target.value)} required>
             <option value="">Voucher…</option>
             {usable.map((v) => <option key={v.id} value={v.id}>{v.person_name} · {voucherWorth(v)}{v.code ? ` · ${v.code}` : ''}</option>)}
-          </select>
+          </Select>
           <button className="btn btn-sm" disabled={!chosen}>Use{chosen ? ` · ${money(worth(chosen))} from the fund` : ''}</button>
         </form>
       ) : <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>{used.length ? 'No other unused' : 'No unused'} % off vouchers of {e.type_name}. Give them on the event where they were won.</p>)}
@@ -618,10 +619,10 @@ function StockUsage({ e, reload }) {
                   <td className="r hide-sm">{number(s.qty)} {s.unit}</td>
                   <td className="hide-sm">
                     {canEdit ? (
-                      <select className="select-sm" value={afterKey(s.kept)} aria-label={`${s.item_name} after the event`}
+                      <Select className="select-sm" value={afterKey(s.kept)} aria-label={`${s.item_name} after the event`}
                         onChange={(ev) => run(() => api.put(`/event-stock/${s.id}`, { kept: ev.target.value }))}>
                         {AFTER_OPTIONS}
-                      </select>
+                      </Select>
                     ) : AFTER_LABELS[afterKey(s.kept)]}
                   </td>
                   <td className="r hide-sm">{money(s.unit_price)}</td>
@@ -639,19 +640,19 @@ function StockUsage({ e, reload }) {
         </div>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
-        <select className="select-sm" value={f.item_id} onChange={(ev) => setF({ ...f, item_id: ev.target.value, person_id: '', qty: '' })} required>
+        <Select className="select-sm" value={f.item_id} onChange={(ev) => setF({ ...f, item_id: ev.target.value, person_id: '', qty: '' })} required>
           <option value="">Product…</option>
           {stock?.map((i) => <option key={i.id} value={i.id} disabled={!i.qty}>{i.name} · {money(i.unit_price)}/{i.unit} ({number(i.qty)} left)</option>)}
-        </select>
-        <select className="select-sm" value={f.person_id} onChange={(ev) => setF({ ...f, person_id: ev.target.value })} required disabled={!item}>
+        </Select>
+        <Select className="select-sm" value={f.person_id} onChange={(ev) => setF({ ...f, person_id: ev.target.value })} required disabled={!item}>
           <option value="">From…</option>
           {item?.holdings.filter((h) => h.qty > 0).map((h) => <option key={h.person_id} value={h.person_id}>{h.name} ({number(h.qty)})</option>)}
-        </select>
+        </Select>
         <input className="select-sm num-input" type="number" min="0.01" step="any" max={holder?.qty} placeholder="Qty" value={f.qty}
           onChange={(ev) => setF({ ...f, qty: ev.target.value })} required aria-label="Quantity" />
-        <select className="select-sm" value={f.kept} onChange={(ev) => setF({ ...f, kept: ev.target.value })} aria-label="After the event">
+        <Select className="select-sm" value={f.kept} onChange={(ev) => setF({ ...f, kept: ev.target.value })} aria-label="After the event">
           {AFTER_OPTIONS}
-        </select>
+        </Select>
         <button className="btn btn-sm" disabled={!item}>Add{cost ? ` · ${money(cost)}` : ''}</button>
       </form>}
       {canEdit && stock && !stock.length && <p className="hint" style={{ padding: '0 22px 16px', margin: 0 }}>No products yet — add them on the <Link to="/stock">Stock</Link> page.</p>}

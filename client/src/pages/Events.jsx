@@ -5,6 +5,7 @@ import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money0, number, signedMoney } from '../format.js';
 import EventForm, { STATUS_LABELS } from '../components/EventForm.jsx';
 import { IconEdit, IconPlus } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 export function StatusBadge({ status }) {
   return <span className={`badge status-${status}`}><span className="dot" />{STATUS_LABELS[status]}</span>;
@@ -40,20 +41,20 @@ export default function Events() {
 
       <div className="filters">
         <input type="search" placeholder="Search name, sport, location…" value={filters.q} onChange={set('q')} />
-        <select value={filters.year} onChange={set('year')} aria-label="Year">
+        <Select value={filters.year} onChange={set('year')} aria-label="Year">
           <option value="">All years</option>
           {years?.map((y) => <option key={y}>{y}</option>)}
-        </select>
-        <select value={filters.type} onChange={set('type')} aria-label="Sport">
+        </Select>
+        <Select value={filters.type} onChange={set('type')} aria-label="Sport">
           <option value="">All sports</option>
           {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <select value={filters.status} onChange={set('status')} aria-label="Status">
+        </Select>
+        <Select value={filters.status} onChange={set('status')} aria-label="Status">
           <option value="">Any status</option>
           <option value="planned">Live</option>
           <option value="completed">Finalized</option>
           <option value="cancelled">Cancelled</option>
-        </select>
+        </Select>
       </div>
 
       <div className="card table-wrap">

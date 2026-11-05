@@ -5,6 +5,7 @@ import { date, money0, MONTHS, MONTHS_LONG, signedMoney } from '../format.js';
 import { GroupedBars } from '../components/Charts.jsx';
 import { IconDownload } from '../components/Icons.jsx';
 import { pctLabel } from './Dashboard.jsx';
+import Select from '../components/Select.jsx';
 
 export default function Monthly() {
   const navigate = useNavigate();
@@ -39,9 +40,9 @@ export default function Monthly() {
       </div>
 
       <div className="filters">
-        <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+        <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
           {years?.map((v) => <option key={v}>{v}</option>)}
-        </select>
+        </Select>
         <div className="month-pills" role="tablist" aria-label="Month">
           {MONTHS.map((label, i) => (
             <button key={label} role="tab" aria-selected={month === i + 1} className={month === i + 1 ? 'on' : ''}

@@ -5,6 +5,7 @@ import { date, money, money0, number } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
+import Select from '../components/Select.jsx';
 
 function useAction(reload) {
   const [error, setError] = useState(null);
@@ -195,16 +196,16 @@ function Discounts() {
       )}
       <form className="inline-form" onSubmit={submit}>
         <input className="select-sm" value={f.name} onChange={set('name')} placeholder="e.g. Founders – Hyrox free" required style={{ flex: '2 1 200px' }} />
-        <select className="select-sm" value={f.kind} onChange={set('kind')} style={{ flex: '0 1 130px' }}>
+        <Select className="select-sm" value={f.kind} onChange={set('kind')} style={{ flex: '0 1 130px' }}>
           <option value="percent">% off</option>
           <option value="fixed">RON off</option>
-        </select>
+        </Select>
         <input className="select-sm num-input" type="number" min="0.01" step="0.01" max={f.kind === 'percent' ? 100 : undefined}
           placeholder={f.kind === 'percent' ? '%' : 'RON'} value={f.value} onChange={set('value')} required />
-        <select className="select-sm" value={f.sport_id} onChange={set('sport_id')} style={{ flex: '1 1 140px' }}>
+        <Select className="select-sm" value={f.sport_id} onChange={set('sport_id')} style={{ flex: '1 1 140px' }}>
           <option value="">Any sport</option>
           {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-        </select>
+        </Select>
         <button className="btn btn-sm">{editId ? 'Save' : 'Add'}</button>
         {editId && <button type="button" className="btn btn-sm btn-ghost" onClick={() => { setEditId(null); setF(blank); }}>Cancel</button>}
       </form>
@@ -390,11 +391,11 @@ function Activities() {
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
                 <td>
-                  <select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }} aria-label={`${a.name}: usual for which sport`}
+                  <Select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }} aria-label={`${a.name}: usual for which sport`}
                     onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>
                     <option value="">—</option>
                     {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-                  </select>
+                  </Select>
                 </td>
                 <td className="r muted">{a.uses}</td>
                 <td className="r">
@@ -459,12 +460,12 @@ function Categories() {
       <form className="filters" style={{ margin: '14px 0 0' }}
         onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/categories', f))) setF({ ...f, name: '' }); }}>
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="New category" required style={{ flex: 1 }} />
-        <select value={f.kind === 'income' ? 'income' : f.cost_group} onChange={(e) => setF(e.target.value === 'income'
+        <Select value={f.kind === 'income' ? 'income' : f.cost_group} onChange={(e) => setF(e.target.value === 'income'
           ? { ...f, kind: 'income', cost_group: 'organizing' } : { ...f, kind: 'expense', cost_group: e.target.value })}>
           <option value="organizing">Organizing cost</option>
           <option value="benefit">Benefit offered</option>
           <option value="income">Income</option>
-        </select>
+        </Select>
         <button className="btn">Add</button>
       </form>
     </div>
@@ -529,9 +530,9 @@ function Backups() {
 
 function RoleSelect({ value, onChange, ...props }) {
   return (
-    <select className="select-sm" value={value} onChange={(e) => onChange(e.target.value)} {...props}>
+    <Select className="select-sm" value={value} onChange={(e) => onChange(e.target.value)} {...props}>
       {Object.entries(ROLE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-    </select>
+    </Select>
   );
 }
 
@@ -582,9 +583,9 @@ function Accounts({ user }) {
         <label className="field">Email<input type="email" value={f.email} onChange={set('email')} required /></label>
         <label className="field">Initial password<input type="text" value={f.password} onChange={set('password')} minLength={8} required /></label>
         <label className="field">Role
-          <select value={f.role} onChange={set('role')}>
+          <Select value={f.role} onChange={set('role')}>
             {Object.entries(ROLE_LABELS).map(([k, label]) => <option key={k} value={k}>{label} — {ROLE_HELP[k]}</option>)}
-          </select>
+          </Select>
         </label>
         <div><button className="btn">Add account</button></div>
       </form>

@@ -7,6 +7,7 @@ import TxTable from '../components/TxTable.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { IconDownload, IconPlus } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 export default function Transactions() {
   const { canEdit } = usePermissions();
@@ -46,27 +47,27 @@ export default function Transactions() {
 
       <div className="filters">
         <input type="search" placeholder="Search description or event…" value={filters.q} onChange={set('q')} />
-        <select value={filters.year} onChange={set('year')} aria-label="Year">
+        <Select value={filters.year} onChange={set('year')} aria-label="Year">
           <option value="">All years</option>
           {years?.map((y) => <option key={y}>{y}</option>)}
-        </select>
-        <select value={filters.month} onChange={set('month')} aria-label="Month">
+        </Select>
+        <Select value={filters.month} onChange={set('month')} aria-label="Month">
           <option value="">All months</option>
           {MONTHS_LONG.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-        </select>
-        <select value={filters.kind} onChange={set('kind')} aria-label="Kind">
+        </Select>
+        <Select value={filters.kind} onChange={set('kind')} aria-label="Kind">
           <option value="">Income & expenses</option>
           <option value="income">Income only</option>
           <option value="expense">Expenses only</option>
-        </select>
-        <select value={filters.event_id} onChange={set('event_id')} aria-label="Scope">
+        </Select>
+        <Select value={filters.event_id} onChange={set('event_id')} aria-label="Scope">
           <option value="">Events & funds</option>
           <option value="general">Fund movements only</option>
-        </select>
-        <select value={filters.category} onChange={set('category')} aria-label="Category">
+        </Select>
+        <Select value={filters.category} onChange={set('category')} aria-label="Category">
           <option value="">All categories</option>
           {categories?.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
-        </select>
+        </Select>
       </div>
 
       <div className="grid grid-kpi" style={{ marginBottom: 16 }}>

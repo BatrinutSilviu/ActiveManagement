@@ -7,6 +7,7 @@ import Modal, { confirmDelete } from '../components/Modal.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import { monthName, pctLabel } from './Dashboard.jsx';
 import { scales, TASK_LABELS } from '../points.js';
+import Select from '../components/Select.jsx';
 
 const shiftMonth = (ym, d) => {
   const [y, m] = ym.split('-').map(Number);
@@ -105,17 +106,17 @@ function ContributionForm({ month, item, onClose, onSaved }) {
         People get points for event tasks on the event page.</p>
       <div className="form-grid">
         <label className="field">Person
-          <select value={f.person_id} onChange={set('person_id')} required>
+          <Select value={f.person_id} onChange={set('person_id')} required>
             <option value="">Choose…</option>
             {people?.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">Date<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field full">Activity
-          <select value={f.activity_id || ''} onChange={pickActivity}>
+          <Select value={f.activity_id || ''} onChange={pickActivity}>
             <option value="">— other —</option>
             {activities?.map((a) => <option key={a.id} value={a.id}>{a.name} · {pointsLabel(a)} pts</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">Points
           <input type="number" min="0" step="0.5" value={f.points} onChange={set('points')} required />

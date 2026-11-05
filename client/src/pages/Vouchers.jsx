@@ -6,6 +6,8 @@ import { date, money, money0, number, today } from '../format.js';
 import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
+import PersonPicker from '../components/PersonPicker.jsx';
 
 const STATUS = { open: 'Not used yet', used: 'Used', expired: 'Expired' };
 const isPct = (v) => v.percent != null;
@@ -14,7 +16,7 @@ export const voucherWorth = (v) => (isPct(v) ? `${number(v.percent)}% off a trai
 
 /** Give a voucher (from an event, or on its own) or edit one. */
 export function VoucherForm({ voucher, event, onClose, onSaved }) {
-  const { data: people } = useApi('/people');
+  const { data: people, reload: reloadPeople } = useApi('/people');
   const { data: types } = useApi('/event-types');
   const { data: events } = useApi('/events');
   const padel = types?.find((t) => /padel/i.test(t.name));
@@ -43,12 +45,10 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
-        <label className="field">Won by
-          <select value={f.person_id} onChange={set('person_id')} required>
-            <option value="">Choose person…</option>
-            {people?.filter((p) => p.active || p.id === f.person_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
+        <div className="field">Won by
+          <PersonPicker people={people} value={f.person_id} onChange={(id) => setF((x) => ({ ...x, person_id: id }))} onCreated={reloadPeople}
+            required autoFocus={!voucher} placeholder="Type a name — or add someone new" />
+        </div>
         <div className="field">Worth
           <div className="segmented">
             <button type="button" className={f.kind === 'percent' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'percent' })}>% off a training</button>
@@ -71,16 +71,16 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
         ) : (
           <>
             <label className="field">Won at (optional)
-              <select value={f.event_id || ''} onChange={pickEvent}>
+              <Select value={f.event_id || ''} onChange={pickEvent}>
                 <option value="">— not at an event —</option>
                 {events?.filter((e) => e.status !== 'cancelled').slice(0, 150).map((e) => <option key={e.id} value={e.id}>{date(e.date)} · {e.name}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="field">Paid from the fund of
-              <select value={sportId} onChange={set('sport_id')} required>
+              <Select value={sportId} onChange={set('sport_id')} required>
                 <option value="">Choose…</option>
                 {types?.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_sport ? '' : ' (general fund)'}</option>)}
-              </select>
+              </Select>
             </label>
           </>
         )}
@@ -110,10 +110,10 @@ function UseAtTrainingForm({ voucher, onClose, onSaved }) {
         They pay {number(voucher.percent)}% less at the training; that part is spent from the {voucher.is_sport ? `${voucher.sport_name} fund` : 'general fund'}, so the training’s profit stays whole.</p>
       <div className="form-grid">
         <label className="field full">Used at
-          <select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+          <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
             <option value="">Choose the training…</option>
             {trainings.map((e) => <option key={e.id} value={e.id}>{date(e.date)} · {e.name} · {money(e.participation_fee)}</option>)}
-          </select>
+          </Select>
           {events && !trainings.length && <span className="hint">No {voucher.sport_name} training sessions{voucher.expires ? ` up to ${date(voucher.expires)}` : ''} — create an event and tick “Training session”.</span>}
           {ev && <span className="hint">Worth {money(Math.round(ev.participation_fee * voucher.percent) / 100)} ({number(voucher.percent)}% of {money(ev.participation_fee)}) — less if they also have a discount there</span>}
         </label>

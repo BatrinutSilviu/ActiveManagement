@@ -6,6 +6,8 @@ import { date, money, money0, number, today } from '../format.js';
 import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
+import PersonPicker from '../components/PersonPicker.jsx';
 
 // Partners and the prizes they give at our events. A record only: none of it counts in any budget.
 export const NOT_COUNTED = 'Given by the partner — not counted in any profit, fund or payout';
@@ -13,7 +15,7 @@ export const NOT_COUNTED = 'Given by the partner — not counted in any profit, 
 /** Record a prize a partner gave (from an event, or on its own) or edit one. */
 export function PrizeForm({ prize, event, onClose, onSaved }) {
   const { data: partners } = useApi('/partners');
-  const { data: people } = useApi('/people');
+  const { data: people, reload: reloadPeople } = useApi('/people');
   const { data: events } = useApi(event ? null : '/events');
   const [f, setF] = useState(() => ({
     partner_id: '', partner_name: '', prize: '', qty: 1, value: '', person_id: '', winner_name: '', event_id: event?.id || '',
@@ -48,11 +50,11 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
         <label className="field">Partner
-          <select value={f.partner_id} onChange={set('partner_id')} required>
+          <Select value={f.partner_id} onChange={set('partner_id')} required>
             <option value="">Choose partner…</option>
             {list.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sport_name ? ` · ${p.sport_name}` : ''}</option>)}
             <option value="new">+ New partner…</option>
-          </select>
+          </Select>
         </label>
         {newPartner ? (
           <label className="field">New partner’s name
@@ -74,10 +76,10 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
         ) : (
           <>
             <label className="field">Given at (optional)
-              <select value={f.event_id || ''} onChange={pickEvent}>
+              <Select value={f.event_id || ''} onChange={pickEvent}>
                 <option value="">— not at an event —</option>
                 {events?.filter((e) => e.status !== 'cancelled').slice(0, 150).map((e) => <option key={e.id} value={e.id}>{date(e.date)} · {e.name}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="field">Date<input type="date" value={f.date} onChange={set('date')} required /></label>
           </>
@@ -89,12 +91,10 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
           </div>
         </div>
         {f.winnerMode === 'person' ? (
-          <label className="field">Winner
-            <select value={f.person_id} onChange={set('person_id')}>
-              <option value="">— nobody / several —</option>
-              {people?.filter((p) => p.active || p.id === f.person_id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
+          <div className="field">Winner
+            <PersonPicker people={people} value={f.person_id} onChange={(id) => setF((x) => ({ ...x, person_id: id }))} onCreated={reloadPeople}
+              placeholder="Type a name — or add someone new" />
+          </div>
         ) : (
           <label className="field">Winner’s name
             <input value={f.winner_name || ''} onChange={set('winner_name')} placeholder="e.g. Andrei & Mihai" />
@@ -171,10 +171,10 @@ function PartnerForm({ partner, onClose, onSaved }) {
       <div className="form-grid">
         <label className="field">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Padel Arena" required autoFocus /></label>
         <label className="field">Sport
-          <select value={f.sport_id || ''} onChange={set('sport_id')}>
+          <Select value={f.sport_id || ''} onChange={set('sport_id')}>
             <option value="">Any sport</option>
             {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field full">Contact (optional)<input value={f.contact || ''} onChange={set('contact')} placeholder="Person, phone, email" /></label>
         <label className="field full">Notes<textarea value={f.notes || ''} onChange={set('notes')} placeholder="What the partnership is about…" /></label>

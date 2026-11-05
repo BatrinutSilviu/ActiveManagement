@@ -3,6 +3,7 @@ import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
 import { money, number, today } from '../format.js';
+import Select from './Select.jsx';
 
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
 
@@ -111,9 +112,9 @@ export default function EventForm({ event, onClose, onSaved }) {
           <input value={f.name} onChange={set('name')} placeholder="e.g. Saturday padel meetup" autoFocus required />
         </label>
         <label className="field">Sport
-          <select value={sportId || ''} onChange={changeSport}>
+          <Select value={sportId || ''} onChange={changeSport}>
             {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">Date
           <input type="date" value={f.date} onChange={set('date')} required />
@@ -124,10 +125,10 @@ export default function EventForm({ event, onClose, onSaved }) {
           <span>Training session <span className="hint">— run by the community; % off vouchers of this sport can be used here, paid from its fund</span></span>
         </label>
         <label className="field">Venue cost
-          <select value={f.venue_mode} onChange={set('venue_mode')}>
+          <Select value={f.venue_mode} onChange={set('venue_mode')}>
             <option value="per_person">Per participant</option>
             <option value="fixed">Fixed total for the event</option>
-          </select>
+          </Select>
           <span className="hint">{fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant'}</span>
         </label>
         {fixedVenue ? (
@@ -180,9 +181,9 @@ export default function EventForm({ event, onClose, onSaved }) {
         </label>
         {event && (
           <label className="field">Status
-            <select value={f.status} onChange={set('status')}>
+            <Select value={f.status} onChange={set('status')}>
               {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            </Select>
           </label>
         )}
         {event && (
@@ -192,20 +193,20 @@ export default function EventForm({ event, onClose, onSaved }) {
         )}
         <div className="full form-section">Points <span className="hint">— shared between the event’s tasks</span></div>
         <label className="field full">Kind of event
-          <select value={f.activity_id || ''} onChange={set('activity_id')}>
+          <Select value={f.activity_id || ''} onChange={set('activity_id')}>
             <option value="">— not in the points table —</option>
             {activities?.map((a) => <option key={a.id} value={a.id}>{a.name} · {number(a.organizer_points)} pts</option>)}
-          </select>
+          </Select>
           <span className="hint">Its points (from the points table in Settings) are what the time it takes is worth</span>
         </label>
         {rates && <p className="hint full" style={{ margin: 0 }}>{number(Math.round(timePoints * 100) / 100)} points for the time
           {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints * factor)} per ${number(rates.moneyStep)} RON of profit` : ''}{factor !== 1 ? ` (× ${number(factor)} for this kind of event)` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
         {!event && (
           <label className="field">Organiser
-            <select value={lead} onChange={(e) => setLead(e.target.value)}>
+            <Select value={lead} onChange={(e) => setLead(e.target.value)}>
               <option value="">— none yet —</option>
               {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </Select>
             <span className="hint">Put on every task; change who did what on the event page</span>
           </label>
         )}

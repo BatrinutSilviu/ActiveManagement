@@ -272,67 +272,62 @@ kbd {
 .icon-btn:hover { background: var(--surface-3); color: var(--text); }
 .icon-btn svg { width: 16px; height: 16px; }
 
-input, select, textarea {
+input, .select, textarea {
   font: inherit; font-weight: 450; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm); padding: 0 12px; height: 38px; width: 100%; min-width: 0;
   transition: border-color .15s, box-shadow .15s; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 input::placeholder, textarea::placeholder { color: var(--muted); }
-input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--text) 25%, var(--border-strong)); }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+input:hover, .select:hover, textarea:hover { border-color: color-mix(in srgb, var(--text) 25%, var(--border-strong)); }
+input:focus, .select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .btn:focus-visible, .icon-btn:focus-visible, a:focus-visible, .segmented button:focus-visible { outline: none; box-shadow: var(--ring); }
 textarea { resize: vertical; min-height: 84px; padding: 10px 12px; height: auto; line-height: 1.5; }
 input[type='checkbox'] { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); box-shadow: none; cursor: pointer; }
 input[type='date'] { padding-right: 8px; }
 input[type='date']::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
 
-select {
+.select {
   appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px; font-weight: 550;
   background: var(--surface) var(--chevron) no-repeat right 10px center / 18px 18px;
   text-overflow: ellipsis;
 }
-select option { font-weight: 450; background: var(--surface); color: var(--text); }
-select.select-sm, input.select-sm { height: 32px; font-size: 13px; padding-left: 10px; background-size: 16px; padding-right: 30px; background-position: right 8px center; }
-select:disabled { cursor: not-allowed; opacity: .55; }
-select:focus-visible { border-color: var(--accent); box-shadow: var(--ring); }
+.select.select-sm, input.select-sm { height: 32px; font-size: 13px; padding-left: 10px; background-size: 16px; padding-right: 30px; background-position: right 8px center; }
+.select:disabled { cursor: not-allowed; opacity: .55; }
+.select:focus-visible { border-color: var(--accent); box-shadow: var(--ring); }
 
-/* Dropdown lists: where the browser allows styling the open list (Chrome/Edge 135+), every <select>
-   gets a card-like popup with rounded, highlighted options. Other browsers keep their native list. */
-@supports (appearance: base-select) {
-  select, ::picker(select) { appearance: base-select; }
-  select { display: inline-flex; align-items: center; white-space: nowrap; overflow: hidden; }
-  select::picker-icon { display: none; } /* the chevron comes from the background image */
-  select:open { border-color: var(--accent); box-shadow: var(--ring); background-image: var(--chevron-up); }
-
-  ::picker(select) {
-    margin-top: 6px; padding: 6px; min-width: anchor-size(width); max-height: min(360px, 60vh); overflow-y: auto; scrollbar-width: thin;
-    background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
-    box-shadow: var(--shadow-lg); opacity: 0; translate: 0 -4px;
-    transition: opacity .14s ease, translate .14s ease, display .14s allow-discrete, overlay .14s allow-discrete;
-  }
-  ::picker(select):popover-open { opacity: 1; translate: 0 0; }
-  @starting-style { ::picker(select):popover-open { opacity: 0; translate: 0 -4px; } }
-
-  select option {
-    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; min-height: 34px;
-    font-size: 13.5px; font-weight: 500; background: transparent; color: var(--text); cursor: pointer; white-space: nowrap;
-  }
-  select option:hover, select option:focus-visible { background: var(--surface-3); outline: none; }
-  select option:checked { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-  select option::checkmark { order: 1; margin-left: auto; color: var(--accent); font-weight: 700; }
-  select option:disabled { color: var(--muted); cursor: not-allowed; background: transparent; }
-  select option[value='']:not(:checked) { color: var(--muted); }
-
-  /* Group titles (e.g. "Ana's discounts"): small caps-style label, options inside look normal */
-  select optgroup { padding: 4px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-  select optgroup option { text-transform: none; letter-spacing: normal; }
-  select optgroup + optgroup, select option + optgroup, select optgroup + option { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; }
-
-  select.badge::picker-icon { display: none; }
-  select.badge { padding-right: 9px; background-image: none; }
+/* The dropdowns (components/Select.jsx) and the person picker: a field-like button and a card-like list. */
+.select { display: inline-flex; align-items: center; text-align: left; white-space: nowrap; overflow: hidden; }
+.select-value { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.select-value.is-blank { color: var(--muted); font-weight: 450; }
+.select.open { border-color: var(--accent); box-shadow: var(--ring); background-image: var(--chevron-up); }
+.select-required { position: absolute; opacity: 0; width: 1px; height: 1px; padding: 0; border: 0; pointer-events: none; }
+.select-pop {
+  position: fixed; z-index: 70; display: flex; flex-direction: column; padding: 6px; overflow: hidden;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-lg); animation: select-in .14s ease-out; outline: none;
 }
+@keyframes select-in { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
+.select-search { height: 34px; margin-bottom: 6px; font-size: 13.5px; flex: none; }
+.select-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.select-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; min-height: 34px;
+  font-size: 13.5px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.select-option > span { overflow: hidden; text-overflow: ellipsis; }
+.select-option[data-active='true'] { background: var(--surface-3); }
+.select-option.is-selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.select-option.is-selected svg { flex: none; color: var(--accent); }
+.select-option.is-blank { color: var(--muted); font-weight: 450; }
+.select-option.is-disabled { color: var(--muted); cursor: not-allowed; background: transparent; }
+.select-option.is-create { color: var(--accent); font-weight: 600; }
+.select-group { padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.select-group:not(:first-child) { border-top: 1px solid var(--border); margin-top: 4px; }
+.select-none { padding: 10px; color: var(--muted); font-size: 13px; }
+.person-picker { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.person-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 300px; }
+.person-pop .select-list { max-height: 286px; }
 
-label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .hint { font-weight: 450; color: var(--muted); font-size: 12px; }
 label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -342,12 +337,12 @@ label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; col
 .filters {
   display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px;
 }
-.filters select, .filters input { width: auto; min-width: 150px; }
+.filters .select, .filters input { width: auto; min-width: 150px; }
 .filters input[type='search'] {
   min-width: 260px; padding-left: 36px;
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23858b97' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px center / 17px;
 }
-@media (max-width: 560px) { .filters select, .filters input, .filters input[type='search'] { flex: 1 1 150px; min-width: 0; } }
+@media (max-width: 560px) { .filters .select, .filters input, .filters input[type='search'] { flex: 1 1 150px; min-width: 0; } }
 
 .segmented { display: inline-flex; background: var(--surface-3); border-radius: 10px; padding: 3px; gap: 2px; }
 .segmented button {
@@ -524,7 +519,7 @@ details summary { cursor: pointer; }
 .back-link:hover svg { transform: translateX(-2px); }
 .back-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .inline-form { display: flex; gap: 8px; padding: 14px 22px 18px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--grid); }
-.inline-form select { flex: 1 1 160px; width: auto; }
+.inline-form .select { flex: 1 1 160px; width: auto; }
 .num-input { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
 .inline-num { display: inline-flex; align-items: center; gap: 4px; }
 .fee-preview { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; }
@@ -581,9 +576,9 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
   .show-sm { display: revert; }
 
   /* 16px stops iOS from zooming in when a field gets focus */
-  input, select, textarea, select.select-sm, input.select-sm { font-size: 16px; }
-  input, select { height: 42px; }
-  select.select-sm, input.select-sm { height: 38px; }
+  input, .select, textarea, .select.select-sm, input.select-sm { font-size: 16px; }
+  input, .select { height: 42px; }
+  .select.select-sm, input.select-sm { height: 38px; }
   .btn { height: 42px; }
   .btn-sm { height: 36px; }
   .icon-btn { padding: 9px; }
@@ -629,7 +624,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 /* Equipment state badges */
 .state-worn { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--text); }
 .state-bad { background: color-mix(in srgb, var(--bad-text) 13%, transparent); color: var(--bad-text); }
-select.badge { width: auto; border: 0; cursor: pointer; }
+.select.badge { width: auto; border: 0; cursor: pointer; background-image: none; padding-right: 9px; height: auto; }
 
 /* Payouts: paid status next to the month's total, and months still to pay */
 .payout-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -676,7 +671,7 @@ label.field.check-field input { width: auto; }
 tr.row-picked td { background: var(--accent-soft); }
 .move-bar { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 14px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0,0,0,.08); }
-.move-bar select { flex: 1 1 220px; max-width: 320px; }
+.move-bar .select { flex: 1 1 220px; max-width: 320px; }
 
 /* Money in the account: big card on the Dashboard, small figure in the sidebar */
 .account-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: center; }

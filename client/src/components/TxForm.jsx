@@ -3,6 +3,7 @@ import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
 import { today } from '../format.js';
+import Select from './Select.jsx';
 
 export const PAYMENT_METHODS = ['Cash', 'Card', 'Bank transfer', 'Other'];
 const GROUP_LABELS = { organizing: 'Organizing costs', benefit: 'Benefits offered' };
@@ -62,36 +63,36 @@ export default function TxForm({ tx, eventId, eventDate, fund, defaultKind = 'in
           <input type="number" min="0.01" step="0.01" value={f.amount} onChange={set('amount')} autoFocus required />
         </label>
         <label className="field">Category
-          <select value={f.category_id || cats[0]?.id || ''} onChange={set('category_id')}>
+          <Select value={f.category_id || cats[0]?.id || ''} onChange={set('category_id')}>
             {groups.map((g) => {
               const opts = cats.filter((c) => !g || (c.cost_group || 'organizing') === g)
                 .map((c) => <option key={c.id} value={c.id}>{c.name}</option>);
               return g ? <optgroup key={g} label={GROUP_LABELS[g]}>{opts}</optgroup> : opts;
             })}
-          </select>
+          </Select>
         </label>
         <label className="field">Date
           <input type="date" value={f.date} onChange={set('date')} required />
         </label>
         <label className="field">Payment method
-          <select value={f.payment_method || ''} onChange={set('payment_method')}>
+          <Select value={f.payment_method || ''} onChange={set('payment_method')}>
             {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
-          </select>
+          </Select>
         </label>
         {!eventId && fund == null && (
           <label className="field full">Event
-            <select value={f.event_id || ''} onChange={set('event_id')}>
+            <Select value={f.event_id || ''} onChange={set('event_id')}>
               <option value="">— Not an event: money from / to a fund —</option>
               {events?.map((e) => <option key={e.id} value={e.id}>{e.date} · {e.name}</option>)}
-            </select>
+            </Select>
           </label>
         )}
         {isFund && (
           <label className="field full">Fund
-            <select value={f.fund_sport_id || ''} onChange={set('fund_sport_id')}>
+            <Select value={f.fund_sport_id || ''} onChange={set('fund_sport_id')}>
               <option value="">General community fund</option>
               {sports?.filter((s) => s.is_sport || String(s.id) === String(f.fund_sport_id)).map((s) => <option key={s.id} value={s.id}>{s.name} reinvestment fund</option>)}
-            </select>
+            </Select>
             <span className="hint">{f.kind === 'expense' ? 'Spending is subtracted from this fund (a reinvestment).' : 'Added straight to this fund, not split.'}</span>
           </label>
         )}

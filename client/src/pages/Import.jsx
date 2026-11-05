@@ -6,6 +6,7 @@ import { date, money, money0 } from '../format.js';
 import { buildImport, parseDelimited } from '../importer.js';
 import { confirmDelete } from '../components/Modal.jsx';
 import { IconDownload, IconTrash } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 const DEFAULT_COLS = { date: 'D', income: 'E', event: 'F', expense: 'G', description: 'H' };
 const COL_LABELS = { date: 'Date', income: 'Income', event: 'Event', expense: 'Expenses', description: 'Description' };
@@ -178,16 +179,16 @@ export default function Import() {
             </div>
             <div className="stack" style={{ gap: 12, marginTop: 14 }}>
               <label className="field">Sport when not recognised
-                <select value={defaultType} onChange={(e) => setDefaultType(e.target.value)}>
+                <Select value={defaultType} onChange={(e) => setDefaultType(e.target.value)}>
                   {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                </Select>
                 <span className="hint">The sport is detected from the event name (fotbal, volei, padel, drumeție, hyrox…)</span>
               </label>
               <label className="field">Group rows into events by
-                <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
                   <option value="name-date">Same name on the same date</option>
                   <option value="name">Same name (any date)</option>
-                </select>
+                </Select>
               </label>
               <label className="check">
                 <input type="checkbox" checked={fillDates} onChange={(e) => setFillDates(e.target.checked)} />
@@ -223,9 +224,9 @@ export default function Import() {
                           <td><strong>{ev.name}</strong></td>
                           <td className="r">{ev.count}</td>
                           <td style={{ width: 200 }}>
-                            <select className="select-sm" value={ev.type_id} onChange={(e) => updateEvent(ev.key, { type_id: Number(e.target.value) })}>
+                            <Select className="select-sm" value={ev.type_id} onChange={(e) => updateEvent(ev.key, { type_id: Number(e.target.value) })}>
                               {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
+                            </Select>
                           </td>
                         </tr>
                       ))}
@@ -254,9 +255,9 @@ export default function Import() {
                         <td>{t.eventName || <span className="muted">General</span>}</td>
                         <td className="cell-wrap">{t.description || <span className="muted">—</span>}</td>
                         <td style={{ width: 210 }}>
-                          <select className="select-sm" value={t.category_id || ''} onChange={(e) => updateTx(t.id, { category_id: Number(e.target.value) })}>
+                          <Select className="select-sm" value={t.category_id || ''} onChange={(e) => updateTx(t.id, { category_id: Number(e.target.value) })}>
                             {catsFor(t.kind).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
+                          </Select>
                         </td>
                         <td className={`r kind-${t.kind}`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</td>
                       </tr>

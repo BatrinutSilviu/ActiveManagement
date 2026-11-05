@@ -5,6 +5,7 @@ import { date, money, money0, number, today } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconBox, IconEdit, IconTrash, IconUsers } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 export const STATES = [
   { key: 'new', label: 'New' },
@@ -38,24 +39,24 @@ export function EquipmentForm({ item, people, sports, onClose, onSaved }) {
       <div className="form-grid">
         <label className="field full">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Padel racket Bullpadel" autoFocus required /></label>
         <label className="field">Sport
-          <select value={f.sport_id} onChange={set('sport_id')}>
+          <Select value={f.sport_id} onChange={set('sport_id')}>
             <option value="">Any / general</option>
             {sports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">State
-          <select value={f.state} onChange={set('state')}>
+          <Select value={f.state} onChange={set('state')}>
             {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field">Pieces<input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} required /></label>
         <label className="field">Cost per piece (RON)<input type="number" min="0" step="0.01" value={f.unit_cost} onChange={set('unit_cost')} /></label>
         <label className="field">Bought on<input type="date" value={f.bought_on} onChange={set('bought_on')} /></label>
         <label className="field">Who has it
-          <select value={f.person_id} onChange={set('person_id')}>
+          <Select value={f.person_id} onChange={set('person_id')}>
             <option value="">— in storage / nobody —</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="field full">Notes<input value={f.notes} onChange={set('notes')} placeholder="Where it's kept, serial number, what's wrong with it…" /></label>
       </div>
@@ -101,15 +102,15 @@ export default function Equipment({ form, setForm }) {
       {items.length > 0 && (
         <div className="filters">
           <input type="search" placeholder="Search name, sport or notes…" value={filters.q} onChange={setFilter('q')} />
-          <select value={filters.state} onChange={setFilter('state')} aria-label="State">
+          <Select value={filters.state} onChange={setFilter('state')} aria-label="State">
             <option value="">All states</option>
             {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-          <select value={filters.person} onChange={setFilter('person')} aria-label="Who has it">
+          </Select>
+          <Select value={filters.person} onChange={setFilter('person')} aria-label="Who has it">
             <option value="">Anyone</option>
             <option value="none">In storage / nobody</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -131,20 +132,20 @@ export default function Equipment({ form, setForm }) {
                   <td className="r">{number(i.qty)}</td>
                   <td>
                     {canEdit ? (
-                      <select className={`select-sm badge ${stateClass[i.state]}`} value={i.state} aria-label={`State of ${i.name}`}
+                      <Select className={`select-sm badge ${stateClass[i.state]}`} value={i.state} aria-label={`State of ${i.name}`}
                         onChange={(e) => run(() => api.put(`/equipment/${i.id}`, { ...i, state: e.target.value }))}>
                         {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-                      </select>
+                      </Select>
                     ) : <span className={`badge ${stateClass[i.state]}`}>{stateLabel(i.state)}</span>}
                   </td>
                   <td className="hide-sm">
                     {canEdit ? (
-                      <select className="select-sm" value={i.person_id ?? ''} aria-label={`Who has ${i.name}`}
+                      <Select className="select-sm" value={i.person_id ?? ''} aria-label={`Who has ${i.name}`}
                         onChange={(e) => run(() => api.put(`/equipment/${i.id}`, { ...i, person_id: e.target.value }))}>
                         <option value="">In storage</option>
                         {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         {i.person_id && !people.some((p) => p.id === i.person_id) && <option value={i.person_id}>{i.person_name}</option>}
-                      </select>
+                      </Select>
                     ) : (i.person_name || <span className="muted">In storage</span>)}
                   </td>
                   <td className="r hide-sm">{money(i.unit_cost)}</td>

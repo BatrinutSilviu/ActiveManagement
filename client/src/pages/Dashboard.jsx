@@ -7,21 +7,22 @@ import Kpi from '../components/Kpi.jsx';
 import EventForm from '../components/EventForm.jsx';
 import { BarList, CumulativeChart, EventProfitList, IncomeExpenseChart, Legend, ProfitChart, SignedBarList } from '../components/Charts.jsx';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconPlus, IconTrend, IconUsers } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 export function PeriodFilters({ year, setYear, type, setType, allowAll = true }) {
   const { data: years } = useApi('/stats/years');
   const { data: types } = useApi('/event-types');
   return (
     <div className="filters">
-      <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+      <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
         {allowAll && <option value="">All years</option>}
         {years?.map((y) => <option key={y} value={y}>{y}</option>)}
-      </select>
+      </Select>
       {setType && (
-        <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Sport">
+        <Select value={type} onChange={(e) => setType(e.target.value)} aria-label="Sport">
           <option value="">All sports</option>
           {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        </Select>
       )}
     </div>
   );

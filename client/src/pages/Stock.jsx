@@ -7,6 +7,7 @@ import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import Equipment from './Equipment.jsx';
 import { IconBox, IconChevronRight, IconEdit, IconPlus, IconTrash, IconUsers } from '../components/Icons.jsx';
+import Select from '../components/Select.jsx';
 
 export const PURCHASE_KINDS = { items: 'Usual items / prizes', merch: 'Partnership merchandise' };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -34,15 +35,15 @@ function PurchaseFields({ p, setP, people, holder, qty, price }) {
       {p.on && (
         <>
           <label className="field">Bought by
-            <select value={p.person_id || holder || ''} onChange={set('person_id')} required>
+            <Select value={p.person_id || holder || ''} onChange={set('person_id')} required>
               <option value="">Choose person…</option>
               {people.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="field">Kind of purchase
-            <select value={p.kind} onChange={set('kind')}>
+            <Select value={p.kind} onChange={set('kind')}>
               {Object.entries(PURCHASE_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="field">Paid (RON)
             <input type="number" min="0" step="0.01" value={p.amount} onChange={set('amount')} placeholder={String(auto)} />
@@ -60,7 +61,7 @@ function PurchaseFields({ p, setP, people, holder, qty, price }) {
 function CategorySelect({ cats, value, onChange, placeholder = 'Choose…', ...props }) {
   const top = cats.filter((c) => !c.parent_id);
   return (
-    <select value={value || ''} onChange={onChange} required {...props}>
+    <Select value={value || ''} onChange={onChange} required {...props}>
       <option value="">{placeholder}</option>
       {top.map((c) => (
         <optgroup key={c.id} label={c.name}>
@@ -68,7 +69,7 @@ function CategorySelect({ cats, value, onChange, placeholder = 'Choose…', ...p
           {cats.filter((x) => x.parent_id === c.id).map((x) => <option key={x.id} value={x.id}>{c.name} › {x.name}</option>)}
         </optgroup>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -106,10 +107,10 @@ function ItemForm({ item, category, cats, people, founders, onClose, onSaved }) 
         {!item ? (
           <>
             <label className="field">Held by
-              <select value={f.person_id} onChange={set('person_id')}>
+              <Select value={f.person_id} onChange={set('person_id')}>
                 <option value="">— nobody yet —</option>
                 {founders.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="field">Quantity<input type="number" min="0" step="any" value={f.qty} onChange={set('qty')} disabled={!f.person_id} /></label>
             {f.person_id && Number(f.qty) > 0 && (
@@ -123,10 +124,10 @@ function ItemForm({ item, category, cats, people, founders, onClose, onSaved }) 
               const known = people.find((p) => String(p.id) === String(h.person_id)) || item.holdings.find((x) => x.person_id === h.person_id);
               return (
                 <label className="field" key={i}>{h.was !== undefined ? `Held by ${known?.name || '—'}` : (
-                  <select className="select-sm" value={h.person_id} onChange={(e) => setHeld(held.map((x, j) => (j === i ? { ...x, person_id: e.target.value } : x)))} required aria-label="Held by">
+                  <Select className="select-sm" value={h.person_id} onChange={(e) => setHeld(held.map((x, j) => (j === i ? { ...x, person_id: e.target.value } : x)))} required aria-label="Held by">
                     <option value="">Who holds it…</option>
                     {[...free, ...(known ? [known] : [])].map((p) => <option key={p.id ?? p.person_id} value={p.id ?? p.person_id}>{p.name}</option>)}
-                  </select>
+                  </Select>
                 )}
                   <input type="number" min="0" step="any" value={h.qty} onChange={(e) => setQty(i, e.target.value)} aria-label="Quantity" />
                 </label>
@@ -165,23 +166,23 @@ function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
       <div className="form-grid">
         {mode === 'add' ? (
           <label className="field">Kept by
-            <select value={f.person_id} onChange={set('person_id')} required>
+            <Select value={f.person_id} onChange={set('person_id')} required>
               <option value="">Choose founder…</option>
               {founders.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </Select>
           </label>
         ) : (
           <>
             <label className="field">From
-              <select value={f.from} onChange={set('from')} required>
+              <Select value={f.from} onChange={set('from')} required>
                 {item.holdings.map((h) => <option key={h.person_id} value={h.person_id}>{h.name} ({number(h.qty)})</option>)}
-              </select>
+              </Select>
             </label>
             <label className="field">To
-              <select value={f.to} onChange={set('to')} required>
+              <Select value={f.to} onChange={set('to')} required>
                 <option value="">Choose founder…</option>
                 {founders.filter((p) => String(p.id) !== String(f.from)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </Select>
             </label>
           </>
         )}
