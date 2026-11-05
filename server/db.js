@@ -294,7 +294,7 @@ export function ensureStockCategories() {
 }
 
 // Stock someone bought: usual items / prizes for events, or merchandise from a secured partnership.
-// The amount (what they paid) only drives the buyer's points; buying stock isn't an expense itself.
+// The amount paid earns the buyer points, and is spent from the fund of the product's category (see purchaseFund).
 db.exec(`CREATE TABLE IF NOT EXISTS stock_purchases (
   id INTEGER PRIMARY KEY,
   item_id INTEGER NOT NULL REFERENCES stock_items(id) ON DELETE CASCADE,
@@ -479,6 +479,45 @@ export function setPointsRates(rates) {
 
 // Stock already paid for (e.g. bought earlier from a fund): using it at an event costs the event nothing.
 if (!columns('stock_items').includes('prepaid')) db.exec('ALTER TABLE stock_items ADD COLUMN prepaid INTEGER NOT NULL DEFAULT 0');
+
+// Buying stock is spent from the fund of the product's category: a sport's category (or one of its
+// subcategories) → that sport's fund, anything else → the general fund. Each purchase has its fund
+// transaction, and the product counts as paid for, so events that use it aren't charged again.
+/** The sport whose fund pays for a product (null = general fund). */
+export function itemSport(itemId) {
+  let c = db.prepare('SELECT c.* FROM stock_items i JOIN stock_categories c ON c.id = i.category_id WHERE i.id = ?').get(itemId);
+  for (let n = 0; c && !c.sport_id && c.parent_id && n < 10; n++) c = db.prepare('SELECT * FROM stock_categories WHERE id = ?').get(c.parent_id);
+  return c?.sport_id ?? null;
+}
+const stockCategory = (kind) => {
+  const name = kind === 'merch' ? 'Merchandise' : 'Stock bought';
+  return db.prepare("SELECT id FROM categories WHERE name = ? AND kind = 'expense'").get(name)?.id
+    ?? Number(db.prepare("INSERT INTO categories (name, kind, cost_group) VALUES (?, 'expense', 'benefit')").run(name).lastInsertRowid);
+};
+/** Creates (or refreshes) a purchase's fund transaction and marks the product paid for. */
+export function purchaseFund(purchaseId, userId = null) {
+  const p = db.prepare(`SELECT sp.*, i.name AS item_name, i.unit, pe.name AS buyer FROM stock_purchases sp
+    JOIN stock_items i ON i.id = sp.item_id JOIN people pe ON pe.id = sp.person_id WHERE sp.id = ?`).get(purchaseId);
+  if (!p) return;
+  if (p.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(p.transaction_id);
+  let txId = null;
+  if (p.amount > 0) {
+    txId = Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
+      VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(stockCategory(p.kind), p.amount, p.date,
+      `Stock: ${p.qty} ${p.unit} ${p.item_name} (bought by ${p.buyer})`, itemSport(p.item_id), userId).lastInsertRowid);
+  }
+  db.prepare('UPDATE stock_purchases SET transaction_id = ? WHERE id = ?').run(txId, p.id);
+  db.prepare('UPDATE stock_items SET prepaid = 1 WHERE id = ?').run(p.item_id);
+}
+/** A product moved to another category: its purchases are paid by the new category's fund. */
+export function movePurchaseFunds(itemId) {
+  db.prepare('UPDATE transactions SET fund_sport_id = ? WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?)')
+    .run(itemSport(itemId), itemId);
+}
+if (!columns('stock_purchases').includes('transaction_id')) {
+  db.exec('ALTER TABLE stock_purchases ADD COLUMN transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL');
+  tx(() => { for (const { id } of db.prepare('SELECT id FROM stock_purchases').all()) purchaseFund(id); }); // purchases made before
+}
 
 // Tasks an event didn't need (e.g. nothing to buy), comma-separated: their share goes to the other tasks.
 if (!columns('events').includes('skipped_tasks')) db.exec("ALTER TABLE events ADD COLUMN skipped_tasks TEXT NOT NULL DEFAULT ''");

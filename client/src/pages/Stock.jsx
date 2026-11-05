@@ -30,7 +30,7 @@ function PurchaseFields({ p, setP, people, holder, qty, price }) {
     <>
       <label className="field full check-field">
         <input type="checkbox" checked={p.on} onChange={(e) => setP({ ...p, on: e.target.checked })} />
-        Bought now — the buyer gets points for it
+        Bought now — spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points
       </label>
       {p.on && (
         <>

@@ -4,7 +4,7 @@ import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from './sync.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RATE_KEYS, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, purchaseFund, movePurchaseFunds, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RATE_KEYS, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
@@ -552,7 +552,10 @@ api.post('/stock/items', (req, res) => {
 });
 
 api.put('/stock/items/:id', (req, res) => {
-  db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ?, prepaid = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
+  tx(() => {
+    db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ?, prepaid = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
+    movePurchaseFunds(idParam(req));
+  });
   res.json({ ok: true });
 });
 
@@ -561,13 +564,20 @@ api.post('/stock/items/move', (req, res) => {
   const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Boolean);
   need(ids.length, 'Choose the products to move');
   need(db.prepare('SELECT 1 FROM stock_categories WHERE id = ?').get(Number(req.body.category_id)), 'Choose a category');
-  db.prepare(`UPDATE stock_items SET category_id = ? WHERE id IN (${ids.map(() => '?').join(',')})`).run(Number(req.body.category_id), ...ids);
+  tx(() => {
+    db.prepare(`UPDATE stock_items SET category_id = ? WHERE id IN (${ids.map(() => '?').join(',')})`).run(Number(req.body.category_id), ...ids);
+    for (const id of ids) movePurchaseFunds(id);
+  });
   res.json({ ok: true, moved: ids.length });
 });
 
 api.delete('/stock/items/:id', (req, res) => {
   need(!db.prepare('SELECT 1 FROM event_stock WHERE item_id = ?').get(idParam(req)), 'This item was used at events and cannot be deleted');
-  db.prepare('DELETE FROM stock_items WHERE id = ?').run(idParam(req));
+  tx(() => {
+    // Its purchases go too, and with them the money they took from the fund.
+    db.prepare('DELETE FROM transactions WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?)').run(idParam(req));
+    db.prepare('DELETE FROM stock_items WHERE id = ?').run(idParam(req));
+  });
   res.json({ ok: true });
 });
 
@@ -582,8 +592,9 @@ function recordPurchase(itemId, holderId, qty, b, userId) {
   need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(p.person_id)), 'Choose who bought it');
   need(Number(p.amount) >= 0, 'The amount paid can’t be negative');
   need(!p.date || isDate(p.date), 'Invalid date');
-  db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by)
+  const { lastInsertRowid } = db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(itemId, Number(p.person_id), Number(holderId), Number(qty), toBani(p.amount), p.kind, p.date || today(), userId);
+  purchaseFund(Number(lastInsertRowid), userId); // spent from the category's fund
 }
 
 api.get('/stock/purchases', (req, res) => res.json(purchaseLines()));
@@ -594,6 +605,7 @@ api.delete('/stock/purchases/:id', (req, res) => {
   need(p, 'Purchase not found');
   tx(() => {
     if (p.holder_id) db.prepare('UPDATE stock_holdings SET qty = MAX(qty - ?, 0) WHERE item_id = ? AND person_id = ?').run(p.qty, p.item_id, p.holder_id);
+    if (p.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(p.transaction_id);
     db.prepare('DELETE FROM stock_purchases WHERE id = ?').run(p.id);
   });
   res.json({ ok: true });
