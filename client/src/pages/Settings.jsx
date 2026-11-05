@@ -347,7 +347,7 @@ function TaskShares() {
         <div className="targets">
           {TASKS.map((t) => (
             <label key={t} className="field">{TASK_LABELS[t]}
-              <div className="pct-input"><input type="number" min="0" max="100" step="0.5" value={v[t]} onChange={(e) => setF({ ...v, [t]: e.target.value })} /><span>%</span></div>
+              <div className="pct-input"><input type="number" min="0" max="100" step="any" value={v[t]} onChange={(e) => setF({ ...v, [t]: e.target.value })} /><span>%</span></div>
             </label>
           ))}
         </div>
