@@ -15,7 +15,6 @@ const PADEL_TYPES = {
   CHALLENGER: 'Challenger', TEAM_AMERICANO: 'Team Americano', KING_OF_THE_COURT: 'King of the Court', MASTERS: 'Masters',
 };
 const PADEL_LEVELS = { 1: 'Elite', 2: 'Premier', 3: 'Gold', 4: 'Silver', 5: 'Bronze', 6: 'Beginner', 7: 'Girls' };
-const DIFFICULTY = { easy: 'easy', easy_medium: 'easy–medium', medium: 'medium', medium_hard: 'medium–hard', hard: 'hard' };
 
 /**
  * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
@@ -44,7 +43,8 @@ export function mapPadel(t) {
 }
 
 /**
- * A hike or via ferrata (hikes app's Hike + confirmedCount + url). Drafts are synced too (noted as drafts).
+ * A hike or via ferrata (hikes app's Hike + confirmedCount + url). Drafts are synced too. Its notes aren't
+ * taken (they're for participants); notes typed here are kept.
  * Hike price = entry fee, plus accommodation when there is one (the accommodation is the venue's part).
  * Via ferrata: the hikes app keeps its total price in accommodationPrice.
  */
@@ -65,18 +65,7 @@ export function mapHike(h) {
     participation_fee: price,
     venue_fee: lodging || null,
     status: h.status === 'cancelled' ? 'cancelled' : 'planned',
-    notes: lines(
-      h.status === 'draft' ? 'Draft in the hikes app (not published yet)' : null,
-      via ? 'Via ferrata' : `Hike${h.difficulty ? ` · ${DIFFICULTY[h.difficulty] || h.difficulty}` : ''}`,
-      h.meetingPoint || h.meetingTime ? `Meeting: ${[h.meetingTime, h.meetingPoint].filter(Boolean).join(' · ')}` : null,
-      h.startingPoint ? `Start: ${h.startingPoint}` : null,
-      h.durationHours ? `Duration: ${num(h.durationHours)} h` : null,
-      h.maxParticipants ? `Up to ${h.maxParticipants} people` : null,
-      via && h.accommodationDeposit ? `Advance: ${num(h.accommodationDeposit)} RON per person` : null,
-      h.hasAccommodation ? `Accommodation: ${lodging} RON per person${h.accommodationDeposit ? `, ${num(h.accommodationDeposit)} deposit` : ''}${h.accommodationDetails ? ` — ${h.accommodationDetails}` : ''}` : null,
-      h.hasCamping ? `Camping${h.campingPrice ? `: ${num(h.campingPrice)} RON` : ''}${h.campingDetails ? ` — ${h.campingDetails}` : ''}` : null,
-      h.description ? `\n${String(h.description).slice(0, 1500)}` : null,
-    ),
+    // No notes: a hike's details and description are written for its participants, not for this app.
   };
 }
 
