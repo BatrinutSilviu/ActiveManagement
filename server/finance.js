@@ -273,9 +273,10 @@ export function loadEvents(where = '', params = [], order = 'ORDER BY e.date') {
 /** Transactions not tied to an event: money spent from (reinvested) or added to a fund. */
 export function loadFundTx(where = '', params = []) {
   return db.prepare(`
-    SELECT t.*, c.name AS category_name, et.name AS fund_name, u.name AS created_by_name FROM transactions t
+    SELECT t.*, c.name AS category_name, et.name AS fund_name, fp.name AS part_name, u.name AS created_by_name FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN event_types et ON et.id = t.fund_sport_id
+    LEFT JOIN fund_parts fp ON fp.id = t.fund_part_id
     LEFT JOIN users u ON u.id = t.created_by
     WHERE t.event_id IS NULL ${where} ORDER BY t.date`).all(...params).map((t) => ({ ...t, amount: toRon(t.amount) }));
 }
@@ -471,7 +472,13 @@ export function computeSport(id) {
     return { ...m, balance: r2(running) };
   });
   const fund = computeFunds().sports.find((s) => s.id === Number(id));
-  return { sport, fund, months, events, fundTx };
+  // Parts of the fund (e.g. a sport's academy): what each has spent / received, all time.
+  const parts = db.prepare('SELECT id, name FROM fund_parts WHERE sport_id = ? ORDER BY name').all(id).map((p) => {
+    const own = fundTx.filter((t) => t.fund_part_id === p.id);
+    const sum = (k) => r2(own.filter((t) => t.kind === k).reduce((a, t) => a + t.amount, 0));
+    return { ...p, spent: sum('expense'), added: sum('income'), count: own.length };
+  });
+  return { sport, fund, months, events, fundTx, parts };
 }
 
 /** Months that have payouts due or sent, with what is still owed for each. */

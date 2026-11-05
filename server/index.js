@@ -1004,12 +1004,15 @@ api.delete('/event-stock/:id', (req, res) => {
 const shapeTx = (t) => ({ ...t, amount: toRon(t.amount) });
 
 function readTx(body) {
-  const { event_id, kind, category_id, amount, date, description, payment_method, fund_sport_id } = body;
+  const { event_id, kind, category_id, amount, date, description, payment_method, fund_sport_id, fund_part_id } = body;
   need(['income', 'expense'].includes(kind), 'Choose income or expense');
   need(Number(amount) > 0, 'Amount must be greater than 0');
   need(isDate(date), 'A valid date is required');
+  const fund = !event_id && fund_sport_id ? Number(fund_sport_id) : null;
+  // A part only goes with its own sport's fund.
+  const part = fund && fund_part_id ? db.prepare('SELECT id FROM fund_parts WHERE id = ? AND sport_id = ?').get(Number(fund_part_id), fund)?.id ?? null : null;
   return [event_id ? Number(event_id) : null, kind, category_id ? Number(category_id) : null, toBani(amount), date,
-    description?.trim() || null, payment_method || null, !event_id && fund_sport_id ? Number(fund_sport_id) : null];
+    description?.trim() || null, payment_method || null, fund, part];
 }
 
 // The whole picture for a period (what the Transactions list alone can't show, since participation
@@ -1043,11 +1046,12 @@ api.get('/transactions', (req, res) => {
   if (req.query.category) { where.push('t.category_id = ?'); params.push(Number(req.query.category)); }
   if (req.query.q) { where.push('(t.description LIKE ? OR e.name LIKE ?)'); params.push(`%${req.query.q}%`, `%${req.query.q}%`); }
   const rows = db.prepare(`
-    SELECT t.*, c.name AS category_name, c.cost_group, e.name AS event_name, f.name AS fund_name, u.name AS created_by_name
+    SELECT t.*, c.name AS category_name, c.cost_group, e.name AS event_name, f.name AS fund_name, fp.name AS part_name, u.name AS created_by_name
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN events e ON e.id = t.event_id
     LEFT JOIN event_types f ON f.id = t.fund_sport_id
+    LEFT JOIN fund_parts fp ON fp.id = t.fund_part_id
     LEFT JOIN users u ON u.id = t.created_by
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY t.date DESC, t.id DESC`).all(...params);
@@ -1056,15 +1060,34 @@ api.get('/transactions', (req, res) => {
 
 api.post('/transactions', (req, res) => {
   const { lastInsertRowid } = db.prepare(`
-    INSERT INTO transactions (event_id, kind, category_id, amount, date, description, payment_method, fund_sport_id, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readTx(req.body), req.user.id);
+    INSERT INTO transactions (event_id, kind, category_id, amount, date, description, payment_method, fund_sport_id, fund_part_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readTx(req.body), req.user.id);
   res.json({ id: Number(lastInsertRowid) });
 });
 
 api.put('/transactions/:id', (req, res) => {
   db.prepare(`
     UPDATE transactions SET event_id = ?, kind = ?, category_id = ?, amount = ?, date = ?, description = ?,
-      payment_method = ?, fund_sport_id = ? WHERE id = ?`).run(...readTx(req.body), idParam(req));
+      payment_method = ?, fund_sport_id = ?, fund_part_id = ? WHERE id = ?`).run(...readTx(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+// Parts of a sport's fund (e.g. Active Padel Academy in Padel).
+api.get('/fund-parts', (req, res) => {
+  res.json(db.prepare('SELECT p.id, p.sport_id, p.name FROM fund_parts p ORDER BY p.name').all());
+});
+api.post('/fund-parts', (req, res) => {
+  const name = req.body.name?.trim();
+  need(name, 'Enter a name');
+  need(db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(Number(req.body.sport_id)), 'Unknown sport');
+  try {
+    res.json({ id: Number(db.prepare('INSERT INTO fund_parts (sport_id, name) VALUES (?, ?)').run(Number(req.body.sport_id), name).lastInsertRowid) });
+  } catch { throw httpError(400, 'This fund already has a part with that name'); }
+});
+api.delete('/fund-parts/:id', (req, res) => {
+  // Its money stays in the sport's fund; it's just no longer counted apart.
+  db.prepare('UPDATE transactions SET fund_part_id = NULL WHERE fund_part_id = ?').run(idParam(req));
+  db.prepare('DELETE FROM fund_parts WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 

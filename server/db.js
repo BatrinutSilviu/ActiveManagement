@@ -477,6 +477,22 @@ export function setPointsRates(rates) {
     .run(JSON.stringify(rates));
 }
 
+// Parts of a sport's fund, e.g. "Active Padel Academy" inside Padel: its spending still comes out of the
+// sport's fund, but is counted apart so you can see what that part costs.
+db.exec(`CREATE TABLE IF NOT EXISTS fund_parts (
+  id INTEGER PRIMARY KEY,
+  sport_id INTEGER NOT NULL REFERENCES event_types(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  UNIQUE (sport_id, name)
+)`);
+if (!columns('transactions').includes('fund_part_id'))
+  db.exec('ALTER TABLE transactions ADD COLUMN fund_part_id INTEGER REFERENCES fund_parts(id) ON DELETE SET NULL');
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:padel-academy'").get()) {
+  const padel = db.prepare("SELECT id FROM event_types WHERE name = 'Padel' COLLATE NOCASE").get();
+  if (padel) db.prepare('INSERT OR IGNORE INTO fund_parts (sport_id, name) VALUES (?, ?)').run(padel.id, 'Active Padel Academy');
+  db.prepare("INSERT INTO settings (key, value) VALUES ('migrated:padel-academy', ?)").run(new Date().toISOString());
+}
+
 // Stock already paid for (e.g. bought earlier from a fund): using it at an event costs the event nothing.
 if (!columns('stock_items').includes('prepaid')) db.exec('ALTER TABLE stock_items ADD COLUMN prepaid INTEGER NOT NULL DEFAULT 0');
 

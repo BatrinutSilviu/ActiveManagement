@@ -10,14 +10,15 @@ const GROUP_LABELS = { organizing: 'Organizing costs', benefit: 'Benefits offere
 
 // Add / edit an income or expense. Pass `eventId` to lock it to an event, or `fund`
 // ('general' | sport id) to record money spent from / added to a fund.
-export default function TxForm({ tx, eventId, eventDate, fund, defaultKind = 'income', onClose, onSaved }) {
+export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind = 'income', onClose, onSaved }) {
   const { data: categories } = useApi('/categories');
   const { data: events } = useApi(eventId || fund != null ? null : '/events');
   const { data: sports } = useApi(eventId ? null : '/event-types');
+  const { data: parts } = useApi(eventId ? null : '/fund-parts');
   const [f, setF] = useState(() => ({
     kind: defaultKind, amount: '', category_id: '', date: eventDate || today(), description: '',
     payment_method: 'Bank transfer', event_id: eventId || '',
-    fund_sport_id: fund && fund !== 'general' ? fund : '', ...(tx || {}),
+    fund_sport_id: fund && fund !== 'general' ? fund : '', fund_part_id: part || '', ...(tx || {}),
   }));
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -25,6 +26,8 @@ export default function TxForm({ tx, eventId, eventDate, fund, defaultKind = 'in
   const cats = categories?.filter((c) => c.kind === f.kind) || [];
   const isFund = !f.event_id;
   const groups = f.kind === 'expense' && !isFund ? ['organizing', 'benefit'] : [null];
+  const fundParts = isFund && f.fund_sport_id ? (parts || []).filter((p) => String(p.sport_id) === String(f.fund_sport_id)) : [];
+  const fundName = sports?.find((s) => String(s.id) === String(f.fund_sport_id))?.name;
 
   const save = async () => {
     setSaving(true);
@@ -89,11 +92,20 @@ export default function TxForm({ tx, eventId, eventDate, fund, defaultKind = 'in
         )}
         {isFund && (
           <label className="field full">Fund
-            <Select value={f.fund_sport_id || ''} onChange={set('fund_sport_id')}>
+            <Select value={f.fund_sport_id || ''} onChange={(e) => setF({ ...f, fund_sport_id: e.target.value, fund_part_id: '' })}>
               <option value="">General community fund</option>
               {sports?.filter((s) => s.is_sport || String(s.id) === String(f.fund_sport_id)).map((s) => <option key={s.id} value={s.id}>{s.name} reinvestment fund</option>)}
             </Select>
             <span className="hint">{f.kind === 'expense' ? 'Spending is subtracted from this fund (a reinvestment).' : 'Added straight to this fund, not split.'}</span>
+          </label>
+        )}
+        {fundParts.length > 0 && (
+          <label className="field full">Part of the fund
+            <Select value={f.fund_part_id || ''} onChange={set('fund_part_id')}>
+              <option value="">The {fundName} fund in general</option>
+              {fundParts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+            <span className="hint">Still paid from the {fundName} fund, but counted apart on its page.</span>
           </label>
         )}
         <label className="field full">Description

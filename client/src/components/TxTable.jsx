@@ -8,7 +8,7 @@ const GROUP_LABELS = { organizing: 'Organizing', benefit: 'Benefit' };
 // Where a transaction belongs: its event, or the fund it moved money in/out of.
 function Where({ t }) {
   if (t.event_id) return <Link to={`/events/${t.event_id}`}>{t.event_name}</Link>;
-  return <span className="badge">{t.fund_name ? `${t.fund_name} fund` : 'General fund'}</span>;
+  return <span className="badge">{t.fund_name ? `${t.fund_name} fund` : 'General fund'}{t.part_name ? ` · ${t.part_name}` : ''}</span>;
 }
 
 // On phones (`hide-sm` / `show-sm`) only category, amount and actions stay as columns;
@@ -31,10 +31,11 @@ export default function TxTable({ rows, showEvent = true, showGroup = false, com
             <td className="hide-sm">{date(t.date)}</td>
             <td>
               <span className={`kind-pill ${t.kind}`}>{t.kind === 'income' ? <IconArrowUp /> : <IconArrowDown />}</span>{t.category_name || <span className="muted">Uncategorised</span>}
-              <div className="row-sub show-sm cell-wrap">{date(t.date)}{t.description ? ` · ${t.description}` : ''}{showEvent && <> · <Where t={t} /></>}</div>
+              <div className="row-sub show-sm cell-wrap">{date(t.date)}{t.description ? ` · ${t.description}` : ''}{showEvent ? <> · <Where t={t} /></> : t.part_name ? ` · ${t.part_name}` : ''}</div>
             </td>
             {showGroup && <td className="secondary hide-sm">{t.kind === 'expense' ? GROUP_LABELS[t.cost_group || 'organizing'] : 'Income'}</td>}
-            <td className="cell-wrap hide-sm">{t.description || <span className="muted">—</span>}</td>
+            <td className="cell-wrap hide-sm">{t.description || <span className="muted">—</span>}
+              {!showEvent && t.part_name && <span className="badge" style={{ marginLeft: 6 }}>{t.part_name}</span>}</td>
             {showEvent && <td className="hide-sm"><Where t={t} /></td>}
             {!compact && <td className="secondary hide-sm">{t.payment_method || '—'}</td>}
             <td className={`r kind-${t.kind}`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</td>

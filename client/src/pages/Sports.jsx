@@ -8,7 +8,7 @@ import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { BalanceLine, GroupedBars } from '../components/Charts.jsx';
-import { IconPlus, IconTrend, IconChevronLeft } from '../components/Icons.jsx';
+import { IconPlus, IconTrash, IconTrend, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 
 const ymLabel = (ym) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
@@ -78,6 +78,16 @@ export function SportDetail() {
   const { sport, fund, months } = r;
   const recent = months.slice(-18).map((m) => ({ ...m, label: ymLabel(m.month) }));
   const finalized = r.events.filter((e) => e.status === 'completed');
+  const addPart = async () => {
+    const name = window.prompt(`Name of the new part of the ${sport.name} fund (e.g. Active Padel Academy):`);
+    if (!name?.trim()) return;
+    try { await api.post('/fund-parts', { sport_id: sport.id, name }); reload(); } catch (e) { window.alert(e.message); }
+  };
+  const delPart = async (p) => {
+    if (!window.confirm(`Stop counting “${p.name}” apart? Its ${p.count} movements stay in the ${sport.name} fund.`)) return;
+    await api.del(`/fund-parts/${p.id}`);
+    reload();
+  };
   const del = async (t) => {
     if (!confirmDelete('this fund movement')) return;
     await api.del(`/transactions/${t.id}`);
@@ -148,6 +158,38 @@ export function SportDetail() {
           </div>
         </div>
 
+        {(r.parts.length > 0 || canEdit) && (
+          <div className="card">
+            <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+              <div><h2>Parts of the fund</h2><p>Paid from the {sport.name} fund, but counted apart</p></div>
+              {canEdit && <button className="btn btn-sm" onClick={addPart}><IconPlus width="14" />Add a part</button>}
+            </div>
+            <div className="table-wrap">
+              {r.parts.length ? (
+                <table>
+                  <thead><tr><th>Part</th><th className="r hide-sm">Movements</th><th className="r">Spent</th><th className="r hide-sm">Added</th>{canEdit && <th />}</tr></thead>
+                  <tbody>
+                    {r.parts.map((p) => (
+                      <tr key={p.id}>
+                        <td><strong>{p.name}</strong><div className="row-sub show-sm">{p.count} movements</div></td>
+                        <td className="r hide-sm">{p.count}</td>
+                        <td className="r"><strong>{p.spent ? `−${money(p.spent)}` : '—'}</strong></td>
+                        <td className="r hide-sm">{p.added ? `+${money(p.added)}` : '—'}</td>
+                        {canEdit && (
+                          <td className="r actions">
+                            <button className="btn btn-sm" onClick={() => setForm({ kind: 'expense', part: p.id })}>Record spending</button>
+                            <button className="icon-btn" aria-label="Remove part" onClick={() => delPart(p)}><IconTrash /></button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <div className="empty">No parts. Add one to count a project’s spending apart, e.g. an academy.</div>}
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>Reinvestments &amp; fund movements</h2><p>Purchases paid from this sport’s fund</p></div></div>
           <div className="table-wrap">
@@ -183,7 +225,7 @@ export function SportDetail() {
       </div>
 
       {form && (
-        <TxForm tx={form.tx} fund={Number(id)} defaultKind={form.kind || 'expense'}
+        <TxForm tx={form.tx} fund={Number(id)} part={form.part} defaultKind={form.kind || 'expense'}
           onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />
       )}
     </div>
