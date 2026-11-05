@@ -262,6 +262,7 @@ function Tasks({ e, reload }) {
   const { data: people } = useApi('/people');
   const [error, setError] = useState(null);
   const [byHand, setByHand] = useState(false);
+  const [editTask, setEditTask] = useState(null);
   const { canEdit } = usePermissions();
   const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (err) { setError(err.message); } };
   const byTask = (t) => e.tasks.filter((l) => l.task === t);
@@ -273,12 +274,14 @@ function Tasks({ e, reload }) {
   const fund = e.is_sport ? `${e.type_name} fund` : 'general fund';
   const setPoints = (v) => run(() => api.put(`/events/${e.id}/points`, { points: v })).then(() => setByHand(false));
   const auto = e.points_auto;
+  const taskPoints = e.taskPoints || {};
+  const setTaskPoints = (t, v) => run(() => api.put(`/events/${e.id}/task-points/${t}`, { points: v })).then(() => setEditTask(null));
 
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
         <div><h2>Tasks & points</h2>
-          <p>Each task gets its share of the event’s points; people on the same task share them. Done for free: the points’ money goes to the {fund}.</p></div>
+          <p>Each task gets its share of the event’s points, or points set by hand; people on the same task share them. Done for free: the points’ money goes to the {fund}.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="card-pad task-total" style={{ paddingTop: 0 }}>
@@ -321,7 +324,19 @@ function Tasks({ e, reload }) {
                     </div>
                     <div className="row-sub">{pctLabel(share)}{e.skippedTasks.length && share !== e.usualTaskShares[t] ? ` (usually ${pctLabel(e.usualTaskShares[t])})` : ''}</div>
                   </td>
-                  <td className="r">{number(Math.round(e.points * share) / 100)}</td>
+                  <td className="r">
+                    {canEdit && (editTask === t || taskPoints[t] !== undefined)
+                      ? <input key={taskPoints[t] ?? 'auto'} className="select-sm num-input" type="number" min="0" step="0.5" aria-label={`${TASK_LABELS[t]} points`}
+                        defaultValue={taskPoints[t] ?? Math.round(e.points * share) / 100} autoFocus={editTask === t}
+                        onBlur={(ev) => (ev.target.value === '' || Number(ev.target.value) === taskPoints[t] ? setEditTask(null) : setTaskPoints(t, ev.target.value))} />
+                      : <strong>{number(taskPoints[t] ?? Math.round(e.points * share) / 100)}</strong>}
+                    <div className="row-sub">
+                      {taskPoints[t] !== undefined
+                        ? <><span className="badge">By hand</span>{canEdit && <> <button className="link-btn" onClick={() => setTaskPoints(t, null)}
+                          title={`Back to ${pctLabel(share)} of the event's points`}>auto ({number(Math.round(e.points * share) / 100)})</button></>}</>
+                        : canEdit && editTask !== t && <button className="link-btn" onClick={() => setEditTask(t)}>set by hand</button>}
+                    </div>
+                  </td>
                   <td className="cell-wrap">
                     <div className="task-people">
                       {lines.map((l) => (

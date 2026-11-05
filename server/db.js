@@ -473,6 +473,9 @@ export function setPointsRates(rates) {
 
 // Tasks an event didn't need (e.g. nothing to buy), comma-separated: their share goes to the other tasks.
 if (!columns('events').includes('skipped_tasks')) db.exec("ALTER TABLE events ADD COLUMN skipped_tasks TEXT NOT NULL DEFAULT ''");
+// Tasks whose points were typed by hand for this event, as JSON { task: points }; the others follow the event's points.
+if (!columns('events').includes('task_points')) db.exec("ALTER TABLE events ADD COLUMN task_points TEXT NOT NULL DEFAULT '{}'");
+export const manualTaskPoints = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
 
 /** Each task's share (%) for one event: the needed tasks share 100% in proportion to their usual shares. */
 export function eventTaskShares(skipped = '', shares = getTaskShares()) {

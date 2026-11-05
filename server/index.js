@@ -4,7 +4,7 @@ import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from './sync.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, manualTaskPoints, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
@@ -697,6 +697,7 @@ api.get('/events/:id', (req, res) => {
   e.skippedTasks = String(e.skipped_tasks || '').split(',').filter(Boolean);
   e.taskShares = eventTaskShares(e.skipped_tasks);
   e.usualTaskShares = getTaskShares();
+  e.taskPoints = manualTaskPoints(e.task_points);
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
     JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
@@ -822,6 +823,21 @@ api.post('/events/:id/tasks/:task/skip', (req, res) => {
     db.prepare('DELETE FROM event_tasks WHERE event_id = ? AND task = ?').run(idParam(req), req.params.task);
     db.prepare('UPDATE events SET skipped_tasks = ? WHERE id = ?').run([...off].join(','), idParam(req));
   });
+  res.json({ ok: true });
+});
+
+// Type a task's points by hand for this event (null: back to its share of the event's points).
+api.put('/events/:id/task-points/:task', (req, res) => {
+  need(TASKS.includes(req.params.task), 'Unknown task');
+  const e = db.prepare('SELECT task_points FROM events WHERE id = ?').get(idParam(req));
+  need(e, 'Event not found');
+  const map = manualTaskPoints(e.task_points), v = req.body.points;
+  if (v === null || v === '' || v === undefined) delete map[req.params.task];
+  else {
+    need(Number.isFinite(Number(v)) && Number(v) >= 0, 'Points must be 0 or more');
+    map[req.params.task] = Number(v);
+  }
+  db.prepare('UPDATE events SET task_points = ? WHERE id = ?').run(JSON.stringify(map), idParam(req));
   res.json({ ok: true });
 });
 
