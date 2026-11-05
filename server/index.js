@@ -538,6 +538,7 @@ api.post('/stock/items', (req, res) => {
       throw httpError(400, 'An item with this name already exists');
     }
     if (req.body.person_id && Number(req.body.qty) > 0) {
+      needFounder(req.body.person_id);
       db.prepare('INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)').run(id, Number(req.body.person_id), Number(req.body.qty));
       if (req.body.purchase) recordPurchase(id, req.body.person_id, req.body.qty, req.body, req.user.id);
     }
@@ -567,6 +568,9 @@ api.delete('/stock/items/:id', (req, res) => {
 });
 
 // Set (mode 'set') or add to (mode 'add') the quantity one person holds.
+// Only founders keep stock.
+const needFounder = (id) => need(db.prepare('SELECT 1 FROM people WHERE id = ? AND is_founder = 1').get(Number(id)), 'Stock can only be held by a founder');
+
 // Records a purchase: the holder gets the quantity, the buyer gets points for the amount paid.
 function recordPurchase(itemId, holderId, qty, b, userId) {
   const p = b.purchase;
@@ -598,6 +602,7 @@ api.put('/stock/holdings', (req, res) => {
   const next = mode === 'add' ? cur + Number(qty) : Number(qty);
   need(next >= 0, 'Quantity cannot go below 0');
   need(!req.body.purchase || (mode === 'add' && Number(qty) > 0), 'A purchase needs a quantity');
+  if (next > cur) needFounder(person_id); // lowering what a non-founder still holds stays possible
   tx(() => {
     db.prepare(`INSERT INTO stock_holdings (item_id, person_id, qty) VALUES (?, ?, ?)
       ON CONFLICT(item_id, person_id) DO UPDATE SET qty = excluded.qty`).run(item_id, person_id, next);
@@ -609,6 +614,7 @@ api.put('/stock/holdings', (req, res) => {
 api.post('/stock/transfer', (req, res) => {
   const { item_id, from, to, qty } = req.body;
   need(item_id && from && to && from !== to && Number(qty) > 0, 'Choose an item, two different people and a quantity');
+  needFounder(to);
   tx(() => {
     const cur = db.prepare('SELECT qty FROM stock_holdings WHERE item_id = ? AND person_id = ?').get(item_id, from)?.qty || 0;
     need(cur >= Number(qty), `Only ${cur} available to move`);

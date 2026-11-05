@@ -72,7 +72,7 @@ function CategorySelect({ cats, value, onChange, placeholder = 'Choose…', ...p
   );
 }
 
-function ItemForm({ item, category, cats, people, onClose, onSaved }) {
+function ItemForm({ item, category, cats, people, founders, onClose, onSaved }) {
   const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', category_id: category || '', ...(item || {}) }));
   // On edit: how much each person holds, editable; people can be added.
   const [held, setHeld] = useState(() => (item?.holdings || []).map((h) => ({ person_id: h.person_id, qty: String(h.qty), was: h.qty })));
@@ -93,7 +93,7 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
       onSaved();
     } catch (e) { setError(e.message); }
   };
-  const free = people.filter((p) => !held.some((h) => String(h.person_id) === String(p.id)));
+  const free = founders.filter((p) => !held.some((h) => String(h.person_id) === String(p.id)));
   return (
     <Modal title={item ? `Edit ${item.name}` : 'New product'} onClose={onClose} onSubmit={save}
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
@@ -108,7 +108,7 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
             <label className="field">Held by
               <select value={f.person_id} onChange={set('person_id')}>
                 <option value="">— nobody yet —</option>
-                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {founders.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>
             <label className="field">Quantity<input type="number" min="0" step="any" value={f.qty} onChange={set('qty')} disabled={!f.person_id} /></label>
@@ -146,7 +146,7 @@ function ItemForm({ item, category, cats, people, onClose, onSaved }) {
   );
 }
 
-function MoveForm({ item, people, mode, onClose, onSaved }) {
+function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
   const [f, setF] = useState({ from: item.holdings[0]?.person_id || '', to: '', person_id: '', qty: '' });
   const [purchase, setPurchase] = useState(blankPurchase);
   const [error, setError] = useState(null);
@@ -166,8 +166,8 @@ function MoveForm({ item, people, mode, onClose, onSaved }) {
         {mode === 'add' ? (
           <label className="field">Kept by
             <select value={f.person_id} onChange={set('person_id')} required>
-              <option value="">Choose person…</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="">Choose founder…</option>
+              {founders.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
         ) : (
@@ -179,8 +179,8 @@ function MoveForm({ item, people, mode, onClose, onSaved }) {
             </label>
             <label className="field">To
               <select value={f.to} onChange={set('to')} required>
-                <option value="">Choose person…</option>
-                {people.filter((p) => String(p.id) !== String(f.from)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                <option value="">Choose founder…</option>
+                {founders.filter((p) => String(p.id) !== String(f.from)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>
           </>
@@ -370,6 +370,7 @@ export default function Stock() {
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const people = allPeople?.filter((p) => p.active) || [];
+  const founders = people.filter((p) => p.is_founder); // only founders keep stock
   const refresh = () => { reload(); reloadPeople(); reloadCats(); };
   const run = async (fn) => { try { await fn(); setError(null); refresh(); } catch (e) { setError(e.message); refresh(); } };
 
@@ -456,8 +457,8 @@ export default function Stock() {
         {!people.length && <p className="hint">Add people in <Link to="/settings">Settings → People</Link> to assign stock to them.</p>}
       </div>
 
-      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
-      {form?.move && <MoveForm item={form.move} mode={form.mode} people={people} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form?.move && <MoveForm item={form.move} mode={form.mode} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
     </div>
   );
 }
