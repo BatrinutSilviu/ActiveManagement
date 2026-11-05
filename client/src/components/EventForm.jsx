@@ -120,10 +120,6 @@ export default function EventForm({ event, onClose, onSaved }) {
           <input type="date" value={f.date} onChange={set('date')} required />
           <span className="hint">The event counts in this month’s statistics</span>
         </label>
-        <label className="field full check-field">
-          <input type="checkbox" checked={!!f.training} onChange={(e) => setF({ ...f, training: e.target.checked ? 1 : 0 })} />
-          <span>Training session <span className="hint">— run by the community; % off vouchers of this sport can be used here, paid from its fund</span></span>
-        </label>
         <label className="field">Venue cost
           <Select value={f.venue_mode} onChange={set('venue_mode')}>
             <option value="per_person">Per participant</option>

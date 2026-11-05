@@ -59,7 +59,7 @@ function AccountSection() {
         ))}
         {c.openVouchers.n > 0 && (
           <Link to="/vouchers" className="account-part note">
-            <span>Unused vouchers<small>already in the funds above; paid when they’re used{c.openVouchers.pct ? ` · plus ${c.openVouchers.pct} % off a training, worth what it’s used on` : ''}</small></span>
+            <span>Unused vouchers<small>already in the funds above; paid when they’re used{c.openVouchers.pct ? ` · plus ${c.openVouchers.pct} % off, valued when used` : ''}</small></span>
             <strong>{money0(c.openVouchers.value)}</strong>
           </Link>
         )}

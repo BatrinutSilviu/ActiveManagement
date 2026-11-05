@@ -11,8 +11,8 @@ import PersonPicker from '../components/PersonPicker.jsx';
 
 const STATUS = { open: 'Not used yet', used: 'Used', expired: 'Expired' };
 const isPct = (v) => v.percent != null;
-/** What a voucher is worth: a fixed value, or a % off a training session. */
-export const voucherWorth = (v) => (isPct(v) ? `${number(v.percent)}% off a training` : money(v.value));
+/** What a voucher is worth: a fixed value, or a % off (its real cost is entered when it's used). */
+export const voucherWorth = (v) => (isPct(v) ? `${number(v.percent)}% off` : money(v.value));
 
 /** Give a voucher (from an event, or on its own) or edit one. */
 export function VoucherForm({ voucher, event, onClose, onSaved }) {
@@ -51,14 +51,14 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
         </div>
         <div className="field">Worth
           <div className="segmented">
-            <button type="button" className={f.kind === 'percent' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'percent' })}>% off a training</button>
+            <button type="button" className={f.kind === 'percent' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'percent' })}>Percent off</button>
             <button type="button" className={f.kind === 'value' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'value' })}>Fixed value</button>
           </div>
         </div>
         {f.kind === 'percent' ? (
           <label className="field">Discount (%)
             <input type="number" min="1" max="100" step="any" value={f.percent ?? ''} onChange={set('percent')} placeholder="e.g. 50" required />
-            <span className="hint">Its value is set when it’s used: this % of what they pay at the training</span>
+            <span className="hint">When it’s used, you enter what it actually cost us</span>
           </label>
         ) : (
           <label className="field">Value (RON)
@@ -93,43 +93,13 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
 }
 
 /** A % voucher is used at a training of its sport: its % of what the person pays there comes from the sport's fund. */
-function UseAtTrainingForm({ voucher, onClose, onSaved }) {
-  const { data: events } = useApi(`/events?type=${voucher.sport_id}`);
-  const [eventId, setEventId] = useState('');
-  const [error, setError] = useState(null);
-  const trainings = events?.filter((e) => e.training && e.status !== 'cancelled' && (!voucher.expires || e.date <= voucher.expires)) || [];
-  const ev = trainings.find((e) => String(e.id) === eventId);
-  const save = async () => {
-    try { await api.post(`/vouchers/${voucher.id}/use`, { event_id: eventId }); onSaved(); } catch (e) { setError(e.message); }
-  };
-  return (
-    <Modal title="Voucher used" onClose={onClose} onSubmit={save}
-      footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!ev}>Save</button></>}>
-      {error && <div className="error-box">{error}</div>}
-      <p className="hint" style={{ margin: 0 }}>{voucher.person_name}’s {number(voucher.percent)}% voucher{voucher.event_name ? ` from ${voucher.event_name}` : ''}.
-        They pay {number(voucher.percent)}% less at the training; that part is spent from the {voucher.is_sport ? `${voucher.sport_name} fund` : 'general fund'}, so the training’s profit stays whole.</p>
-      <div className="form-grid">
-        <label className="field full">Used at
-          <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
-            <option value="">Choose the training…</option>
-            {trainings.map((e) => <option key={e.id} value={e.id}>{date(e.date)} · {e.name} · {money(e.participation_fee)}</option>)}
-          </Select>
-          {events && !trainings.length && <span className="hint">No {voucher.sport_name} training sessions{voucher.expires ? ` up to ${date(voucher.expires)}` : ''} — create an event and tick “Training session”.</span>}
-          {ev && <span className="hint">Worth {money(Math.round(ev.participation_fee * voucher.percent) / 100)} ({number(voucher.percent)}% of {money(ev.participation_fee)}) — less if they also have a discount there</span>}
-        </label>
-      </div>
-    </Modal>
-  );
-}
-
 /** Mark a voucher used: what we paid is spent from its sport's fund on that day (shows in Transactions). */
 function UseForm({ voucher, onClose, onSaved }) {
-  if (isPct(voucher)) return <UseAtTrainingForm voucher={voucher} onClose={onClose} onSaved={onSaved} />;
   return <UseValueForm voucher={voucher} onClose={onClose} onSaved={onSaved} />;
 }
 
 function UseValueForm({ voucher, onClose, onSaved }) {
-  const [f, setF] = useState({ date: today(), amount: String(voucher.value) });
+  const [f, setF] = useState({ date: today(), amount: isPct(voucher) ? '' : String(voucher.value) });
   const [error, setError] = useState(null);
   const save = async () => {
     try { await api.post(`/vouchers/${voucher.id}/use`, f); onSaved(); } catch (e) { setError(e.message); }
@@ -138,11 +108,12 @@ function UseValueForm({ voucher, onClose, onSaved }) {
     <Modal title="Voucher used" onClose={onClose} onSubmit={save}
       footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
       {error && <div className="error-box">{error}</div>}
-      <p className="hint" style={{ margin: 0 }}>{voucher.person_name}’s voucher{voucher.event_name ? ` from ${voucher.event_name}` : ''}.
+      <p className="hint" style={{ margin: 0 }}>{voucher.person_name}’s {isPct(voucher) ? `${number(voucher.percent)}% ` : ''}voucher{voucher.event_name ? ` from ${voucher.event_name}` : ''}.
+        {isPct(voucher) ? ' Enter what it actually cost us.' : ''}
         What we paid is recorded as money spent from the {voucher.is_sport ? `${voucher.sport_name} fund` : 'general fund'} on that day, and shows in Transactions.</p>
       <div className="form-grid">
         <label className="field">Used on<input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} required /></label>
-        <label className="field">We paid (RON)<input type="number" min="0" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} required /></label>
+        <label className="field">We paid (RON)<input type="number" min="0" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} required autoFocus={isPct(voucher)} placeholder="e.g. 45" /></label>
       </div>
     </Modal>
   );
@@ -217,13 +188,13 @@ export default function Vouchers() {
       <div className="page-head">
         <div>
           <h1>Vouchers</h1>
-          <p>Prizes people win at events and use later: a fixed value (e.g. padel court time), or a % off a training session. When one is used, what it’s worth is spent from its sport’s fund.</p>
+          <p>Prizes people win at events and use later: a fixed value (e.g. padel court time), or a % off. When one is used, what we paid for it is spent from its sport’s fund.</p>
         </div>
         {canEdit && <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />Give a voucher</button>}
       </div>
       <div className="stack">
         <div className="grid grid-kpi">
-          <Kpi label="Not used yet" hero value={money0(sum(open, 'value'))} sub={`${open.length} voucher${open.length === 1 ? '' : 's'} — the funds will pay these${open.some(isPct) ? ` · ${open.filter(isPct).length} % off a training, valued when used` : ''}`} />
+          <Kpi label="Not used yet" hero value={money0(sum(open, 'value'))} sub={`${open.length} voucher${open.length === 1 ? '' : 's'} — the funds will pay these${open.some(isPct) ? ` · ${open.filter(isPct).length} % off, valued when used` : ''}`} />
           <Kpi label="Used" value={money0(sum(used, 'cost'))} sub={`${used.length} voucher${used.length === 1 ? '' : 's'} · paid from the funds`} />
           <Kpi label="Expired" value={expired.length} sub={expired.length ? (sum(expired, 'value') ? `${money0(sum(expired, 'value'))} not used in time` : 'not used in time') : 'none'} />
         </div>

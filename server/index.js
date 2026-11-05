@@ -1500,32 +1500,20 @@ function unuseVoucher(v) {
   db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE id = ?').run(v.id);
 }
 
-// Used. A fixed-value voucher: what we paid the venue (body.amount) on body.date. A percentage voucher:
-// at a training of its sport (body.event_id), worth its % of what the person pays there, on the training's date.
-// Either way the cost is spent from the voucher's sport fund (general fund if it isn't a sport).
+// Used: what we actually paid (body.amount) on body.date — for a % voucher too, its % is only a note of
+// what was promised. The cost is spent from the voucher's sport fund (general fund if it isn't a sport).
 api.post('/vouchers/:id/use', (req, res) => {
   const [v] = db.prepare(`${VOUCHER_SQL} WHERE v.id = ?`).all(idParam(req));
   need(v, 'Voucher not found');
   need(!v.used_date, 'This voucher is already used');
-  let date, amount, training = null;
-  if (v.percent != null) {
-    training = db.prepare('SELECT * FROM events WHERE id = ?').get(Number(req.body.event_id));
-    need(training, 'Choose the training it was used at');
-    need(training.training, `${training.name} isn’t a training session — tick “Training session” on it first`);
-    need(training.type_id === v.sport_id, `This is a ${v.sport_name} voucher; ${training.name} is another sport`);
-    need(training.status !== 'cancelled', 'That training was cancelled');
-    need(!v.expires || training.date <= v.expires, `The voucher was only valid until ${v.expires}`);
-    need(!db.prepare('SELECT 1 FROM vouchers WHERE used_event_id = ? AND person_id = ?').get(training.id, v.person_id),
-      `${v.person_name} already used a voucher at this training`);
-    date = training.date;
-    amount = trainingVoucherAmount(v, training);
-  } else {
-    date = req.body.date || today();
-    need(isDate(date), 'Invalid date');
-    const ron = req.body.amount === '' || req.body.amount == null ? toRon(v.value) : Number(req.body.amount);
-    need(ron >= 0, 'The amount can’t be negative');
-    amount = toBani(ron);
-  }
+  const training = null;
+  const date = req.body.date || today();
+  need(isDate(date), 'Invalid date');
+  const blank = req.body.amount === '' || req.body.amount == null;
+  need(!(blank && v.percent != null), 'Enter what we paid for it');
+  const ron = blank ? toRon(v.value) : Number(req.body.amount);
+  need(Number.isFinite(ron) && ron >= 0, 'The amount can’t be negative');
+  const amount = toBani(ron);
   tx(() => {
     const txId = Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
       VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(voucherCategory(), amount, date, voucherText(v, training), v.is_sport ? v.sport_id : null, req.user.id).lastInsertRowid);
