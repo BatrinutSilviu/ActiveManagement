@@ -162,6 +162,14 @@ export function reviewMonth(ym) {
   };
 }
 
+/** After the points rules change (points table, weights, rates, sport multiplier): every closed month's
+ *  real points are calculated again, so past events follow the new rules too. */
+export function recalcClosedMonths(userId = null) {
+  const months = db.prepare('SELECT month FROM month_points ORDER BY month').all().map((r) => r.month);
+  for (const m of months) closeMonth(m, userId);
+  return months;
+}
+
 /** On the 1st (checked hourly): every past month with finalized events and no real points yet gets them. */
 export function closeDueMonths() {
   const current = new Date().toISOString().slice(0, 7);

@@ -8,7 +8,7 @@ import { db, ensureStockCategories, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RA
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  applyPayouts, closeMonth, reviewMonth, startPointsSchedule, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, closeMonth, recalcClosedMonths, reviewMonth, startPointsSchedule, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -215,7 +215,7 @@ api.put('/settings/points-rates', (req, res) => {
   const cur = getPointsRates();
   const rates = Object.fromEntries(POINTS_RATE_KEYS.map((k) => [k, Number(req.body[k] ?? cur[k])]));
   need(Object.values(rates).every((v) => Number.isFinite(v) && v >= 0), 'Rates must be positive numbers');
-  setPointsRates(rates);
+  tx(() => { setPointsRates(rates); recalcClosedMonths(req.user.id); });
   res.json(rates);
 });
 
@@ -259,8 +259,11 @@ api.put('/event-types/:id', (req, res) => {
   need(String(name).trim(), 'Name is required');
   need(Number(default_fee) >= 0 && Number(default_venue_fee) >= 0, 'Prices can’t be negative');
   need(Number(default_venue_fee) <= Number(default_fee), 'The venue’s part can’t be more than the full price');
-  db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ?, is_sport = ?, points_factor = ? WHERE id = ?')
-    .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), is_sport ? 1 : 0, Number(points_factor), idParam(req));
+  tx(() => {
+    db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ?, is_sport = ?, points_factor = ? WHERE id = ?')
+      .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), is_sport ? 1 : 0, Number(points_factor), idParam(req));
+    if (Number(points_factor) !== t.points_factor) recalcClosedMonths(req.user.id);
+  });
   res.json({ ok: true });
 });
 
@@ -1118,13 +1121,17 @@ api.post('/activities', (req, res) => {
 });
 
 api.put('/activities/:id', (req, res) => {
-  db.prepare(`UPDATE activities SET name = ?, organizer_points = ?, organizer_max = ?, co_points = ?, co_max = ?, sport_id = ?,
-    people_step = ?, people_points = ?, money_step = ?, money_points = ? WHERE id = ?`).run(...readActivity(req.body), idParam(req));
+  // Past events follow the points table: closed months get their real points again.
+  tx(() => {
+    db.prepare(`UPDATE activities SET name = ?, organizer_points = ?, organizer_max = ?, co_points = ?, co_max = ?, sport_id = ?,
+      people_step = ?, people_points = ?, money_step = ?, money_points = ? WHERE id = ?`).run(...readActivity(req.body), idParam(req));
+    recalcClosedMonths(req.user.id);
+  });
   res.json({ ok: true });
 });
 
 api.delete('/activities/:id', (req, res) => {
-  db.prepare('DELETE FROM activities WHERE id = ?').run(idParam(req));
+  tx(() => { db.prepare('DELETE FROM activities WHERE id = ?').run(idParam(req)); recalcClosedMonths(req.user.id); });
   res.json({ ok: true });
 });
 

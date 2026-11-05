@@ -308,7 +308,7 @@ function PointsRates() {
   );
   const save = async (e) => {
     e.preventDefault();
-    try { await api.put('/settings/points-rates', v); setMsg({ ok: true, text: 'Saved. Every event’s points use the new rates (except those set by hand).' }); setF(null); reload(); }
+    try { await api.put('/settings/points-rates', v); setMsg({ ok: true, text: 'Saved. Every event’s points use the new rates, past months included (except points set by hand).' }); setF(null); reload(); }
     catch (err) { setMsg({ ok: false, text: err.message }); }
   };
   return (
@@ -377,7 +377,7 @@ function Activities() {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Points table</h2><p>What each kind of event is worth for the time it takes (events also get points for their profit), and points for work outside events (a partnership, a promo stand…) added on the Payouts page. The sport sets the usual kind for its new events.</p></div>
+        <div><h2>Points table</h2><p>What each kind of event is worth for the time it takes — changing it updates every event, past months included, and points for work outside events (a partnership, a promo stand…) added on the Payouts page. The sport sets the usual kind for its new events.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
