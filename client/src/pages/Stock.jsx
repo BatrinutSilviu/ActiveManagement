@@ -11,11 +11,11 @@ import Select from '../components/Select.jsx';
 
 export const PURCHASE_KINDS = { items: 'Usual items / prizes', merch: 'Partnership merchandise' };
 const today = () => new Date().toISOString().slice(0, 10);
-export const blankPurchase = () => ({ on: true, person_id: '', kind: 'items', amount: '', date: today() });
+export const blankPurchase = () => ({ on: true, person_id: '', kind: 'items', amount: '', date: today(), paid_before: false });
 
 /** Turns the purchase fields into what the API expects (or nothing when it wasn't bought). */
 const purchaseBody = (p, holder, qty, price) => (p.on
-  ? { purchase: { kind: p.kind, person_id: p.person_id || holder, date: p.date, amount: p.amount === '' ? (Number(qty) || 0) * (Number(price) || 0) : p.amount } }
+  ? { purchase: { kind: p.kind, person_id: p.person_id || holder, date: p.date, paid_before: p.paid_before, amount: p.amount === '' ? (Number(qty) || 0) * (Number(price) || 0) : p.amount } }
   : {});
 
 /** "Bought just now": who bought it, what kind of purchase, what they paid — it earns them points. */
@@ -50,6 +50,10 @@ function PurchaseFields({ p, setP, people, holder, qty, price }) {
             <span className="hint">{p.amount === '' ? 'Quantity × price; type the real amount if different' : ' '}</span>
           </label>
           <label className="field">Date<input type="date" value={p.date} onChange={set('date')} required /></label>
+          <label className="field full check-field">
+            <input type="checkbox" checked={!!p.paid_before} onChange={(e) => setP({ ...p, paid_before: e.target.checked })} />
+            Paid earlier, already counted in the budget: don’t take it out of the fund again
+          </label>
           <p className="hint full" style={{ margin: 0 }}>{number(points)} points{rates && step > 0 ? ` (${number(pts)} per ${number(step)} RON for ${PURCHASE_KINDS[p.kind].toLowerCase()})` : ''}</p>
         </>
       )}
@@ -219,6 +223,7 @@ function Purchases({ run }) {
   const { data, reload } = useApi('/stock/purchases');
   const { canEdit } = usePermissions();
   if (!data) return null;
+  const togglePaid = (l) => run(() => api.put(`/stock/purchases/${l.id}/paid-before`, { paid_before: !l.paid_before })).then(reload);
   const del = (l) => window.confirm(`Delete this purchase? ${l.qty} ${l.unit} of ${l.item_name} are taken back from ${l.holder_name || 'the holder'} and ${l.person_name} loses its ${number(l.points)} points.`)
     && run(() => api.del(`/stock/purchases/${l.id}`)).then(reload);
   return (
@@ -233,7 +238,10 @@ function Purchases({ run }) {
                 <td className="cell-wrap">{l.item_name}<div className="row-sub">{number(l.qty)} {l.unit}{l.holder_name && l.holder_id !== l.person_id ? ` · kept by ${l.holder_name}` : ''}<span className="show-sm"> · {PURCHASE_KINDS[l.kind]}</span></div></td>
                 <td className="secondary hide-sm">{PURCHASE_KINDS[l.kind]}</td>
                 <td>{l.person_name}</td>
-                <td className="r">{money(l.amount)}</td>
+                <td className="r">{money(l.amount)}
+                  {l.amount > 0 && <div className="row-sub">{l.paid_before ? 'paid earlier, not from the fund' : 'from the fund'}
+                    {canEdit && <> · <button className="link-btn" onClick={() => togglePaid(l)}>{l.paid_before ? 'take from the fund' : 'was paid earlier'}</button></>}</div>}
+                </td>
                 <td className="r"><strong>{number(l.points)}</strong></td>
                 {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Delete purchase" onClick={() => del(l)}><IconTrash /></button></td>}
               </tr>

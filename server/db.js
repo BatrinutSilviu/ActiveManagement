@@ -517,7 +517,7 @@ export function purchaseFund(purchaseId, userId = null) {
   if (!p) return;
   if (p.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(p.transaction_id);
   let txId = null;
-  if (p.amount > 0) {
+  if (p.amount > 0 && !p.paid_before) { // paid earlier = already in the books: not taken from the fund again
     txId = Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
       VALUES (NULL, 'expense', ?, ?, ?, ?, ?, ?)`).run(stockCategory(p.kind), p.amount, p.date,
       `Stock: ${p.qty} ${p.unit} ${p.item_name} (bought by ${p.buyer})`, itemSport(p.item_id), userId).lastInsertRowid);
@@ -530,6 +530,9 @@ export function movePurchaseFunds(itemId) {
   db.prepare('UPDATE transactions SET fund_sport_id = ? WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?)')
     .run(itemSport(itemId), itemId);
 }
+// paid_before = 1: bought and paid earlier, already counted in the budget (e.g. in the old sheet). It's
+// recorded for the stock and the buyer's points, but not spent from the fund again.
+if (!columns('stock_purchases').includes('paid_before')) db.exec('ALTER TABLE stock_purchases ADD COLUMN paid_before INTEGER NOT NULL DEFAULT 0');
 if (!columns('stock_purchases').includes('transaction_id')) {
   db.exec('ALTER TABLE stock_purchases ADD COLUMN transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL');
   tx(() => { for (const { id } of db.prepare('SELECT id FROM stock_purchases').all()) purchaseFund(id); }); // purchases made before

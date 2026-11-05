@@ -592,12 +592,22 @@ function recordPurchase(itemId, holderId, qty, b, userId) {
   need(db.prepare('SELECT 1 FROM people WHERE id = ?').get(Number(p.person_id)), 'Choose who bought it');
   need(Number(p.amount) >= 0, 'The amount paid can’t be negative');
   need(!p.date || isDate(p.date), 'Invalid date');
-  const { lastInsertRowid } = db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(itemId, Number(p.person_id), Number(holderId), Number(qty), toBani(p.amount), p.kind, p.date || today(), userId);
+  const { lastInsertRowid } = db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by, paid_before)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(itemId, Number(p.person_id), Number(holderId), Number(qty), toBani(p.amount), p.kind, p.date || today(), userId, p.paid_before ? 1 : 0);
   purchaseFund(Number(lastInsertRowid), userId); // spent from the category's fund
 }
 
 api.get('/stock/purchases', (req, res) => res.json(purchaseLines()));
+
+// Paid earlier (already in the budget) or not: switches whether it's spent from the fund.
+api.put('/stock/purchases/:id/paid-before', (req, res) => {
+  need(db.prepare('SELECT 1 FROM stock_purchases WHERE id = ?').get(idParam(req)), 'Purchase not found');
+  tx(() => {
+    db.prepare('UPDATE stock_purchases SET paid_before = ? WHERE id = ?').run(req.body.paid_before ? 1 : 0, idParam(req));
+    purchaseFund(idParam(req), req.user.id);
+  });
+  res.json({ ok: true });
+});
 
 // Undoing a purchase takes the quantity back from whoever keeps it (as much as they still hold).
 api.delete('/stock/purchases/:id', (req, res) => {
