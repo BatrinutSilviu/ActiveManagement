@@ -88,6 +88,23 @@ api.post('/integrations/events', (req, res) => {
   res.json(tx(() => upsertSyncedEvent(source, String(id), deleted ? null : record)));
 });
 
+const foldName = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const nameWords = (v) => new Set(foldName(v).split(/[^a-z0-9#]+/).filter((w) => w.length > 1 || /\d/.test(w)));
+/** A hand-made event (not from any app) that is this record: same day and sport, and the same name,
+ *  the same tournament number (#95) or mostly the same words. */
+function findHandMade(m) {
+  const list = db.prepare(`SELECT e.id, e.name FROM events e JOIN event_types t ON t.id = e.type_id
+    WHERE e.source IS NULL AND e.date = ? AND t.name = ? COLLATE NOCASE AND e.status != 'cancelled'`).all(m.date, m.sport);
+  const exact = list.find((e) => foldName(e.name).trim() === foldName(m.name).trim());
+  if (exact) return exact;
+  const num = foldName(m.name).match(/#\d+/)?.[0];
+  if (num) { const same = list.filter((e) => foldName(e.name).match(/#\d+/)?.[0] === num); if (same.length === 1) return same[0]; }
+  const want = nameWords(m.name);
+  const score = (e) => { const w = nameWords(e.name); const both = [...w].filter((x) => want.has(x)).length; return both / (new Set([...w, ...want]).size || 1); };
+  const best = list.map((e) => ({ e, k: score(e) })).sort((a, b) => b.k - a.k);
+  return best[0] && best[0].k >= 0.5 && !(best[1] && best[1].k === best[0].k) ? best[0].e : null;
+}
+
 function upsertSyncedEvent(source, externalId, record) {
   const ev = db.prepare('SELECT * FROM events WHERE source = ? AND external_id = ?').get(source, externalId);
   const label = SOURCES[source].label;
@@ -104,6 +121,14 @@ function upsertSyncedEvent(source, externalId, record) {
   if (!ev) {
     if (m.date < SYNC_FROM) return { action: 'ignored', reason: `dated before ${SYNC_FROM}` };
     if (m.draft) return { action: 'ignored', reason: 'draft' };
+    // Already entered here by hand (same day and sport, same name or tournament number): link it instead
+    // of creating a duplicate. Its fields stay as they are; later changes in the other app are applied.
+    const own = findHandMade(m);
+    if (own) {
+      db.prepare(`UPDATE events SET source = ?, external_id = ?, external_url = ?, sync_data = ?, synced_at = datetime('now') WHERE id = ?`)
+        .run(source, externalId, url, JSON.stringify(m), own.id);
+      return { action: 'linked', id: own.id };
+    }
     const sport = db.prepare('SELECT * FROM event_types WHERE name = ? COLLATE NOCASE').get(m.sport)
       ?? { id: Number(db.prepare('INSERT INTO event_types (name) VALUES (?)').run(m.sport).lastInsertRowid) };
     const activity = (m.activity && db.prepare('SELECT id FROM activities WHERE name = ? COLLATE NOCASE').get(m.activity))
