@@ -4,7 +4,7 @@ import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from './sync.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, manualTaskPoints, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, ensureStockCategories, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RATE_KEYS, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
@@ -212,7 +212,8 @@ api.put('/settings/starting-balance', (req, res) => {
 api.get('/settings/points-rates', (req, res) => res.json(getPointsRates()));
 
 api.put('/settings/points-rates', (req, res) => {
-  const rates = Object.fromEntries(['moneyStep', 'moneyPoints', 'itemsStep', 'itemsPoints', 'merchStep', 'merchPoints'].map((k) => [k, Number(req.body[k])]));
+  const cur = getPointsRates();
+  const rates = Object.fromEntries(POINTS_RATE_KEYS.map((k) => [k, Number(req.body[k] ?? cur[k])]));
   need(Object.values(rates).every((v) => Number.isFinite(v) && v >= 0), 'Rates must be positive numbers');
   setPointsRates(rates);
   res.json(rates);
@@ -698,6 +699,8 @@ api.get('/events/:id', (req, res) => {
   e.taskShares = eventTaskShares(e.skipped_tasks);
   e.usualTaskShares = getTaskShares();
   e.taskPoints = manualTaskPoints(e.task_points);
+  e.highlights = db.prepare(`SELECT h.*, p.name AS partner_name FROM event_highlights h LEFT JOIN partners p ON p.id = h.partner_id
+    WHERE h.event_id = ? ORDER BY h.id`).all(e.id);
   e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
     JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
@@ -823,6 +826,34 @@ api.post('/events/:id/tasks/:task/skip', (req, res) => {
     db.prepare('DELETE FROM event_tasks WHERE event_id = ? AND task = ?').run(idParam(req), req.params.task);
     db.prepare('UPDATE events SET skipped_tasks = ? WHERE id = ?').run([...off].join(','), idParam(req));
   });
+  res.json({ ok: true });
+});
+
+// What made an event special (impact points). Points default to Settings' value for the kind.
+function readHighlight(b) {
+  need(HIGHLIGHT_KINDS.includes(b.kind), 'Choose what was special');
+  const partner = b.partner_id ? Number(b.partner_id) : null;
+  need(!partner || db.prepare('SELECT 1 FROM partners WHERE id = ?').get(partner), 'Unknown partner');
+  const title = String(b.title || '').trim() || (partner ? db.prepare('SELECT name FROM partners WHERE id = ?').get(partner).name : '');
+  need(title, 'Say who or what it was');
+  const points = b.points === '' || b.points == null ? getPointsRates()[`${b.kind}Points`] : Number(b.points);
+  need(Number.isFinite(points) && points >= 0, 'Points must be 0 or more');
+  return [b.kind, title, partner, points];
+}
+
+api.post('/events/:id/highlights', (req, res) => {
+  need(db.prepare('SELECT 1 FROM events WHERE id = ?').get(idParam(req)), 'Event not found');
+  db.prepare('INSERT INTO event_highlights (kind, title, partner_id, points, event_id) VALUES (?, ?, ?, ?, ?)').run(...readHighlight(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+api.put('/event-highlights/:id', (req, res) => {
+  db.prepare('UPDATE event_highlights SET kind = ?, title = ?, partner_id = ?, points = ? WHERE id = ?').run(...readHighlight(req.body), idParam(req));
+  res.json({ ok: true });
+});
+
+api.delete('/event-highlights/:id', (req, res) => {
+  db.prepare('DELETE FROM event_highlights WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 

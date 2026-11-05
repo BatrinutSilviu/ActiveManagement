@@ -32,7 +32,8 @@ export const EVENT_SQL = `
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND c.cost_group = 'benefit') AS benefit_tx,
     (SELECT COALESCE(SUM(s.qty * s.unit_price), 0) FROM event_stock s WHERE s.event_id = e.id) AS stock_cost,
-    (SELECT COUNT(*) FROM transactions t WHERE t.event_id = e.id) AS tx_count
+    (SELECT COUNT(*) FROM transactions t WHERE t.event_id = e.id) AS tx_count,
+    (SELECT COALESCE(SUM(h.points), 0) FROM event_highlights h WHERE h.event_id = e.id) AS impact_points
   FROM events e JOIN event_types et ON et.id = e.type_id LEFT JOIN activities a ON a.id = e.activity_id`;
 
 /** Split a profit (RON) into founders' and community parts. Losses split the same way. */
@@ -48,14 +49,19 @@ export function splitProfit(profit, split = getSplit()) {
 }
 
 /**
- * Points an event earns: its activity's points from the points table (what the time it takes is
- * worth), plus points per so many RON of profit, all times its kind's multiplier (e.g. Social × 1.5).
+ * Points an event earns, in four parts, each times its weight from Settings and the sport's multiplier:
+ *   time   — its activity's points from the points table (what organising it takes)
+ *   people — points per so many participants (counted ones)
+ *   money  — points per so many RON of profit; an estimate until the month closes (see computeRealPoints)
+ *   impact — the points of what made it special (collaboration, special guest…)
  */
 export function eventPoints(e, profit, rates = getPointsRates()) {
   const factor = e.points_factor ?? 1;
-  const time = (e.activity_points || 0) * factor;
-  const money = rates.moneyStep > 0 && profit > 0 ? (profit / rates.moneyStep) * rates.moneyPoints * factor : 0;
-  return { time: r2(time), money: r2(money), total: r2(time + money), factor };
+  const time = (e.activity_points || 0) * rates.wTime * factor;
+  const people = rates.peopleStep > 0 ? ((e.counted_participants || 0) / rates.peopleStep) * rates.peoplePoints * rates.wPeople * factor : 0;
+  const money = rates.moneyStep > 0 && profit > 0 ? (profit / rates.moneyStep) * rates.moneyPoints * rates.wProfit * factor : 0;
+  const impact = (e.impact_points || 0) * rates.wImpact * factor;
+  return { time: r2(time), people: r2(people), money: r2(money), impact: r2(impact), total: r2(time + people + money + impact), factor };
 }
 
 export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
@@ -102,11 +108,11 @@ function rawEvents(where = '', params = [], order = 'ORDER BY e.date', real = tr
 
 /* ------------------------------------------------- real points per month */
 
-// During the month an event's points are an estimate: its time points + its own profit's points.
-// When the month closes, the month's profit decides: each finalized event's profit points are
-// multiplied by (month's profit ÷ the profit of the events that made one), so the profit points
-// shared out match what the month really made — events at a loss pull everyone's down, and if the
-// month made nothing there are none. Time points and points set by hand don't change.
+// During the month an event's points are an estimate. When the month closes (on the 1st), the month's
+// profit decides: each finalized event's profit points are multiplied by (month's profit ÷ the profit
+// of the events that made one), so the profit points shared out match what the month really made —
+// events at a loss pull everyone's down, and if the month made nothing there are none. Time,
+// participants and impact points, and points set by hand, don't change.
 
 const closedMonths = () => new Map(db.prepare('SELECT * FROM month_points').all()
   .map((r) => [r.month, { ...r, data: JSON.parse(r.data), profit: toRon(r.profit) }]));
@@ -120,10 +126,11 @@ export function computeRealPoints(ym) {
   return {
     month: ym, profit, gains: r2(gains), scale,
     events: events.map((e) => {
-      const money = e.points_manual ? null : r2(e.points_auto.money * scale);
+      const a = e.points_auto;
+      const money = e.points_manual ? null : r2(a.money * scale);
       return { id: e.id, name: e.name, date: e.date, type_name: e.type_name, profit: e.profit, estimate: e.points_estimate,
-        manual: !!e.points_manual, time: e.points_auto.time, money_estimate: e.points_auto.money, money,
-        total: e.points_manual ? e.points_estimate : r2(e.points_auto.time + money) };
+        manual: !!e.points_manual, time: a.time, people: a.people, impact: a.impact, money_estimate: a.money, money,
+        total: e.points_manual ? e.points_estimate : r2(a.time + a.people + a.impact + money) };
     }),
   };
 }
@@ -131,7 +138,7 @@ export function computeRealPoints(ym) {
 /** Calculates and freezes a month's real points (userId null = automatic). */
 export function closeMonth(ym, userId = null) {
   const r = computeRealPoints(ym);
-  const data = Object.fromEntries(r.events.map((e) => [e.id, { time: e.time, money: e.money, total: e.total, manual: e.manual }]));
+  const data = Object.fromEntries(r.events.map((e) => [e.id, { time: e.time, people: e.people, impact: e.impact, money: e.money, total: e.total, manual: e.manual }]));
   db.prepare(`INSERT INTO month_points (month, data, profit, scale, calculated_at, calculated_by) VALUES (?, ?, ?, ?, datetime('now'), ?)
     ON CONFLICT(month) DO UPDATE SET data = excluded.data, profit = excluded.profit, scale = excluded.scale,
       calculated_at = excluded.calculated_at, calculated_by = excluded.calculated_by`)

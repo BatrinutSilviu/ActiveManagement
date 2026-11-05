@@ -296,7 +296,7 @@ function ProfitSplit() {
   );
 }
 
-/** Points for the money an event made, and for buying stock. */
+/** How an event's points are made (four weighted parts), and points for buying stock. */
 function PointsRates() {
   const { data, reload } = useApi('/settings/points-rates');
   const [f, setF] = useState(null);
@@ -313,10 +313,16 @@ function PointsRates() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Event points</h2><p>Each event earns its kind of event’s points (points table below) plus points for the profit it made; they’re then shared between its tasks. Buying stock earns points too.</p></div></div>
+      <div className="card-head"><div><h2>Event points</h2><p>An event’s points = (time × weight) + (participants × weight) + (profit × weight) + (impact × weight), times its sport’s multiplier; they’re then shared between its tasks. Profit points are an estimate until the 1st of the next month, when they’re scaled to what the whole month made. Buying stock earns points too.</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 10 }}>
+        <div className="form-section">Weights <span className="hint">— 1 = as is, 2 = counts double, 0 = ignored</span></div>
+        <span className="inline-num">Time {input('wTime', 0.1)} · Participants {input('wPeople', 0.1)} · Profit {input('wProfit', 0.1)} · Impact {input('wImpact', 0.1)}</span>
+        <div className="form-section" style={{ marginTop: 6 }}>Rates</div>
+        <span className="inline-num">Time: the kind of event’s points (points table below)</span>
+        <span className="inline-num">{input('peoplePoints')} points per {input('peopleStep', 1)} participants</span>
         <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
+        <span className="inline-num">Impact, usual points: collaboration {input('collabPoints')} · special guest {input('guestPoints')} · special event {input('specialPoints')}</span>
         <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
         <span className="inline-num">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</span>
         <span className="inline-num">{input('merchPoints')} points per {input('merchStep', 10)} RON of partnership merchandise</span>

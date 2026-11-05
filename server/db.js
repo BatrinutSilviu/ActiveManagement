@@ -460,8 +460,14 @@ if (!columns('events').includes('hours_before')) {
 }
 
 // Stock purchases earn the buyer points per so many RON spent, at a rate for each kind of purchase.
+// An event's points have four parts, each with its own weight (×): time (points table), participants
+// (points per so many people), profit (points per so many RON, scaled to the month's profit on the 1st)
+// and impact (what was special: a collaboration, a special guest…, see event_highlights).
 export const DEFAULT_POINTS_RATES = { moneyStep: 100, moneyPoints: 1,
-  itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1 };
+  itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1,
+  peopleStep: 10, peoplePoints: 1, collabPoints: 3, guestPoints: 3, specialPoints: 3,
+  wTime: 1, wPeople: 1, wProfit: 1, wImpact: 1 };
+export const POINTS_RATE_KEYS = Object.keys(DEFAULT_POINTS_RATES);
 export function getPointsRates() {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'points_rates'").get();
   return { ...DEFAULT_POINTS_RATES, ...(row ? JSON.parse(row.value) : {}) };
@@ -543,6 +549,18 @@ if (!columns('events').includes('source')) {
     ALTER TABLE events ADD COLUMN synced_at TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS events_external ON events (source, external_id) WHERE external_id IS NOT NULL;`);
 }
+
+// What made an event special — its impact points: a collaboration (with a partner), a special guest,
+// or another special thing (first edition, charity…). Points default from Settings, editable per line.
+export const HIGHLIGHT_KINDS = ['collab', 'guest', 'special'];
+db.exec(`CREATE TABLE IF NOT EXISTS event_highlights (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('collab', 'guest', 'special')),
+  title TEXT NOT NULL,
+  partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
+  points REAL NOT NULL DEFAULT 0
+)`);
 
 // Partners (clubs, shops, sponsors…) and the prizes they give at our events. Only a record of what
 // partners contributed: their prizes never count in any profit, fund or payout.

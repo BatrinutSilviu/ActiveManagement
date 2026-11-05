@@ -183,7 +183,7 @@ function PointsReview({ month, onChanged }) {
           <h2>Points review · {monthName(month)}</h2>
           <p>Event points are estimates during the month. When it’s over (automatically on the 1st), each event’s profit points are scaled to what the month really made:
             {' '}month’s profit {signedMoney(r.now.profit)} ÷ {money0(r.now.gains)} made by the profitable events = × {number(Math.round(r.now.scale * 1000) / 1000)}.
-            Time points and points set by hand don’t change.</p>
+            Time, participants and impact points, and points set by hand, don’t change.</p>
         </div>
         <div className="payout-status">
           <span className={`badge ${c && !c.outOfDate ? 'status-completed' : c ? 'status-cancelled' : 'status-planned'}`}>{status}</span>
@@ -201,7 +201,7 @@ function PointsReview({ month, onChanged }) {
       <div className="table-wrap">
         {r.now.events.length ? (
           <table>
-            <thead><tr><th>Event</th><th className="r hide-sm">Profit</th><th className="r hide-sm">Time pts</th><th className="r hide-sm">Profit pts (est. → real)</th><th className="r">Estimate</th><th className="r">Real</th></tr></thead>
+            <thead><tr><th>Event</th><th className="r hide-sm">Profit</th><th className="r hide-sm">Time + people + impact</th><th className="r hide-sm">Profit pts (est. → real)</th><th className="r">Estimate</th><th className="r">Real</th></tr></thead>
             <tbody>
               {r.now.events.map((e) => {
                 const real = c ? shown(e) : null;
@@ -211,7 +211,7 @@ function PointsReview({ month, onChanged }) {
                     <td className="cell-wrap"><Link to={`/events/${e.id}`}>{e.name}</Link>
                       <div className="row-sub">{date(e.date)} · {e.type_name}{e.manual ? ' · points set by hand' : ''}</div></td>
                     <td className={`r hide-sm ${e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</td>
-                    <td className="r secondary hide-sm">{e.manual ? '—' : number(e.time)}</td>
+                    <td className="r secondary hide-sm">{e.manual ? '—' : `${number(e.time)} + ${number(e.people)} + ${number(e.impact)}`}</td>
                     <td className="r secondary hide-sm">{e.manual ? '—' : `${number(e.money_estimate)} → ${number(e.money)}`}</td>
                     <td className="r secondary">{number(e.estimate)}</td>
                     <td className="r">{real == null ? <span className="muted">—</span> : <strong className={changed ? (real < e.estimate ? 'neg' : 'pos') : ''}>{number(real)}</strong>}
