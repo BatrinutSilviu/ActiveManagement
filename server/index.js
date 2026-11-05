@@ -490,7 +490,7 @@ function readItem(body) {
   need(Number(body.unit_price) >= 0, 'Price must be 0 or more');
   const category = Number(body.category_id) || ensureStockCategories();
   need(db.prepare('SELECT 1 FROM stock_categories WHERE id = ?').get(category), 'Unknown category');
-  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price), category];
+  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price), category, body.prepaid ? 1 : 0];
 }
 
 /* ------------------------------------------------------ stock categories */
@@ -536,7 +536,7 @@ api.post('/stock/items', (req, res) => {
   const result = tx(() => {
     let id;
     try {
-      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price, category_id) VALUES (?, ?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
+      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price, category_id, prepaid) VALUES (?, ?, ?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
     } catch (e) {
       if (e.status) throw e;
       throw httpError(400, 'An item with this name already exists');
@@ -552,7 +552,7 @@ api.post('/stock/items', (req, res) => {
 });
 
 api.put('/stock/items/:id', (req, res) => {
-  db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
+  db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ?, prepaid = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
   res.json({ ok: true });
 });
 
@@ -709,9 +709,9 @@ api.get('/events/:id', (req, res) => {
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
   e.attendees = db.prepare(`SELECT a.*, p.name, ${IS_MEMBER_SQL} AS is_member FROM event_attendees a
     JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY p.name`).all(e.id);
-  e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, p.name AS person_name FROM event_stock s
+  e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, i.prepaid, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
-    .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: r2(s.qty * toRon(s.unit_price)) }));
+    .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: s.prepaid ? 0 : r2(s.qty * toRon(s.unit_price)) }));
   res.json(e);
 });
 

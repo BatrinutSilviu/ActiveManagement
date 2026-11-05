@@ -31,7 +31,8 @@ export const EVENT_SQL = `
        WHERE t.event_id = e.id AND t.kind = 'expense' AND COALESCE(c.cost_group, 'organizing') = 'organizing') AS organizing,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND c.cost_group = 'benefit') AS benefit_tx,
-    (SELECT COALESCE(SUM(s.qty * s.unit_price), 0) FROM event_stock s WHERE s.event_id = e.id) AS stock_cost,
+    (SELECT COALESCE(SUM(s.qty * s.unit_price), 0) FROM event_stock s JOIN stock_items i ON i.id = s.item_id
+       WHERE s.event_id = e.id AND i.prepaid = 0) AS stock_cost,
     (SELECT COUNT(*) FROM transactions t WHERE t.event_id = e.id) AS tx_count,
     (SELECT COALESCE(SUM(h.points), 0) FROM event_highlights h WHERE h.event_id = e.id) AS impact_points
   FROM events e JOIN event_types et ON et.id = e.type_id LEFT JOIN activities a ON a.id = e.activity_id`;

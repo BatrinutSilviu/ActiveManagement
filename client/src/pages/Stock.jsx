@@ -74,7 +74,7 @@ function CategorySelect({ cats, value, onChange, placeholder = 'Choose…', ...p
 }
 
 function ItemForm({ item, category, cats, people, founders, onClose, onSaved }) {
-  const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', category_id: category || '', ...(item || {}) }));
+  const [f, setF] = useState(() => ({ name: '', unit: 'pcs', unit_price: '', person_id: '', qty: '', category_id: category || '', prepaid: 0, ...(item || {}) }));
   // On edit: how much each person holds, editable; people can be added.
   const [held, setHeld] = useState(() => (item?.holdings || []).map((h) => ({ person_id: h.person_id, qty: String(h.qty), was: h.qty })));
   const [purchase, setPurchase] = useState(blankPurchase);
@@ -104,6 +104,10 @@ function ItemForm({ item, category, cats, people, founders, onClose, onSaved }) 
         <label className="field">Category<CategorySelect cats={cats} value={f.category_id} onChange={set('category_id')} /></label>
         <label className="field">Unit<input value={f.unit} onChange={set('unit')} placeholder="pcs, bottles, kg…" /></label>
         <label className="field">Price per unit (RON)<input type="number" min="0" step="0.01" value={f.unit_price} onChange={set('unit_price')} required /></label>
+        <label className="field full check-field">
+          <input type="checkbox" checked={!!f.prepaid} onChange={(e) => setF({ ...f, prepaid: e.target.checked ? 1 : 0 })} />
+          <span>Already paid for <span className="hint">— bought earlier (e.g. from a fund): events that use it aren’t charged for it, including past ones</span></span>
+        </label>
         {!item ? (
           <>
             <label className="field">Held by
@@ -256,7 +260,7 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
               {canEdit && <td className="pick-col"><input type="checkbox" checked={selected.has(i.id)} onChange={(e) => pick([i.id], e.target.checked)} aria-label={`Select ${i.name}`} /></td>}
               <td className="cell-wrap">
                 <div className="row-title">{i.name}</div>
-                <div className="row-sub">{i.unit}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
+                <div className="row-sub">{i.unit}{i.prepaid ? ' · already paid' : ''}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
                 <div className="row-sub show-sm">
                   {i.holdings.map((h) => `${h.name} ${number(h.qty)}`).join(' · ') || 'Nobody holds it'}
                   {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>Add</button></>}

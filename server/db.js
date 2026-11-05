@@ -477,6 +477,9 @@ export function setPointsRates(rates) {
     .run(JSON.stringify(rates));
 }
 
+// Stock already paid for (e.g. bought earlier from a fund): using it at an event costs the event nothing.
+if (!columns('stock_items').includes('prepaid')) db.exec('ALTER TABLE stock_items ADD COLUMN prepaid INTEGER NOT NULL DEFAULT 0');
+
 // Tasks an event didn't need (e.g. nothing to buy), comma-separated: their share goes to the other tasks.
 if (!columns('events').includes('skipped_tasks')) db.exec("ALTER TABLE events ADD COLUMN skipped_tasks TEXT NOT NULL DEFAULT ''");
 // Tasks whose points were typed by hand for this event, as JSON { task: points }; the others follow the event's points.

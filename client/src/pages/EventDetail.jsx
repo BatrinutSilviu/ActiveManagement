@@ -524,7 +524,7 @@ function StockUsage({ e, reload }) {
   const { canEdit } = usePermissions();
   const item = stock?.find((i) => String(i.id) === String(f.item_id));
   const holder = item?.holdings.find((h) => String(h.person_id) === String(f.person_id));
-  const cost = item && Number(f.qty) > 0 ? item.unit_price * Number(f.qty) : 0;
+  const cost = item && !item.prepaid && Number(f.qty) > 0 ? item.unit_price * Number(f.qty) : 0;
 
   const run = async (fn) => {
     try { await fn(); setError(null); reload(); reloadStock(); return true; } catch (err) { setError(err.message); return false; }
@@ -537,7 +537,7 @@ function StockUsage({ e, reload }) {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Products from stock</h2><p>Cost (price × quantity) is charged to the event. Kept and partly used items stay in stock (fix the count on the Stock page if needed); used-up ones come off it.</p></div>
+        <div><h2>Products from stock</h2><p>Cost (price × quantity) is charged to the event, except for products already paid for. Kept and partly used items stay in stock (fix the count on the Stock page if needed); used-up ones come off it.</p></div>
         <span className="muted">{money(e.stock_cost)}</span>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
@@ -560,7 +560,7 @@ function StockUsage({ e, reload }) {
                     ) : AFTER_LABELS[afterKey(s.kept)]}
                   </td>
                   <td className="r hide-sm">{money(s.unit_price)}</td>
-                  <td className="r kind-expense">−{money(s.cost)}</td>
+                  <td className={`r ${s.prepaid ? 'secondary' : 'kind-expense'}`}>{s.prepaid ? <span title="Already paid for — not charged to this event">paid already</span> : `−${money(s.cost)}`}</td>
                   {canEdit && (
                     <td className="r actions">
                       <button className="icon-btn" aria-label="Remove and return to stock" title="Remove and return to stock"
@@ -576,7 +576,7 @@ function StockUsage({ e, reload }) {
       {canEdit && <form className="inline-form" onSubmit={add}>
         <Select className="select-sm" value={f.item_id} onChange={(ev) => setF({ ...f, item_id: ev.target.value, person_id: '', qty: '' })} required>
           <option value="">Product…</option>
-          {stock?.map((i) => <option key={i.id} value={i.id} disabled={!i.qty}>{i.name} · {money(i.unit_price)}/{i.unit} ({number(i.qty)} left)</option>)}
+          {stock?.map((i) => <option key={i.id} value={i.id} disabled={!i.qty}>{i.name} · {i.prepaid ? 'paid already' : `${money(i.unit_price)}/${i.unit}`} ({number(i.qty)} left)</option>)}
         </Select>
         <Select className="select-sm" value={f.person_id} onChange={(ev) => setF({ ...f, person_id: ev.target.value })} required disabled={!item}>
           <option value="">From…</option>
