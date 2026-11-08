@@ -7,7 +7,7 @@ import EventForm from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
 import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
-import { IconCheck, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
+import { IconCheck, IconCopy, IconEdit, IconPlus, IconTrash, IconChevronLeft } from '../components/Icons.jsx';
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
@@ -594,7 +594,13 @@ function StockUsage({ e, reload }) {
   );
 }
 
-export default function EventDetail() {
+// A fresh page per event: going from one event to another (e.g. to a copy just made) doesn't carry over any state.
+export default function EventDetailPage() {
+  const { id } = useParams();
+  return <EventDetail key={id} />;
+}
+
+function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: e, error, reload: reloadEvent } = useApi(`/events/${id}`);
@@ -602,6 +608,7 @@ export default function EventDetail() {
   const { data: monthSplit } = useApi(e ? `/splits/${e.date.slice(0, 7)}` : null); // the event's month may have its own targets
   const split = monthSplit?.split;
   const [editing, setEditing] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [txForm, setTxForm] = useState(null); // { kind } | { tx }
   const { canEdit } = usePermissions();
 
@@ -644,6 +651,7 @@ export default function EventDetail() {
           {e.status === 'planned' && <button className="btn btn-primary" onClick={() => setStatus('completed')}><IconCheck width="16" />Finalize event</button>}
           {e.status === 'completed' && <button className="btn" onClick={() => setStatus('planned')}>Reopen as live</button>}
           <button className="btn" onClick={() => setEditing(true)}><IconEdit width="15" />Edit</button>
+          <button className="btn" onClick={() => setCopying(true)}><IconCopy width="15" />Duplicate</button>
           <button className="btn btn-danger" onClick={del}><IconTrash width="15" />Delete</button>
         </div>}
       </div>
@@ -692,6 +700,8 @@ export default function EventDetail() {
       </div>
 
       {editing && <EventForm event={e} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); }} />}
+      {copying && <EventForm copyOf={e} copyCosts={txs.filter((t) => !t.fund_sport_id && !t.fund_part_id).length}
+        onClose={() => setCopying(false)} onSaved={(newId) => { setCopying(false); navigate(`/events/${newId}`); }} />}
       {txForm && (
         <TxForm tx={txForm.tx} defaultKind={txForm.kind} eventId={e.id} eventDate={e.date}
           onClose={() => setTxForm(null)} onSaved={() => { setTxForm(null); reload(); }} />

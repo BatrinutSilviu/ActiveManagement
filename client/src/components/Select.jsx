@@ -21,7 +21,7 @@ function flatten(children, group = null, out = []) {
 }
 
 /** Where the list goes: under the field, or above it when there's no room below. */
-function usePlacement(open, anchor) {
+function usePlacement(open, anchor, pop) {
   const [pos, setPos] = useState(null);
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -35,11 +35,13 @@ function usePlacement(open, anchor) {
       const maxWidth = Math.max(minWidth, Math.min(440, window.innerWidth - left - 8)); // long labels widen the list
       setPos({ left, minWidth, maxWidth, maxHeight: Math.min(340, up ? above : below), ...(up ? { bottom: window.innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
     };
+    // Scrolling the list itself doesn't move it (on phones that re-render used to snap the list back).
+    const onScroll = (e) => { if (!pop.current?.contains(e.target)) place(); };
     place();
     window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
-  }, [open, anchor]);
+    window.addEventListener('scroll', onScroll, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', onScroll, true); };
+  }, [open, anchor, pop]);
   return pos;
 }
 
@@ -51,7 +53,7 @@ export default function Select({ value, onChange, children, className = '', styl
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(-1);
   const btn = useRef(null), pop = useRef(null), list = useRef(null);
-  const pos = usePlacement(open, btn);
+  const pos = usePlacement(open, btn, pop);
   const withSearch = searchable ?? items.length > 8;
 
   const shown = useMemo(() => {
@@ -86,11 +88,21 @@ export default function Select({ value, onChange, children, className = '', styl
   useEffect(() => {
     if (!open) return undefined;
     const outside = (e) => { if (!pop.current?.contains(e.target) && !btn.current?.contains(e.target)) close(false); };
-    document.addEventListener('mousedown', outside);
-    return () => document.removeEventListener('mousedown', outside);
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' }); }, [active, open, pos]);
-  useEffect(() => { if (open && !withSearch) pop.current?.focus(); }, [open, withSearch]);
+  // Keep the highlighted option in view: when the list opens and when arrow keys move it — not on every
+  // reposition, or a finger scrolling the list on a phone gets pulled back to the selected option.
+  const placed = !!pos;
+  useEffect(() => {
+    const l = list.current, o = l?.querySelector('[data-active="true"]');
+    if (!o) return;
+    if (o.offsetTop < l.scrollTop) l.scrollTop = o.offsetTop;
+    else if (o.offsetTop + o.offsetHeight > l.scrollTop + l.clientHeight) l.scrollTop = o.offsetTop + o.offsetHeight - l.clientHeight;
+  }, [active, open, placed]);
+  // On touch screens the search box isn't focused on open: that would pop up the keyboard over the list.
+  const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+  useEffect(() => { if (open && (!withSearch || touch) && placed) pop.current?.focus({ preventScroll: true }); }, [open, withSearch, touch, placed]);
 
   const onKey = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
@@ -117,7 +129,7 @@ export default function Select({ value, onChange, children, className = '', styl
       {open && pos && createPortal(
         <div ref={pop} className="select-pop" style={pos} tabIndex={-1} onKeyDown={onKey} role="presentation">
           {withSearch && (
-            <input className="select-search" autoFocus placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the list" />
+            <input className="select-search" autoFocus={!touch} placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the list" />
           )}
           <div ref={list} className="select-list" role="listbox">
             {shown.map((o, i) => {

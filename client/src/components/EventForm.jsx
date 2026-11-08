@@ -29,19 +29,23 @@ function linkPrices(next, from, autoShare) {
   return out;
 }
 
-export default function EventForm({ event, onClose, onSaved }) {
+// `copyOf`: start a new event from an existing one's setup (new date, no people yet); `copyCosts` = how many
+// cost / income lines it has that can be copied along.
+export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSaved }) {
+  const src = event || (copyOf && { ...copyOf, date: today(), end_date: '', status: 'planned', participants: '' });
   const { data: types } = useApi('/event-types');
   const { data: allPeople } = useApi('/people');
   const { data: rates } = useApi('/settings/points-rates');
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(event || {}),
-    ...(event?.price_parts ? { community: String(event.community_fee) } : {}),
-  }, event?.price_parts ? 'parts' : 'total', true));
+    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
+    ...(src?.price_parts ? { community: String(src.community_fee) } : {}),
+  }, src?.price_parts ? 'parts' : 'total', true));
   // Which side was typed last: the two parts (stored as such: fees = venue total + community part × people,
   // exact even when the venue doesn't divide evenly), or the total price.
-  const [from, setFrom] = useState(event?.price_parts ? 'parts' : 'total');
+  const [from, setFrom] = useState(src?.price_parts ? 'parts' : 'total');
+  const [withCosts, setWithCosts] = useState(false);
   // A new event can start with one organiser on every task; tasks are changed on the event page.
   const [lead, setLead] = useState('');
   const [error, setError] = useState(null);
@@ -91,7 +95,7 @@ export default function EventForm({ event, onClose, onSaved }) {
         await api.put(`/events/${event.id}`, body);
         onSaved(event.id);
       } else {
-        const r = await api.post('/events', { ...body, lead_id: lead || null });
+        const r = await api.post('/events', { ...body, lead_id: lead || null, ...(copyOf ? { copy_from: copyOf.id, copy_costs: withCosts } : {}) });
         onSaved(r.id);
       }
     } catch (e) {
@@ -101,12 +105,13 @@ export default function EventForm({ event, onClose, onSaved }) {
   };
 
   return (
-    <Modal title={event ? 'Edit event' : 'New event'} onClose={onClose} onSubmit={save}
+    <Modal title={event ? 'Edit event' : copyOf ? 'Duplicate event' : 'New event'} onClose={onClose} onSubmit={save}
       footer={<>
         <button type="button" className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={saving}>{event ? 'Save changes' : 'Create event'}</button>
+        <button className="btn btn-primary" disabled={saving}>{event ? 'Save changes' : copyOf ? 'Create copy' : 'Create event'}</button>
       </>}>
       {error && <div className="error-box">{error}</div>}
+      {copyOf && <p className="hint" style={{ margin: 0 }}>A new event with the setup of “{copyOf.name}” — pick its date. People, attendees, discounts and stock start empty.</p>}
       <div className="form-grid">
         <label className="field full">Event name
           <input value={f.name} onChange={set('name')} placeholder="e.g. Saturday padel meetup" autoFocus required />
@@ -210,6 +215,12 @@ export default function EventForm({ event, onClose, onSaved }) {
         <label className="field full">Notes
           <textarea value={f.notes || ''} onChange={set('notes')} placeholder="Logistics, contacts, reminders…" />
         </label>
+        {copyOf && copyCosts > 0 && (
+          <label className="field full check-field">
+            <input type="checkbox" checked={withCosts} onChange={(e) => setWithCosts(e.target.checked)} />
+            <span>Also copy its costs &amp; extra income <span className="hint">— {copyCosts} {copyCosts === 1 ? 'line' : 'lines'}, dated on the new event’s day; change the amounts after</span></span>
+          </label>
+        )}
       </div>
       {!event && <p className="hint" style={{ margin: 0 }}>The event starts as <b>Live</b>. Add costs and products from stock on its page, then finalize it.</p>}
     </Modal>

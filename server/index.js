@@ -812,6 +812,18 @@ api.post('/events', (req, res) => {
     saveVenue(id, req.body);
     savePriceParts(id, req.body);
     saveTraining(id, req.body);
+    // A copy of another event: same skipped tasks, and optionally its own cost / income lines, dated on the new day.
+    const src = req.body.copy_from ? db.prepare('SELECT * FROM events WHERE id = ?').get(Number(req.body.copy_from)) : null;
+    if (req.body.copy_from) need(src, 'The event to copy no longer exists');
+    if (src) {
+      db.prepare('UPDATE events SET skipped_tasks = ? WHERE id = ?').run(src.skipped_tasks || '', id);
+      if (req.body.copy_costs) {
+        const date = db.prepare('SELECT date FROM events WHERE id = ?').get(id).date;
+        db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, payment_method, created_by)
+          SELECT ?, kind, category_id, amount, ?, description, payment_method, ? FROM transactions
+          WHERE event_id = ? AND fund_sport_id IS NULL AND fund_part_id IS NULL ORDER BY id`).run(id, date, req.user.id, src.id);
+      }
+    }
     // One organiser doing everything: put them on every task (change it on the event page).
     if (req.body.lead_id) for (const t of TASKS) addTask(id, t, req.body.lead_id);
     return id;

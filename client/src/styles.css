@@ -308,7 +308,7 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: .55; cursor: po
 }
 @keyframes select-in { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
 .select-search { height: 34px; margin-bottom: 6px; font-size: 13.5px; flex: none; }
-.select-list { overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.select-list { position: relative; overflow-y: auto; scrollbar-width: thin; min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .select-option {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; min-height: 34px;
   font-size: 13.5px; font-weight: 500; cursor: pointer; white-space: nowrap;
