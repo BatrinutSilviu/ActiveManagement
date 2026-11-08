@@ -177,7 +177,7 @@ export function SportDetail() {
                         <td className="r hide-sm">{p.added ? `+${money(p.added)}` : '—'}</td>
                         {canEdit && (
                           <td className="r actions">
-                            <button className="btn btn-sm" onClick={() => setForm({ kind: 'expense', part: p.id })}>Record spending</button>
+                            <button className="btn btn-sm" onClick={() => setForm({ kind: 'expense', part: p.id })}><span className="hide-sm">Record spending</span><span className="show-sm">Spend</span></button>
                             <button className="icon-btn" aria-label="Remove part" onClick={() => delPart(p)}><IconTrash /></button>
                           </td>
                         )}

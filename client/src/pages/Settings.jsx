@@ -29,12 +29,20 @@ function Sports() {
       <div className="card-head"><div><h2>Sports</h2><p>Each sport has its own reinvestment fund, and default prices for new events: the full price, and the venue’s part of it — all that members pay. Untick “Sport fund” for event types that aren’t a sport (e.g. Social): their community share all goes to the general fund. “Points ×” multiplies the points their events earn for time and profit.</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
-        <table>
-          <thead><tr><th>Sport</th><th className="r">Price</th><th className="r">Venue</th><th className="r">Points ×</th><th className="hide-sm">Sport fund</th><th className="r hide-sm">Events</th><th /></tr></thead>
+        <table className="compact-table">
+          <thead><tr><th style={{ width: '100%' }}>Sport</th><th className="r">Price</th><th className="r">Venue</th><th className="r">Points ×</th><th className="hide-sm">Sport fund</th><th className="r hide-sm">Events</th><th className="hide-sm" /></tr></thead>
           <tbody>
             {data?.map((t) => (
               <tr key={`${t.id}-${t.default_fee}-${t.default_venue_fee}-${t.is_sport}-${t.points_factor}`}>
-                <td>{t.name}</td>
+                <td>
+                  {t.name}
+                  <div className="row-actions show-sm">
+                    <label className="check"><input type="checkbox" checked={!!t.is_sport} aria-label={`${t.name} has a sport fund`}
+                      onChange={(e) => run(() => api.put(`/event-types/${t.id}`, { is_sport: e.target.checked }))} />Sport fund</label>
+                    <button className="link-btn" onClick={() => { const n = rename(t.name); if (n) run(() => api.put(`/event-types/${t.id}`, { name: n })); }}>Rename</button>
+                    <button className="link-btn" style={{ color: 'var(--bad-text)' }} onClick={() => confirmDelete(`sport “${t.name}”`) && run(() => api.del(`/event-types/${t.id}`))}>Delete</button>
+                  </div>
+                </td>
                 {['default_fee', 'default_venue_fee'].map((k) => (
                   <td className="r" key={k}>
                     <input className="select-sm num-input" type="number" min="0" step="0.01" defaultValue={t[k] || ''} placeholder="—"
@@ -43,7 +51,7 @@ function Sports() {
                   </td>
                 ))}
                 <td className="r">
-                  <input className="select-sm num-input" type="number" min="0.1" step="0.1" defaultValue={t.points_factor} style={{ width: 70 }}
+                  <input className="select-sm num-input" type="number" min="0.1" step="0.1" defaultValue={t.points_factor}
                     aria-label={`${t.name} points multiplier`}
                     onBlur={(e) => Number(e.target.value) > 0 && Number(e.target.value) !== t.points_factor && run(() => api.put(`/event-types/${t.id}`, { points_factor: Number(e.target.value) }))} />
                 </td>
@@ -52,7 +60,7 @@ function Sports() {
                     onChange={(e) => run(() => api.put(`/event-types/${t.id}`, { is_sport: e.target.checked }))} />
                 </td>
                 <td className="r muted hide-sm">{t.events}</td>
-                <td className="r">
+                <td className="r hide-sm">
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(t.name); if (n) run(() => api.put(`/event-types/${t.id}`, { name: n })); }}><IconEdit /></button>
                   <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(`sport “${t.name}”`) && run(() => api.del(`/event-types/${t.id}`))}><IconTrash /></button>
                 </td>
@@ -106,7 +114,7 @@ function People() {
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
-          <thead><tr><th>Name</th><th>Founder</th><th>Premium</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
+          <thead><tr><th style={{ width: '100%' }}>Name</th><th>Founder</th><th>Premium</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
           <tbody>
             {data?.map((p) => (
               <tr key={p.id} className={p.active ? '' : 'row-off'}>
@@ -115,6 +123,7 @@ function People() {
                   <div className="row-sub show-sm">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => d.name).join(', ')}
                     {p.discount_ids.length ? ' · ' : ''}<button className="link-btn" onClick={() => setEditing(p)}>{p.discount_ids.length ? 'Edit discounts' : '+ Discount'}</button>
+                    {' · '}<button className="link-btn" onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</button>
                   </div>
                 </td>
                 <td><input type="checkbox" checked={!!p.is_founder} onChange={(e) => save(p, { is_founder: e.target.checked })} aria-label="Founder" /></td>
@@ -129,8 +138,8 @@ function People() {
                 <td className="r hide-sm">{p.points}</td>
                 <td className="r hide-sm">{p.stock_value ? money0(p.stock_value) : '—'}</td>
                 <td className="r hide-sm">{p.discounts_received ? <span title={`${p.discounted_events} events`}>{money0(p.discounts_received)}</span> : '—'}</td>
-                <td className="r">
-                  <button className="btn btn-sm btn-ghost" onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</button>
+                <td className="r actions">
+                  <button className="btn btn-sm btn-ghost hide-sm" onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</button>
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(p.name); if (n) save(p, { name: n }); }}><IconEdit /></button>
                   <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(p.name) && run(() => api.del(`/people/${p.id}`))}><IconTrash /></button>
                 </td>
@@ -175,16 +184,19 @@ function Discounts() {
       {data?.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Discount</th><th className="r">Value</th><th>Sport</th><th>Who has it</th><th className="r">Used</th><th /></tr></thead>
+            <thead><tr><th>Discount</th><th className="r">Value</th><th className="hide-sm">Sport</th><th className="hide-sm">Who has it</th><th className="r hide-sm">Used</th><th /></tr></thead>
             <tbody>
               {data.map((d) => (
                 <tr key={d.id} className={editId === d.id ? 'row-selected' : ''}>
-                  <td><strong>{d.name}</strong></td>
+                  <td className="cell-wrap">
+                    <strong>{d.name}</strong>
+                    <div className="row-sub show-sm">{d.sport_name || 'Any sport'} · used {d.uses}× · {d.people.map((p) => p.name).join(', ') || 'nobody has it'}</div>
+                  </td>
                   <td className="r">{discountLabel(d)}</td>
-                  <td className="secondary">{d.sport_name || 'Any sport'}</td>
-                  <td className="cell-wrap secondary">{d.people.map((p) => p.name).join(', ') || '—'}</td>
-                  <td className="r muted">{d.uses}</td>
-                  <td className="r">
+                  <td className="secondary hide-sm">{d.sport_name || 'Any sport'}</td>
+                  <td className="cell-wrap secondary hide-sm">{d.people.map((p) => p.name).join(', ') || '—'}</td>
+                  <td className="r muted hide-sm">{d.uses}</td>
+                  <td className="r actions">
                     <button className="icon-btn" aria-label="Edit" onClick={() => { setEditId(d.id); setF({ name: d.name, kind: d.kind, value: d.value, sport_id: d.sport_id || '' }); }}><IconEdit /></button>
                     <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(`discount “${d.name}” (past events keep their amounts)`) && run(() => api.del(`/discounts/${d.id}`))}><IconTrash /></button>
                   </td>
@@ -304,8 +316,8 @@ function PointsRates() {
   const [msg, setMsg] = useState(null);
   if (!data) return null;
   const v = f || data;
-  const input = (k, step = 0.5) => (
-    <input className="select-sm num-input" type="number" min="0" step={step} value={v[k]} onChange={(e) => setF({ ...v, [k]: e.target.value })} style={{ width: 80 }} />
+  const input = (k, step = 0.5, style = { width: 72 }) => (
+    <input className="select-sm num-input" type="number" min="0" step={step} value={v[k]} onChange={(e) => setF({ ...v, [k]: e.target.value })} style={style} />
   );
   const save = async (e) => {
     e.preventDefault();
@@ -318,15 +330,19 @@ function PointsRates() {
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 10 }}>
         <div className="form-section">Weights <span className="hint">— 1 = as is, 2 = counts double, 0 = ignored</span></div>
-        <span className="inline-num">Time {input('wTime', 0.1)} · Participants {input('wPeople', 0.1)} · Profit {input('wProfit', 0.1)} · Impact {input('wImpact', 0.1)}</span>
+        <div className="weights">
+          {[['wTime', 'Time'], ['wPeople', 'Participants'], ['wProfit', 'Profit'], ['wImpact', 'Impact']].map(([k, label]) => (
+            <label key={k} className="field">{label}{input(k, 0.1, null)}</label>
+          ))}
+        </div>
         <div className="form-section" style={{ marginTop: 6 }}>Rates</div>
-        <span className="inline-num">Time: the kind of event’s points (points table below)</span>
-        <span className="inline-num">{input('peoplePoints')} points per {input('peopleStep', 1)} participants — in full when the event made at least {input('peopleProfit', 1)} RON profit per person, less below that, none without profit</span>
-        <span className="inline-num">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</span>
-        <span className="inline-num">Impact, usual points: collaboration {input('collabPoints')} · special guest {input('guestPoints')} · special event {input('specialPoints')}</span>
+        <div className="rate-line">Time: the kind of event’s points (points table below)</div>
+        <div className="rate-line">{input('peoplePoints')} points per {input('peopleStep', 1)} participants — in full when the event made at least {input('peopleProfit', 1)} RON profit per person, less below that, none without profit</div>
+        <div className="rate-line">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</div>
+        <div className="rate-line">Impact, usual points: collaboration {input('collabPoints')} · special guest {input('guestPoints')} · special event {input('specialPoints')}</div>
         <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
-        <span className="inline-num">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</span>
-        <span className="inline-num">{input('merchPoints')} points per {input('merchStep', 10)} RON of partnership merchandise</span>
+        <div className="rate-line">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</div>
+        <div className="rate-line">{input('merchPoints')} points per {input('merchStep', 10)} RON of partnership merchandise</div>
         <div><button className="btn" disabled={!f}>Save rates</button></div>
       </form>
     </div>
@@ -375,6 +391,13 @@ function Activities() {
     <input className="select-sm num-input" type="number" min="0" step="0.5" defaultValue={a[k] ?? ''} {...props}
       onBlur={(e) => String(e.target.value) !== String(a[k] ?? '') && run(() => api.put(`/activities/${a.id}`, { ...a, [k]: e.target.value }))} />
   );
+  const sportSelect = (a, style) => (
+    <Select className="select-sm" value={a.sport_id || ''} style={style} aria-label={`${a.name}: usual for which sport`}
+      onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>
+      <option value="">Usual for no sport</option>
+      {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+    </Select>
+  );
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
@@ -383,22 +406,23 @@ function Activities() {
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Activity</th><th className="r">Points</th><th className="r">Max</th><th>Usual for sport</th><th className="r">Used</th><th /></tr></thead>
+          <thead><tr><th style={{ width: '100%' }}>Activity</th><th className="r">Points</th><th className="r">Max</th><th className="hide-sm">Usual for sport</th><th className="r hide-sm">Used</th><th className="hide-sm" /></tr></thead>
           <tbody>
             {data?.map((a) => (
               <tr key={`${a.id}-${a.organizer_points}-${a.co_points}-${a.organizer_max}-${a.co_max}-${a.people_step}-${a.people_points}-${a.money_step}-${a.money_points}`}>
-                <td>{a.name}</td>
+                <td className="cell-wrap">
+                  {a.name}
+                  <div className="show-sm" style={{ marginTop: 6 }}>{sportSelect(a, { width: '100%' })}</div>
+                  <div className="row-actions show-sm">
+                    <button className="link-btn" onClick={() => { const n = rename(a.name); if (n) run(() => api.put(`/activities/${a.id}`, { ...a, name: n })); }}>Rename</button>
+                    <button className="link-btn" style={{ color: 'var(--bad-text)' }} onClick={() => confirmDelete(a.name) && run(() => api.del(`/activities/${a.id}`))}>Delete</button>
+                  </div>
+                </td>
                 <td className="r">{field(a, 'organizer_points')}</td>
                 <td className="r">{field(a, 'organizer_max', { placeholder: '—' })}</td>
-                <td>
-                  <Select className="select-sm" value={a.sport_id || ''} style={{ width: 150 }} aria-label={`${a.name}: usual for which sport`}
-                    onChange={(e) => run(() => api.put(`/activities/${a.id}`, { ...a, sport_id: e.target.value }))}>
-                    <option value="">—</option>
-                    {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-                  </Select>
-                </td>
-                <td className="r muted">{a.uses}</td>
-                <td className="r">
+                <td className="hide-sm">{sportSelect(a, { width: 150 })}</td>
+                <td className="r muted hide-sm">{a.uses}</td>
+                <td className="r actions hide-sm">
                   <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(a.name); if (n) run(() => api.put(`/activities/${a.id}`, { ...a, name: n })); }}><IconEdit /></button>
                   <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(a.name) && run(() => api.del(`/activities/${a.id}`))}><IconTrash /></button>
                 </td>
@@ -429,11 +453,11 @@ function Categories() {
     <div className="card card-pad">
       <div className="card-head"><div><h2>Categories</h2><p>Cost categories are either organizing costs or benefits offered to participants</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 24 }}>
         {lists.map((l) => (
           <div key={l.title}>
             <h3 style={{ marginBottom: 6 }} className={l.cls}>{l.title} {l.hint && <span className="muted" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>· {l.hint}</span>}</h3>
-            <table>
+            <table className="compact-table">
               <tbody>
                 {data?.filter(l.filter).map((c) => (
                   <tr key={c.id}>

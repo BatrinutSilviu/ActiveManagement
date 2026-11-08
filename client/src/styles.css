@@ -330,9 +330,9 @@ input[type='date']::-webkit-calendar-picker-indicator { opacity: .55; cursor: po
 label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .hint { font-weight: 450; color: var(--muted); font-size: 12px; }
 label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
-@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .filters {
   display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px;
@@ -346,7 +346,7 @@ label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; col
 
 .segmented { display: inline-flex; background: var(--surface-3); border-radius: 10px; padding: 3px; gap: 2px; }
 .segmented button {
-  font: inherit; font-size: 13px; font-weight: 600; border: 0; background: transparent; color: var(--text-2);
+  white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; border: 0; background: transparent; color: var(--text-2);
   padding: 6px 13px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s;
 }
 .segmented button:hover { color: var(--text); }
@@ -522,6 +522,14 @@ details summary { cursor: pointer; }
 .inline-form .select { flex: 1 1 160px; width: auto; }
 .num-input { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
 .inline-num { display: inline-flex; align-items: center; gap: 4px; }
+/* Settings → Event points: sentences with fields in them, flowing like text so they wrap on phones */
+.rate-line { line-height: 2.5; color: var(--text); }
+.rate-line input { display: inline-block; vertical-align: middle; margin: 0 2px; }
+.weights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.weights input { width: 100%; }
+.compact-table td, .compact-table th { padding-left: 6px; padding-right: 6px; }
+.compact-table td:first-child, .compact-table th:first-child { padding-left: 0 !important; }
+.compact-table td:last-child, .compact-table th:last-child { padding-right: 0 !important; }
 .fee-preview { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; }
 .form-section { font-weight: 700; font-size: 13px; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 14px; }
 .row-selected td { background: var(--accent-soft); }
@@ -578,15 +586,16 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
   /* 16px stops iOS from zooming in when a field gets focus */
   input, .select, textarea, .select.select-sm, input.select-sm { font-size: 16px; }
   input, .select { height: 42px; }
+  input[type='checkbox'], label.field.check-field input { width: 20px; height: 20px; flex: none; }
   .select.select-sm, input.select-sm { height: 38px; }
   .btn { height: 42px; }
   .btn-sm { height: 36px; }
   .icon-btn { padding: 9px; }
 
-  th, td { padding: 10px 8px; }
+  th, td { padding: 10px 7px; }
   th { white-space: normal; }
   td .row-sub { white-space: normal; }
-  .num-input { width: 64px; }
+  .num-input { width: 60px; }
   .role-select { width: 118px; }
   .filters input[type='search'] { flex-basis: 100%; }
   thead th:first-child, tbody td:first-child, tfoot td:first-child { padding-left: 16px; }
@@ -610,12 +619,23 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 
   /* modals become bottom sheets */
   .modal-backdrop { place-items: end center; padding: 0; }
-  .modal { width: 100%; max-height: 92vh; border-radius: var(--radius) var(--radius) 0 0; animation: sheet .2s ease-out; }
+  .modal { width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: var(--radius) var(--radius) 0 0; animation: sheet .2s ease-out; }
+  /* title and Save/Cancel stay on screen while a long form scrolls */
+  .modal-head { position: sticky; top: 0; z-index: 2; background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; }
+  .modal-foot { position: sticky; bottom: 0; z-index: 2; }
   .modal-head, .modal-body { padding-left: 16px; padding-right: 16px; }
   .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-radius: 0; }
   .modal-foot .btn { flex: 1; }
 
   .auth-card { padding: 24px; }
+  .weights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .compact-table .btn-sm { padding: 0 6px; }
+  /* tab strips scroll sideways instead of wrapping their labels */
+  .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .segmented::-webkit-scrollbar { display: none; }
+  .segmented button { padding: 6px 10px; }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
+  .row-actions .link-btn { font-size: 13px; padding: 4px 0; }
   .month-nav { width: 100%; }
   .month-nav input { flex: 1; }
 }
@@ -664,7 +684,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .holder-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .holder-actions { display: flex; gap: 10px; }
 label.field.check-field { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
-label.field.check-field input { width: auto; }
+label.field.check-field input { width: 16px; flex: none; }
 /* Stock: pick products and move them to another category */
 .pick-col { width: 34px; padding-right: 0 !important; }
 .pick-col input { width: 16px; height: 16px; cursor: pointer; }
