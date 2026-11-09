@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 // A drop-in replacement for <select>: same children (<option>, <optgroup>), same value / onChange(e)
 // with e.target.value, but its list looks the same in every browser. Long lists get a search box.
+// `onCreate(name)` adds an always-visible "+ Add …" row under the list: it takes what was typed in the search
+// (name is '' when nothing was typed — ask for one then). `createLabel` names it, e.g. "New person".
 
 const textOf = (children) => Children.toArray(children).map((c) => (typeof c === 'string' || typeof c === 'number' ? c : isValidElement(c) ? textOf(c.props.children) : '')).join('');
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -45,7 +47,7 @@ function usePlacement(open, anchor, pop) {
   return pos;
 }
 
-export default function Select({ value, onChange, children, className = '', style, disabled, required, autoFocus, searchable, ...rest }) {
+export default function Select({ value, onChange, children, className = '', style, disabled, required, autoFocus, searchable, onCreate, createLabel = 'New', ...rest }) {
   const items = useMemo(() => flatten(children), [children]);
   const current = String(value ?? '');
   const selected = items.find((o) => o.value === current);
@@ -74,6 +76,8 @@ export default function Select({ value, onChange, children, className = '', styl
     close();
     if (o.value !== current) onChange?.({ target: { value: o.value }, currentTarget: { value: o.value } });
   };
+  const typed = query.trim();
+  const create = () => { close(); onCreate(typed); };
   const move = (d) => {
     if (!shown.length) return;
     let i = active;
@@ -107,7 +111,7 @@ export default function Select({ value, onChange, children, className = '', styl
   const onKey = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
-    else if (e.key === 'Enter') { e.preventDefault(); pick(shown[active]); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (onCreate && typed && !shown.length) create(); else pick(shown[active]); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if (e.key === 'Tab') close(false);
   };
@@ -149,6 +153,11 @@ export default function Select({ value, onChange, children, className = '', styl
             })}
             {!shown.length && <div className="select-none">Nothing matches “{query}”</div>}
           </div>
+          {onCreate && !(typed && items.some((o) => fold(o.label) === fold(typed))) && (
+            <div role="button" className="select-option select-create" onMouseDown={(e) => e.preventDefault()} onClick={create}>
+              <span>+ {typed ? <>Add “{typed}”</> : `${createLabel}…`}</span>
+            </div>
+          )}
         </div>,
         document.body,
       )}

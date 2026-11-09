@@ -95,9 +95,9 @@ function Discounts({ e, reload }) {
   const preview = f.discount_id === 'member' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
     : f.discount_id === 'custom' ? Number(f.amount) || 0 : chosen ? discountWorth(chosen, e.participation_fee) : 0;
 
-  const pickPerson = async (value) => {
+  const pickPerson = async (value, typed = '') => {
     if (value === 'new') {
-      const name = window.prompt('Name of the new person');
+      const name = typed || window.prompt('Name of the new person');
       if (!name?.trim()) return;
       try {
         const { id } = await api.post('/people', { name });
@@ -151,12 +151,12 @@ function Discounts({ e, reload }) {
         </div>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
-        <Select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required>
+        <Select className="select-sm" value={f.person_id} onChange={(ev) => pickPerson(ev.target.value)} required
+          onCreate={(name) => pickPerson('new', name)} createLabel="New person">
           <option value="">Person…</option>
           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => (
             <option key={p.id} value={p.id}>{p.name}{p.is_founder ? ' · founder' : organisers.has(p.id) ? ' · organiser' : p.is_member && memberPrice ? ' · member' : p.discount_ids.length ? ' ★' : ''}</option>
           ))}
-          <option value="new">+ New person…</option>
         </Select>
         <Select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
           <option value="" disabled={!!person}>Discount…</option>
@@ -278,10 +278,10 @@ function Tasks({ e, reload }) {
   const taskPoints = e.taskPoints || {};
   const setTaskPoints = (t, v) => run(() => api.put(`/events/${e.id}/task-points/${t}`, { points: v })).then(() => setEditTask(null));
   // Put someone on a task; "new" first creates the person (an organiser who isn't in People yet).
-  const addToTask = (t, value) => run(async () => {
+  const addToTask = (t, value, typed = '') => run(async () => {
     let id = value;
     if (value === 'new') {
-      const name = window.prompt(`Name of the new person for ${TASK_LABELS[t]}`);
+      const name = typed || window.prompt(`Name of the new person for ${TASK_LABELS[t]}`);
       if (!name?.trim()) return;
       ({ id } = await api.post('/people', { name }));
       reloadPeople();
@@ -367,10 +367,10 @@ function Tasks({ e, reload }) {
                       {!lines.length && <span className="muted">Nobody yet</span>}
                       {canEdit && (
                         <Select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
-                          onChange={(ev) => ev.target.value && addToTask(t, ev.target.value)}>
+                          onChange={(ev) => ev.target.value && addToTask(t, ev.target.value)}
+                          onCreate={(name) => addToTask(t, 'new', name)} createLabel="New person">
                           <option value="">Add…</option>
                           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          <option value="new">+ New person…</option>
                         </Select>
                       )}
                     </div>
