@@ -34,7 +34,7 @@ function Statement({ e, split }) {
         <dt>Income from fees <span className="muted">{e.price_parts && e.venue_mode === 'fixed'
           ? `venue ${money(e.counted_participants === e.participants ? e.venue_total : Math.round(e.venue_total * e.counted_participants / e.participants * 100) / 100)} + ${e.counted_participants} × ${money(e.community_fee)} community`
           : `${e.counted_participants} × ${money(e.participation_fee)}`}{e.free_skip_count > 0 ? ` · ${e.free_skip_count} free not counted` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
-        {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} members paid only {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
+        {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} paid only the venue’s {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}
         <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.venue_mode === 'fixed' ? `${money(e.venue_cost)} fixed` : `${e.counted_participants} × ${money(e.venue_fee)}`}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
         <dt>Benefits offered <span className="muted">{e.stock_cost > 0 ? `incl. ${money(e.stock_cost)} stock used` : 'water, fruit, balls…'}</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
@@ -68,7 +68,7 @@ const discountLabel = (d) => (d.kind === 'percent' ? `−${number(d.value)}%` : 
 // Free entry: 'skip' = doesn't pay and isn't counted (as if not signed up), 'paid' = we pay their fee.
 const FREE_LABELS = { skip: 'Free — not counted', paid: 'Free — we pay' };
 const isFree = (d) => !!d.free;
-const discountName = (d) => (d.member ? 'Member price' : FREE_LABELS[d.free] || d.discount_name || 'One-off');
+const discountName = (d) => (d.member ? (d.note === 'No community part' ? d.note : 'Member price') : FREE_LABELS[d.free] || d.discount_name || 'One-off');
 const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
 
 /** People who paid less (or nothing) at this event, with the discount they got. */
@@ -92,7 +92,7 @@ function Discounts({ e, reload }) {
   // Members pay only the venue's part of the price (with a fixed venue: the member price set on the event).
   const memberPrice = e.venue_fee > 0;
   const memberOff = Math.max(e.participation_fee - e.venue_fee, 0);
-  const preview = f.discount_id === 'member' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
+  const preview = f.discount_id === 'member' || f.discount_id === 'waive' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
     : f.discount_id === 'custom' ? Number(f.amount) || 0 : chosen ? discountWorth(chosen, e.participation_fee) : 0;
 
   const pickPerson = async (value, typed = '') => {
@@ -116,6 +116,7 @@ function Discounts({ e, reload }) {
   const add = async (ev) => {
     ev.preventDefault();
     const body = f.discount_id === 'member' ? { person_id: f.person_id, member: true }
+      : f.discount_id === 'waive' ? { person_id: f.person_id, waive: true }
       : f.discount_id.startsWith('free-') ? { person_id: f.person_id, free: f.discount_id.slice(5) }
       : f.discount_id === 'custom' ? { person_id: f.person_id, amount: f.amount } : { person_id: f.person_id, discount_id: f.discount_id };
     if (await run(() => api.post(`/events/${e.id}/discounts`, body))) setF({ person_id: '', discount_id: '', amount: '' });
@@ -127,9 +128,9 @@ function Discounts({ e, reload }) {
         <div>
           <h2>Members &amp; discounts</h2>
           <p>{e.discountList.length} of {e.participants} people paid less · price {money(e.participation_fee)}
-            {memberPrice ? ` · members pay ${money(e.venue_fee)}` : ''}. Member prices are money we don’t get; discounts and fees we pay are paid by the general fund, not this event.</p>
+            {memberPrice ? ` · members pay ${money(e.venue_fee)}` : ''}. Member prices and community parts let off are money we don’t get; discounts and fees we pay are paid by the general fund, not this event.</p>
         </div>
-        {e.member_discounts > 0 && <span className="neg" title="Member prices: money we don’t get">−{money(e.member_discounts)}</span>}
+        {e.member_discounts > 0 && <span className="neg" title="Member prices and community parts let off: money we don’t get">−{money(e.member_discounts)}</span>}
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       {e.discountList.length > 0 && (
@@ -163,6 +164,9 @@ function Discounts({ e, reload }) {
           <option value="free-skip">Free — doesn’t pay, not counted (no cost to us)</option>
           <option value="free-paid">Free — we pay their fee (counts as a cost)</option>
           {memberPrice && person?.is_member && <option value="member">Member price (pays {money(e.venue_fee)})</option>}
+          {memberPrice && person && !person.is_member && memberOff > 0 && (
+            <option value="waive">No community part — pays only the venue ({money(e.venue_fee)}, −{money(memberOff)})</option>
+          )}
           {own.length > 0 && (
             <optgroup label={`${person.name}’s discounts`}>
               {own.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}

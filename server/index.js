@@ -449,12 +449,14 @@ const discountAmount = (kind, value, fee) => Math.round(kind === 'percent' ? (fe
 api.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
   if (!ev) throw httpError(404, 'Event not found');
-  const { person_id, discount_id, amount, note, member, free } = req.body;
+  const { person_id, discount_id, amount, note, free, waive } = req.body;
+  // waive: anyone can be let off the community part — they pay only the venue's part, like a member.
+  const member = req.body.member || waive;
   need(person_id, 'Choose a person');
   let kind, value;
   if (member) {
     need(ev.venue_fee > 0, 'Set the venue cost per person on this event first — members pay only that');
-    need(db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(Number(person_id)),
+    need(waive || db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(Number(person_id)),
       'Only founders, premium people and organisers get the member price');
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
@@ -476,7 +478,7 @@ api.post('/events/:id/discounts', (req, res) => {
   try {
     db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(ev.id, Number(person_id), !member && !free && discount_id ? Number(discount_id) : null, kind, value,
-        discountAmount(kind, value, ev.participation_fee), note?.trim() || null, member ? 1 : 0, !member && free ? free : null);
+        discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null);
   } catch (e) {
     if (e.status) throw e;
     throw httpError(400, 'This person already pays a reduced price at this event');
