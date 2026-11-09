@@ -260,7 +260,7 @@ function Attendees({ e, reload }) {
 
 /** The event's points, shared between its tasks; people on a task share its points equally. */
 function Tasks({ e, reload }) {
-  const { data: people } = useApi('/people');
+  const { data: people, reload: reloadPeople } = useApi('/people');
   const [error, setError] = useState(null);
   const [byHand, setByHand] = useState(false);
   const [editTask, setEditTask] = useState(null);
@@ -277,6 +277,17 @@ function Tasks({ e, reload }) {
   const auto = e.points_auto;
   const taskPoints = e.taskPoints || {};
   const setTaskPoints = (t, v) => run(() => api.put(`/events/${e.id}/task-points/${t}`, { points: v })).then(() => setEditTask(null));
+  // Put someone on a task; "new" first creates the person (an organiser who isn't in People yet).
+  const addToTask = (t, value) => run(async () => {
+    let id = value;
+    if (value === 'new') {
+      const name = window.prompt(`Name of the new person for ${TASK_LABELS[t]}`);
+      if (!name?.trim()) return;
+      ({ id } = await api.post('/people', { name }));
+      reloadPeople();
+    }
+    await api.post(`/events/${e.id}/tasks`, { task: t, person_id: id });
+  });
 
   return (
     <div className="card">
@@ -356,9 +367,10 @@ function Tasks({ e, reload }) {
                       {!lines.length && <span className="muted">Nobody yet</span>}
                       {canEdit && (
                         <Select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
-                          onChange={(ev) => ev.target.value && run(() => api.post(`/events/${e.id}/tasks`, { task: t, person_id: ev.target.value }))}>
+                          onChange={(ev) => ev.target.value && addToTask(t, ev.target.value)}>
                           <option value="">Add…</option>
                           {people?.filter((p) => p.active && !taken.has(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          <option value="new">+ New person…</option>
                         </Select>
                       )}
                     </div>
