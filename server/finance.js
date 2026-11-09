@@ -481,6 +481,39 @@ export function computeSport(id) {
   return { sport, fund, months, events, fundTx, parts };
 }
 
+/**
+ * Everything about the general community fund, month by month across all time: the general share of
+ * every event (all sports, and all of it for non-sport events), payouts left to the community, donations,
+ * and what it paid for — its own spending and the events' discounts.
+ */
+export function computeGeneral() {
+  const events = loadEvents("WHERE e.status IN ('completed', 'planned')", [], 'ORDER BY e.date DESC')
+    .filter((e) => e.split.general || e.fund_paid);
+  const fundTx = loadFundTx('AND t.fund_sport_id IS NULL').reverse();
+  const payouts = db.prepare(`SELECT month, paid_at, SUM(amount) AS amount, COUNT(*) AS people FROM payouts
+    WHERE to_fund = 1 GROUP BY month, paid_at ORDER BY paid_at DESC, month DESC`).all().map((p) => ({ ...p, amount: toRon(p.amount) }));
+  const byMonth = new Map();
+  const month = (ym) => byMonth.get(ym) || byMonth.set(ym, { month: ym, allocated: 0, payouts: 0, topups: 0, spent: 0, discounts: 0, events: 0 }).get(ym);
+  for (const e of events) {
+    if (e.status !== FINALIZED) continue;
+    const m = month(e.date.slice(0, 7));
+    m.allocated += e.split.general; m.discounts += e.fund_paid; m.events++;
+  }
+  for (const p of payouts) month(p.month).payouts += p.amount;
+  for (const t of fundTx) {
+    const m = month(t.date.slice(0, 7));
+    if (t.kind === 'expense') m.spent += t.amount; else m.topups += t.amount;
+  }
+  const fund = computeFunds().general;
+  let running = fund.starting;
+  const months = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).map((m) => {
+    for (const k of ['allocated', 'payouts', 'topups', 'spent', 'discounts']) m[k] = r2(m[k]);
+    running += m.allocated + m.payouts + m.topups - m.spent - m.discounts;
+    return { ...m, added: r2(m.allocated + m.payouts + m.topups), reinvested: r2(m.spent + m.discounts), balance: r2(running) };
+  });
+  return { fund, months, events, fundTx, payouts };
+}
+
 /** Months that have payouts due or sent, with what is still owed for each. */
 export function computePayoutMonths() {
   const months = db.prepare(`

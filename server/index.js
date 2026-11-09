@@ -8,7 +8,7 @@ import { db, ensureStockCategories, purchaseFund, movePurchaseFunds, manualTaskP
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
-  applyPayouts, closeMonth, recalcClosedMonths, reviewMonth, startPointsSchedule, computeCash, computeFounders, computeFunds, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
+  applyPayouts, closeMonth, recalcClosedMonths, reviewMonth, startPointsSchedule, computeCash, computeFounders, computeFunds, computeGeneral, computeSport, purchaseLines, taskLines, computeYear, FINALIZED, LIVE, loadEvents, loadFundTx, r2,
 } from './finance.js';
 
 const app = express();
@@ -1245,6 +1245,16 @@ api.delete('/contributions/:id', (req, res) => {
 api.get('/funds', (req, res) => {
   const funds = computeFunds();
   res.json({ ...funds, cash: computeCash(funds), split: getSplit() });
+});
+
+api.get('/funds/general', (req, res) => {
+  const r = computeGeneral();
+  // Vouchers for non-sport event types are paid from the general fund when they're used.
+  r.openVouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(v.value), 0) AS value, COALESCE(SUM(v.percent IS NOT NULL), 0) AS pct FROM vouchers v
+    LEFT JOIN event_types t ON t.id = v.sport_id
+    WHERE (v.sport_id IS NULL OR t.is_sport = 0) AND v.used_date IS NULL AND (v.expires IS NULL OR v.expires >= ?)`).get(today());
+  r.openVouchers.value = toRon(r.openVouchers.value);
+  res.json(r);
 });
 
 api.get(['/founders', '/payouts'], (req, res) => {

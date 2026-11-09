@@ -10,7 +10,7 @@ import EventDetail from './pages/EventDetail.jsx';
 import Transactions from './pages/Transactions.jsx';
 import Monthly from './pages/Monthly.jsx';
 import Payouts from './pages/Payouts.jsx';
-import { SportDetail, SportsList } from './pages/Sports.jsx';
+import { GeneralFundDetail, SportDetail, SportsList } from './pages/Sports.jsx';
 import Stock from './pages/Stock.jsx';
 import Vouchers from './pages/Vouchers.jsx';
 import Partners from './pages/Partners.jsx';
@@ -129,6 +129,7 @@ export default function App() {
           <Route path="/payouts" element={<Payouts />} />
           <Route path="/monthly" element={<Monthly />} />
           <Route path="/sports" element={<SportsList />} />
+          <Route path="/sports/general" element={<GeneralFundDetail />} />
           <Route path="/sports/:id" element={<SportDetail />} />
           <Route path="/stock" element={<Stock />} />
           <Route path="/vouchers" element={<Vouchers />} />

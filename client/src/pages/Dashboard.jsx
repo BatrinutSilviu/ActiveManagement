@@ -83,7 +83,7 @@ function FundsSection() {
   return (
     <section className="stack">
       <div className="section-head">
-        <h2>Reinvestment funds <span className="live-dot">live</span></h2>
+        <h2>Reinvestment funds <span className="live-dot">live</span> <Link to="/sports/general" className="section-link">General fund details →</Link></h2>
         <p>{pctLabel(community)} of every finalized event’s profit goes to the community:
           {' '}{pctLabel(s.generalShare)} of that to the general fund, the rest to the sport’s own fund.</p>
       </div>
