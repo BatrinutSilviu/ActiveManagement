@@ -648,6 +648,19 @@ db.exec(`CREATE TABLE IF NOT EXISTS partner_prizes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
+// When an event starts and ends ("HH:MM", local time; optional) and the prizes its source app advertises
+// (JSON [{ place, prize, partner }], partner null = offered by us). Partner prizes pushed by an app are also
+// partner_prizes rows, marked with sync_key "<source>:<external id>:<place>" so later pushes update them.
+if (!columns('events').includes('start_time')) {
+  db.exec(`ALTER TABLE events ADD COLUMN start_time TEXT;
+    ALTER TABLE events ADD COLUMN end_time TEXT;
+    ALTER TABLE events ADD COLUMN prizes TEXT;`);
+}
+if (!columns('partner_prizes').includes('sync_key')) {
+  db.exec(`ALTER TABLE partner_prizes ADD COLUMN sync_key TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS partner_prizes_sync ON partner_prizes (sync_key) WHERE sync_key IS NOT NULL;`);
+}
+
 // An event's points are an estimate until its month is closed: then each event's profit points are
 // scaled to what it really contributed to the month's profit (see finance.js, computeRealPoints) and
 // stored here, frozen, per event: { [eventId]: { time, money, total, manual } }.

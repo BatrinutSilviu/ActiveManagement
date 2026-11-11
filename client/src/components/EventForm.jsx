@@ -39,7 +39,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const { data: activities } = useApi('/activities');
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
+    start_time: '', end_time: '', participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
     ...(src?.price_parts ? { community: String(src.community_fee) } : {}),
   }, src?.price_parts ? 'parts' : 'total', true));
   // Which side was typed last: the two parts (stored as such: fees = venue total + community part × people,
@@ -174,6 +174,12 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
             ? `${event.member_discounts ? ` · − ${money(event.member_discounts)} member prices` : ''}${event.fund_paid ? ` · ${money(event.fund_paid)} discounts paid by the general fund` : ''}`
             : ' · members and discounts are added on the event page'}</span>
         </div>
+        <label className="field">Starts at <span className="hint">(optional)</span>
+          <input type="time" value={f.start_time || ''} onChange={set('start_time')} />
+        </label>
+        <label className="field">Ends at <span className="hint">(optional)</span>
+          <input type="time" value={f.end_time || ''} onChange={set('end_time')} />
+        </label>
         <label className="field">Location
           <input value={f.location || ''} onChange={set('location')} placeholder="Venue" />
         </label>

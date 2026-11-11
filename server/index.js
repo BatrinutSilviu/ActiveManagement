@@ -135,11 +135,13 @@ function upsertSyncedEvent(source, externalId, record) {
     const fee = toBani(m.participation_fee);
     const venue = Math.min(m.venue_fee == null ? sport.default_venue_fee || 0 : toBani(m.venue_fee), fee);
     const id = Number(db.prepare(`
-      INSERT INTO events (name, type_id, activity_id, date, end_date, location, status, participants, participation_fee, venue_fee, notes,
-        source, external_id, external_url, sync_data, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
-      m.name, sport.id, activity?.id ?? null, m.date, m.end_date, m.location, m.status, m.participants, fee, venue, m.notes || null,
+      INSERT INTO events (name, type_id, activity_id, date, end_date, start_time, end_time, location, status, participants, participation_fee,
+        venue_fee, notes, prizes, source, external_id, external_url, sync_data, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
+      m.name, sport.id, activity?.id ?? null, m.date, m.end_date, m.start_time ?? null, m.end_time ?? null, m.location, m.status,
+      m.participants, fee, venue, m.notes || null, m.prizes ? JSON.stringify(m.prizes) : null,
       source, externalId, url, JSON.stringify(m)).lastInsertRowid);
+    syncPartnerPrizes(id, source, externalId, m);
     return { action: 'created', id };
   }
   if (ev.status === 'completed') return { action: 'ignored', reason: 'finalized', id: ev.id };
@@ -150,6 +152,7 @@ function upsertSyncedEvent(source, externalId, record) {
     if (k === 'participation_fee') set[k] = toBani(m[k]);
     else if (k === 'venue_fee') { if (m[k] != null) set[k] = toBani(m[k]); }
     else if (k === 'status') { if (m.status === 'cancelled' || ev.status === 'cancelled') set.status = m.status; }
+    else if (k === 'prizes') set[k] = m[k] ? JSON.stringify(m[k]) : null;
     else set[k] = m[k] ?? null;
   }
   if ('participation_fee' in set || 'venue_fee' in set) {
@@ -160,7 +163,37 @@ function upsertSyncedEvent(source, externalId, record) {
   db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?, `).join('')}external_url = ?, sync_data = ?, synced_at = datetime('now') WHERE id = ?`)
     .run(...keys.map((k) => set[k]), url ?? ev.external_url, JSON.stringify(m), ev.id);
   if ('participation_fee' in set || 'venue_fee' in set) repriceEvent(ev.id);
+  if ('prizes' in set) syncPartnerPrizes(ev.id, source, externalId, m);
   return { action: keys.length ? 'updated' : 'unchanged', id: ev.id, fields: keys };
+}
+
+// The partner prizes an app advertises for its event become partner prize records here, one per place,
+// keyed "<source>:<external id>:<place>". A later push updates the partner and the prize; the winner, value
+// and note filled in here are kept. A prize the app no longer has goes away, unless it already has a winner.
+// Partners are matched by name, and added when new.
+function syncPartnerPrizes(eventId, source, externalId, m) {
+  if (!Array.isArray(m.prizes)) return;
+  const prefix = `${source}:${externalId}:`;
+  const event = db.prepare('SELECT date, type_id FROM events WHERE id = ?').get(eventId);
+  const keep = new Set();
+  for (const p of m.prizes.filter((p) => p.partner)) {
+    const key = `${prefix}${p.place}`;
+    keep.add(key);
+    const partnerId = db.prepare('SELECT id FROM partners WHERE name = ?').get(p.partner)?.id
+      ?? Number(db.prepare('INSERT INTO partners (name, sport_id) VALUES (?, ?)').run(p.partner, event.type_id).lastInsertRowid);
+    const prize = `${p.place}${['st', 'nd', 'rd'][p.place - 1] || 'th'} place: ${p.prize}`;
+    const row = db.prepare('SELECT id FROM partner_prizes WHERE sync_key = ?').get(key);
+    if (row) db.prepare('UPDATE partner_prizes SET partner_id = ?, event_id = ?, prize = ?, date = ? WHERE id = ?').run(partnerId, eventId, prize, event.date, row.id);
+    else {
+      db.prepare(`INSERT INTO partner_prizes (partner_id, event_id, prize, qty, date, note, sync_key) VALUES (?, ?, ?, 1, ?, ?, ?)`)
+        .run(partnerId, eventId, prize, event.date, `From the ${SOURCES[source].label}`, key);
+    }
+  }
+  for (const row of db.prepare('SELECT id, sync_key, person_id, winner_name FROM partner_prizes WHERE sync_key LIKE ?').all(`${prefix}%`)) {
+    if (keep.has(row.sync_key)) continue;
+    if (row.person_id || row.winner_name) db.prepare('UPDATE partner_prizes SET sync_key = NULL WHERE id = ?').run(row.id);
+    else db.prepare('DELETE FROM partner_prizes WHERE id = ?').run(row.id);
+  }
 }
 
 api.use(requireAuth, checkRole);
@@ -806,6 +839,15 @@ function saveTraining(id, b) {
   db.prepare('UPDATE events SET training = ? WHERE id = ?').run(b.training ? 1 : 0, id);
 }
 
+// When the event starts and ends, "HH:MM" (both optional).
+function saveTimes(id, b) {
+  if (!('start_time' in b) && !('end_time' in b)) return;
+  const t = (v) => (v == null || v === '' ? null : String(v).slice(0, 5));
+  const start = t(b.start_time), end = t(b.end_time);
+  for (const v of [start, end]) need(v === null || /^([01]\d|2[0-3]):[0-5]\d$/.test(v), 'Use a time like 18:30');
+  db.prepare('UPDATE events SET start_time = ?, end_time = ? WHERE id = ?').run(start, end, id);
+}
+
 api.post('/events', (req, res) => {
   const id = tx(() => {
     const id = Number(db.prepare(`
@@ -814,6 +856,7 @@ api.post('/events', (req, res) => {
     saveVenue(id, req.body);
     savePriceParts(id, req.body);
     saveTraining(id, req.body);
+    saveTimes(id, req.body);
     // A copy of another event: same skipped tasks, and optionally its own cost / income lines, dated on the new day.
     const src = req.body.copy_from ? db.prepare('SELECT * FROM events WHERE id = ?').get(Number(req.body.copy_from)) : null;
     if (req.body.copy_from) need(src, 'The event to copy no longer exists');
@@ -841,6 +884,7 @@ api.put('/events/:id', (req, res) => {
     if ('venue_mode' in req.body) saveVenue(idParam(req), req.body);
     savePriceParts(idParam(req), req.body);
     saveTraining(idParam(req), req.body);
+    saveTimes(idParam(req), req.body);
     repriceEvent(idParam(req));
   });
   res.json({ ok: true });

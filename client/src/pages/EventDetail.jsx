@@ -507,6 +507,26 @@ function EventVouchers({ e }) {
 }
 
 
+/** The prizes we offer at this event, as advertised by the app it came from (the padel app). Their cost is
+ *  entered like any other: vouchers, stock or an expense. Partner prizes are listed under Partner prizes. */
+function OurPrizes({ e }) {
+  let prizes = [];
+  try { prizes = JSON.parse(e.prizes || '[]'); } catch { /* not a list */ }
+  const ours = prizes.filter((p) => !p.partner);
+  if (!ours.length) return null;
+  const place = (n) => `${n}${['st', 'nd', 'rd'][n - 1] || 'th'}`;
+  return (
+    <div className="card">
+      <div className="card-pad">
+        <div className="card-head"><div><h2>Our prizes</h2><p>Offered by us, as advertised in the {e.source} app. Add their cost as vouchers, stock or an expense.</p></div></div>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {ours.map((p) => <li key={p.place}><strong>{place(p.place)}:</strong> {p.prize}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 /** Prizes partners gave at this event: a record only, not counted in the event's money. */
 function PartnerPrizes({ e }) {
   const { data, reload } = useApi(`/partner-prizes?event_id=${e.id}`);
@@ -659,6 +679,7 @@ function EventDetail() {
               : <span className="badge" title={`Created from the ${e.source} app; changes there update it here`}>From the {e.source} app</span>)}
             <StatusBadge status={e.status} />
             <span>{date(e.date)}{e.end_date ? ` – ${date(e.end_date)}` : ''}</span>
+            {e.start_time && <span>· {e.start_time}{e.end_time ? `–${e.end_time}` : ''}</span>}
             {e.location && <span>· {e.location}</span>}
             <span>· {e.participants} people × {money0(e.participation_fee)}{e.venue_mode === 'fixed' ? (e.venue_total > 0 ? ` · venue ${money0(e.venue_total)} fixed` : '') : e.venue_fee > 0 ? ` (${money0(e.venue_fee)} to the venue)` : ''}</span>
           </p>
@@ -695,6 +716,7 @@ function EventDetail() {
           <Impact e={e} reload={reload} />
           <Tasks e={e} reload={reload} />
           <EventVouchers e={e} />
+          <OurPrizes e={e} />
           <PartnerPrizes e={e} />
         </div>
         <div className="stack">
