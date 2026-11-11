@@ -520,7 +520,7 @@ function OurPrizes({ e }) {
       <div className="card-pad">
         <div className="card-head"><div><h2>Our prizes</h2><p>Offered by us, as advertised in the {e.source} app. Add their cost as vouchers, stock or an expense.</p></div></div>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          {ours.map((p) => <li key={p.place}><strong>{place(p.place)}:</strong> {p.prize}</li>)}
+          {ours.map((p) => <li key={p.place}><strong>{p.label || place(p.place)}:</strong> {p.prize}</li>)}
         </ul>
       </div>
     </div>

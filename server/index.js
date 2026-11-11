@@ -181,7 +181,7 @@ function syncPartnerPrizes(eventId, source, externalId, m) {
     keep.add(key);
     const partnerId = db.prepare('SELECT id FROM partners WHERE name = ?').get(p.partner)?.id
       ?? Number(db.prepare('INSERT INTO partners (name, sport_id) VALUES (?, ?)').run(p.partner, event.type_id).lastInsertRowid);
-    const prize = `${p.place}${['st', 'nd', 'rd'][p.place - 1] || 'th'} place: ${p.prize}`;
+    const prize = `${p.label}: ${p.prize}`;
     const row = db.prepare('SELECT id FROM partner_prizes WHERE sync_key = ?').get(key);
     if (row) db.prepare('UPDATE partner_prizes SET partner_id = ?, event_id = ?, prize = ?, date = ? WHERE id = ?').run(partnerId, eventId, prize, event.date, row.id);
     else {

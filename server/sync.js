@@ -10,11 +10,19 @@ const day = (v) => (v ? String(typeof v === 'string' ? v : new Date(v).toISOStri
 const num = (v) => (v == null || v === '' ? 0 : Number(v) || 0);
 const lines = (...l) => l.filter(Boolean).join('\n');
 const time = (v) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : null);
-// [{ place, prize, partner }] by place; partner null = we offer it.
+// [{ place, label, prize, partner }] in the order the app lists them: place is the position (1, 2, …),
+// label what the app calls it ("1st place Golden", "Best newcomer"…); partner null = we offer it.
+// Older pushes sent { place } without a label.
+const ordinal = (n) => `${n}${['st', 'nd', 'rd'][n - 1] || 'th'} place`;
 const prizeList = (list) => (Array.isArray(list) ? list : [])
-  .filter((p) => p && Number.isInteger(p.place) && typeof p.prize === 'string' && p.prize.trim())
-  .map((p) => ({ place: p.place, prize: p.prize.trim(), partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null }))
-  .sort((a, b) => a.place - b.place);
+  .filter((p) => p && typeof p.prize === 'string' && p.prize.trim())
+  .sort((a, b) => (Number.isInteger(a.place) && Number.isInteger(b.place) && !a.label && !b.label ? a.place - b.place : 0))
+  .map((p, i) => ({
+    place: i + 1,
+    label: typeof p.label === 'string' && p.label.trim() ? p.label.trim() : Number.isInteger(p.place) ? ordinal(p.place) : `Prize ${i + 1}`,
+    prize: p.prize.trim(),
+    partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null,
+  }));
 
 const PADEL_TYPES = {
   AMERICANO: 'Americano', AMERICANO_CHAMPIONS: 'Americano Champions', AMERICANO_GIRLS: 'Americano Girls',
@@ -25,7 +33,7 @@ const PADEL_LEVELS = { 1: 'Elite', 2: 'Premier', 3: 'Gold', 4: 'Silver', 5: 'Bro
 /**
  * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
  * Price = its entry fee per person. Its location, start/end times and prizes
- * (places 1–5, each offered by us or by a named partner) come along; partner prizes also become
+ * (a labelled list, each offered by us or by a named partner) come along; partner prizes also become
  * partner prize records (see syncPartnerPrizes in index.js).
  */
 export function mapPadel(t) {
