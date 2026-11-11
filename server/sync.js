@@ -24,7 +24,7 @@ const PADEL_LEVELS = { 1: 'Elite', 2: 'Premier', 3: 'Gold', 4: 'Silver', 5: 'Bro
 
 /**
  * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
- * Price = its entry fee per person; there's no location in the padel app. Its start/end times and prizes
+ * Price = its entry fee per person. Its location, start/end times and prizes
  * (places 1–5, each offered by us or by a named partner) come along; partner prizes also become
  * partner prize records (see syncPartnerPrizes in index.js).
  */
@@ -39,7 +39,7 @@ export function mapPadel(t) {
     end_date: null,
     start_time: time(t.startTime),
     end_time: time(t.endTime),
-    location: null,
+    location: typeof t.location === 'string' && t.location.trim() ? t.location.trim() : null,
     participants: num(t.confirmedCount),
     participation_fee: num(t.entryFee),
     venue_fee: null, // not known in the padel app: set on the event here
