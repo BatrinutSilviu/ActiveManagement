@@ -28,7 +28,7 @@ const PADEL_TYPES = {
   AMERICANO: 'Americano', AMERICANO_CHAMPIONS: 'Americano Champions', AMERICANO_GIRLS: 'Americano Girls',
   CHALLENGER: 'Challenger', TEAM_AMERICANO: 'Team Americano', KING_OF_THE_COURT: 'King of the Court', MASTERS: 'Masters',
 };
-const PADEL_LEVELS = { 1: 'Elite', 2: 'Premier', 3: 'Gold', 4: 'Silver', 5: 'Bronze', 6: 'Beginner', 7: 'Girls' };
+const PADEL_LEVELS = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'Level 4', 5: 'Level 5', 6: 'Beginner', 7: 'Girls' };
 
 /**
  * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
