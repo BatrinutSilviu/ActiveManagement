@@ -53,7 +53,7 @@ function Statement({ e, split }) {
       </div>
       <dl className="statement">
         <dt><i className="swatch" style={{ background: c.founders }} />Founders & organisers {pctLabel(split.foundersStandard + split.foundersPoints)}
-          <span className="muted">{money0(s.standard)} founders · {money0(s.points)} organisers by points{s.freeTasks ? ` · ${money0(s.freeTasks)} of tasks done for free moved to the ${s.freeTo === 'sport' ? `${e.type_name} fund` : 'general fund'}` : ''}</span></dt>
+          <span className="muted">{money0(s.standard)} founders · {money0(s.points)} organisers by points{s.freeTasks ? ` · ${money0(s.freeTasks)} of tasks done for free or with nobody on them moved to the ${s.freeTo === 'sport' ? `${e.type_name} fund` : 'general fund'}` : ''}</span></dt>
         <dd>{money(s.founders)}</dd>
         <dt><i className="swatch" style={{ background: c.general }} />General community fund <span className="muted">{e.is_sport ? `${pctLabel(split.generalShare)} of the ${pctLabel(community)}` : `all of the ${pctLabel(community)} — ${e.type_name} isn’t a sport, so no sport fund`}</span></dt>
         <dd>{money(s.general)}</dd>
@@ -297,7 +297,7 @@ function Tasks({ e, reload }) {
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
         <div><h2>Tasks & points</h2>
-          <p>Each task gets its share of the event’s points, or points set by hand; people on the same task share them. Done for free: the points’ money goes to the {fund}.</p></div>
+          <p>Each task gets its share of the event’s points, or points set by hand; people on the same task share them. Done for free, or with nobody on it: the points’ money goes to the {fund}.</p></div>
       </div>
       {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
       <div className="card-pad task-total" style={{ paddingTop: 0 }}>
@@ -364,11 +364,14 @@ function Tasks({ e, reload }) {
                           {canEdit && <>
                             <button className="link-btn" onClick={() => run(() => api.put(`/event-tasks/${l.id}`, { free: !l.free }))}
                               title={l.free ? 'They get the points' : `Done for free — the money goes to the ${fund}`}>{l.free ? 'paid' : 'free'}</button>
-                            <button className="icon-btn" aria-label={`Remove ${l.person_name}`} onClick={() => run(() => api.del(`/event-tasks/${l.id}`))}><IconTrash width="14" /></button>
+                            <button className="icon-btn" aria-label={`Remove ${l.person_name}`}
+                              title={lines.length === 1 ? `Remove ${l.person_name} — with nobody on ${TASK_LABELS[t]}, its points’ money goes to the ${fund}` : `Remove ${l.person_name} — the others on ${TASK_LABELS[t]} share its points`}
+                              onClick={() => (lines.length > 1 || window.confirm(`Remove ${l.person_name} from ${TASK_LABELS[t]}? Nobody else is on it, so its ${number(l.points)} points’ money goes to the ${fund}.`))
+                                && run(() => api.del(`/event-tasks/${l.id}`))}><IconTrash width="14" /></button>
                           </>}
                         </span>
                       ))}
-                      {!lines.length && <span className="muted">Nobody yet</span>}
+                      {!lines.length && <span className="muted">Nobody — points to the {fund}</span>}
                       {canEdit && (
                         <Select className="select-sm" value="" aria-label={`Add someone to ${TASK_LABELS[t]}`}
                           onChange={(ev) => ev.target.value && addToTask(t, ev.target.value)}
@@ -399,7 +402,7 @@ function Tasks({ e, reload }) {
       {(unassigned.length > 0 || freePoints > 0) && (
         <p className="hint" style={{ padding: '12px 22px 16px', margin: 0 }}>
           {freePoints > 0 && <>{number(Math.round(freePoints * 100) / 100)} points done for free go to the {fund}. </>}
-          {unassigned.length > 0 && <>{unassigned.map((t) => TASK_LABELS[t]).join(', ')}: nobody yet, so {unassigned.length > 1 ? 'those points aren’t' : 'its points aren’t'} counted.</>}
+          {unassigned.length > 0 && <>{unassigned.map((t) => TASK_LABELS[t]).join(', ')}: nobody on {unassigned.length > 1 ? 'them, so their' : 'it, so its'} points’ money goes to the {fund}.</>}
         </p>
       )}
     </div>

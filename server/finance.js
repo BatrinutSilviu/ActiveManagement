@@ -1,6 +1,6 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, eventTaskShares, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon, manualTaskPoints } from './db.js';
+import { db, eventTaskShares, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon, manualTaskPoints, TASKS } from './db.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -215,6 +215,36 @@ export function taskLines(where = '1', params = []) {
   });
 }
 
+/**
+ * Points of tasks nobody is on (never assigned, or everyone was removed) per event: like tasks done
+ * for free, they're the community's — their money goes to the event's fund instead of being shared
+ * out among the other organisers. Tasks marked "not needed" have no points (they went to the others).
+ *
+ * Only for events from NOBODY_TO_FUND_FROM on: older events (many imported without any tasks) keep
+ * the rule they were paid out under — their empty tasks' points weren't counted at all.
+ */
+export const NOBODY_TO_FUND_FROM = process.env.NOBODY_TO_FUND_FROM || '2026-11-01';
+
+export function unassignedTaskPoints(allEvents) {
+  const out = new Map();
+  const events = allEvents.filter((e) => e.date >= NOBODY_TO_FUND_FROM);
+  if (!events.length) return out;
+  const shares = getTaskShares();
+  const staffed = new Set(db.prepare(`SELECT DISTINCT event_id || ':' || task AS k FROM event_tasks
+    WHERE event_id IN (${events.map(() => '?').join(',')})`).all(...events.map((e) => e.id)).map((r) => r.k));
+  for (const e of events) {
+    const share = eventTaskShares(e.skipped_tasks, shares), byHand = manualTaskPoints(e.task_points);
+    let pts = 0;
+    for (const t of TASKS) {
+      if (!share[t] && byHand[t] === undefined) continue; // not needed
+      if (staffed.has(`${e.id}:${t}`)) continue;
+      pts += byHand[t] ?? ((e.points || 0) * share[t]) / 100;
+    }
+    if (pts > 0) out.set(e.id, r2(pts));
+  }
+  return out;
+}
+
 /** Stock purchases with the points they earn the buyer: amount ÷ step × points, by kind. */
 export function purchaseLines(where = '1', params = []) {
   const rates = getPointsRates();
@@ -229,21 +259,29 @@ export function purchaseLines(where = '1', params = []) {
 }
 
 /**
- * Money earned by tasks done for free, per finalized event: the organisers' pool of its month is
- * shared by points, and the free points' part goes to the event's sport fund instead of a person.
+ * Money earned by tasks done for free — and by tasks nobody is on — per finalized event: the
+ * organisers' pool of its month is shared by points, and those points' part goes to the event's
+ * fund instead of a person.
  */
 function freeTaskMoney() {
   const pool = new Map(), points = new Map(), free = new Map(), monthOfEvent = new Map();
   const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
   const lines = taskLines("e.status = 'completed'");
-  if (!lines.some((l) => l.free)) return free;
-  for (const e of rawEvents("WHERE e.status = 'completed'")) {
+  const completed = rawEvents("WHERE e.status = 'completed'");
+  // Tasks nobody is on count like tasks done for free.
+  const nobody = unassignedTaskPoints(completed);
+  if (!lines.some((l) => l.free) && !nobody.size) return free;
+  for (const e of completed) {
     monthOfEvent.set(e.id, e.date.slice(0, 7));
     add(pool, e.date.slice(0, 7), e.split.points);
   }
   for (const l of lines) {
     add(points, l.date.slice(0, 7), l.points);
     if (l.free) add(free, l.event_id, l.points);
+  }
+  for (const [id, pts] of nobody) {
+    add(points, monthOfEvent.get(id), pts);
+    add(free, id, pts);
   }
   for (const c of db.prepare("SELECT strftime('%Y-%m', date) AS ym, SUM(points) AS n FROM contributions GROUP BY ym").all()) add(points, c.ym, c.n);
   for (const l of purchaseLines()) add(points, l.date.slice(0, 7), l.points);
@@ -406,7 +444,9 @@ export function computeFounders(ym) {
       event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} RON`, date: l.date, activity_name: null })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const pendingPoints = r2(linesOf(live).reduce((s, l) => s + l.points, 0));
-  const totalPoints = r2(ledger.reduce((s, l) => s + l.points, 0));
+  // Tasks nobody was on: their points count in the month's total, but their money goes to the funds.
+  const nobodyPoints = r2([...unassignedTaskPoints(done).values()].reduce((s, v) => s + v, 0));
+  const totalPoints = r2(ledger.reduce((s, l) => s + l.points, 0) + nobodyPoints);
   const freePoints = r2(ledger.filter((l) => l.free).reduce((s, l) => s + l.points, 0));
 
   const founders = db.prepare('SELECT id, name FROM people WHERE is_founder = 1 AND active = 1 ORDER BY name').all();
@@ -439,7 +479,7 @@ export function computeFounders(ym) {
   const paidAt = sent.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
   return {
     month: ym, split, profit, pools, pending, liveEvents: live.length, pendingPoints, events: done, live,
-    founders: founders.length, totalPoints, freePoints, people: rows, ledger,
+    founders: founders.length, totalPoints, freePoints, nobodyPoints, people: rows, ledger,
     payout: {
       paidAt, due: r2(rows.reduce((a, p) => a + p.total, 0)), paid: r2(rows.reduce((a, p) => a + p.paid, 0)),
       owed: r2(rows.reduce((a, p) => a + p.owed, 0)), toFund: r2(rows.reduce((a, p) => a + p.toFund, 0)),

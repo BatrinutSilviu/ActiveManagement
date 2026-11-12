@@ -358,7 +358,7 @@ export default function Payouts() {
                   <span className="mini-label"><i style={{ background: c.general }} />Organisers {pctLabel(s.foundersPoints)}</span>
                   <strong>{money0(r.pools.points)}</strong>
                   <span className="muted">{r.totalPoints ? `${number(r.totalPoints)} points · ${money(r.pools.points / r.totalPoints)} per point` : 'no points this month'}</span>
-                  {r.pools.freeTasks !== 0 && <span className="muted">{money0(r.pools.freeTasks)} of it to sport funds ({number(r.freePoints)} pts done for free)</span>}
+                  {r.pools.freeTasks !== 0 && <span className="muted">{money0(r.pools.freeTasks)} of it to the funds ({[r.freePoints ? `${number(r.freePoints)} pts done for free` : '', r.nobodyPoints ? `${number(r.nobodyPoints)} pts of tasks nobody did` : ''].filter(Boolean).join(', ')})</span>}
                 </div>
               </div>
             </div>

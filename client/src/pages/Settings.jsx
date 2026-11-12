@@ -364,7 +364,7 @@ function TaskShares() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Event tasks</h2><p>Each task’s share of an event’s points. People on the same task share its points; a task done for free gives its points’ money to the event’s sport fund.</p></div></div>
+      <div className="card-head"><div><h2>Event tasks</h2><p>Each task’s share of an event’s points. People on the same task share its points; a task done for free, or with nobody on it, gives its points’ money to the event’s fund.</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 14 }}>
         <div className="targets">
