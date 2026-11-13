@@ -1,7 +1,7 @@
 // Events created in the community's other apps are pushed here (POST /api/integrations/events) and
 // become events in this app: padel tournaments from padel.activetimisoara.ro, hikes and via ferratas
 // from hikes.activetimisoara.ro. Each app sends its own record as it is; this file turns it into the
-// fields of an event. See upsertSyncedEvent in index.js for how they're applied.
+// fields of an event. See upsertSyncedEvent in domain/eventSync.js for how they're applied.
 
 // Events dated before this aren't created (older ones were imported from the spreadsheet).
 export const SYNC_FROM = process.env.SYNC_FROM || '2026-11-04';
@@ -34,9 +34,9 @@ const PADEL_LEVELS = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'Level 4', 5
  * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
  * Price = its entry fee per person. Its location, start/end times and prizes
  * (a labelled list, each offered by us or by a named partner) come along; partner prizes also become
- * partner prize records (see syncPartnerPrizes in index.js).
+ * partner prize records (see syncPartnerPrizes in domain/eventSync.js).
  */
-export function mapPadel(t) {
+function mapPadel(t) {
   const type = PADEL_TYPES[t.type] || t.type;
   const level = PADEL_LEVELS[t.division] || (t.division ? `Division ${t.division}` : null);
   // The money: until it starts, a tournament counts the players it's planned for (its capacity), so
@@ -74,7 +74,7 @@ export function mapPadel(t) {
  * Hike price = entry fee, plus accommodation when there is one (the accommodation is the venue's part).
  * Via ferrata: the hikes app keeps its total price in accommodationPrice.
  */
-export function mapHike(h) {
+function mapHike(h) {
   const via = h.type === 'via_ferrata';
   const lodging = !via && h.hasAccommodation ? num(h.accommodationPrice) : 0;
   const price = via ? num(h.accommodationPrice) || num(h.entryFee) : num(h.entryFee) + lodging;

@@ -1,6 +1,7 @@
 // Fills the database with realistic demo data so the dashboards have something to show.
 // Run with `npm run seed` (add --reset to wipe events, money, people and stock first).
-import { db, SPORTS, TASKS, toBani, tx } from './db.js';
+import { db, SPORTS, toBani, tx } from './db.js';
+import { TASKS } from './domain/tasks.js';
 import { hashPassword } from './auth.js';
 
 const reset = process.argv.includes('--reset');

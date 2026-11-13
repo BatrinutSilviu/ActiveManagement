@@ -2,7 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { db } from './db.js';
 
 const SESSION_DAYS = 30;
-export const COOKIE = 'am_session';
+const COOKIE = 'am_session';
 
 export function hashPassword(pw) {
   const salt = randomBytes(16);

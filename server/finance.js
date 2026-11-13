@@ -1,9 +1,11 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
-import { db, eventTaskShares, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon, manualTaskPoints, TASKS } from './db.js';
+import { db, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver } from './db.js';
+import { eventTaskShares, manualTaskPoints, TASKS } from './domain/tasks.js';
+import { openVouchers } from './domain/vouchers.js';
+import { r2, sumBy, toBani, toRon } from './domain/money.js';
+import { httpError } from './http.js';
 import { errorFields, log } from './log.js';
-
-export const r2 = (v) => Math.round(v * 100) / 100;
 
 // Event status values in the DB: 'planned' = live (still being set up / running),
 // 'completed' = finalized (counts towards the funds), 'cancelled'.
@@ -14,7 +16,7 @@ export const LIVE = 'planned';
 const SKIPPED = "(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'skip')";
 const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
 
-export const EVENT_SQL = `
+const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
     ${SKIPPED} AS free_skip_count, ${COUNTED} AS counted_participants,
     CASE WHEN e.price_parts = 1 AND e.venue_mode = 'fixed' AND e.participants > 0
@@ -39,7 +41,7 @@ export const EVENT_SQL = `
   FROM events e JOIN event_types et ON et.id = e.type_id LEFT JOIN activities a ON a.id = e.activity_id`;
 
 /** Split a profit (RON) into founders' and community parts. Losses split the same way. */
-export function splitProfit(profit, split = getSplit()) {
+function splitProfit(profit, split = getSplit()) {
   const standard = (profit * split.foundersStandard) / 100;
   const points = (profit * split.foundersPoints) / 100;
   const community = profit - standard - points;
@@ -58,7 +60,7 @@ export function splitProfit(profit, split = getSplit()) {
  *   money  — points per so many RON of profit; an estimate until the month closes (see computeRealPoints)
  *   impact — the points of what made it special (collaboration, special guest…)
  */
-export function eventPoints(e, profit, rates = getPointsRates()) {
+function eventPoints(e, profit, rates = getPointsRates()) {
   const factor = e.points_factor ?? 1;
   const time = (e.activity_points || 0) * rates.wTime * factor;
   const count = e.counted_participants || 0;
@@ -69,7 +71,7 @@ export function eventPoints(e, profit, rates = getPointsRates()) {
   return { time: r2(time), people: r2(people), peopleScale: r2(peopleScale), money: r2(money), impact: r2(impact), total: r2(time + people + money + impact), factor };
 }
 
-export function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
+function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
   // Fee income = people × fee − what members don't pay (they pay only the venue's part).
@@ -123,9 +125,9 @@ const closedMonths = () => new Map(db.prepare('SELECT * FROM month_points').all(
   .map((r) => [r.month, { ...r, data: JSON.parse(r.data), profit: toRon(r.profit) }]));
 
 /** What the month's real points are with today's numbers (not stored). */
-export function computeRealPoints(ym) {
+function computeRealPoints(ym) {
   const events = rawEvents("WHERE strftime('%Y-%m', e.date) = ? AND e.status = 'completed'", [ym], 'ORDER BY e.date', false);
-  const profit = r2(events.reduce((a, e) => a + e.profit, 0));
+  const profit = sumBy(events, (e) => e.profit);
   const gains = events.reduce((a, e) => a + Math.max(e.profit, 0), 0);
   const scale = gains > 0 ? Math.min(Math.max(profit, 0) / gains, 1) : 0;
   return {
@@ -176,7 +178,7 @@ export function recalcClosedMonths(userId = null) {
 }
 
 /** On the 1st (checked hourly): every past month with finalized events and no real points yet gets them. */
-export function closeDueMonths() {
+function closeDueMonths() {
   const current = new Date().toISOString().slice(0, 7);
   const due = db.prepare(`SELECT DISTINCT strftime('%Y-%m', date) AS m FROM events WHERE status = 'completed'
     AND strftime('%Y-%m', date) < ? AND strftime('%Y-%m', date) NOT IN (SELECT month FROM month_points) ORDER BY m`).all(current);
@@ -224,9 +226,9 @@ export function taskLines(where = '1', params = []) {
  * Only for events from NOBODY_TO_FUND_FROM on: older events (many imported without any tasks) keep
  * the rule they were paid out under — their empty tasks' points weren't counted at all.
  */
-export const NOBODY_TO_FUND_FROM = process.env.NOBODY_TO_FUND_FROM || '2026-11-01';
+const NOBODY_TO_FUND_FROM = process.env.NOBODY_TO_FUND_FROM || '2026-11-01';
 
-export function unassignedTaskPoints(allEvents) {
+function unassignedTaskPoints(allEvents) {
   const out = new Map();
   const events = allEvents.filter((e) => e.date >= NOBODY_TO_FUND_FROM);
   if (!events.length) return out;
@@ -416,18 +418,18 @@ export function computeFounders(ym) {
   const events = loadEvents("WHERE strftime('%Y-%m', e.date) = ? AND e.status != 'cancelled'", [ym]);
   const done = events.filter((e) => e.status === FINALIZED);
   const live = events.filter((e) => e.status === LIVE);
-  const profit = r2(done.reduce((s, e) => s + e.profit, 0));
+  const profit = sumBy(done, (e) => e.profit);
   // General vs sport fund comes from each event, since non-sport events give all of it to the general fund.
   // Money from tasks done for free is kept apart (freeTasks): it's part of the organisers' pool.
   const fromEvents = (list, total) => {
     const p = splitProfit(total, split);
-    p.freeTasks = r2(list.reduce((s, e) => s + (e.split.freeTasks || 0), 0));
+    p.freeTasks = sumBy(list, (e) => e.split.freeTasks || 0);
     p.general = r2(list.reduce((s, e) => s + e.split.general - (e.split.freeTo === 'general' ? e.split.freeTasks || 0 : 0), 0));
     p.sport = r2(p.community - p.general);
     return p;
   };
   const pools = fromEvents(done, profit);
-  const pending = fromEvents(live, r2(live.reduce((s, e) => s + e.profit, 0)));
+  const pending = fromEvents(live, sumBy(live, (e) => e.profit));
 
   // Every points line of the month, from event tasks and from standalone contributions.
   const ids = (list) => list.map((e) => e.id);
@@ -444,11 +446,11 @@ export function computeFounders(ym) {
       source: 'purchase', id: l.id, person_id: l.person_id, person_name: l.person_name, task: null, kind: l.kind, points: l.points,
       event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} RON`, date: l.date, activity_name: null })),
   ].sort((a, b) => a.date.localeCompare(b.date));
-  const pendingPoints = r2(linesOf(live).reduce((s, l) => s + l.points, 0));
+  const pendingPoints = sumBy(linesOf(live), (l) => l.points);
   // Tasks nobody was on: their points count in the month's total, but their money goes to the funds.
-  const nobodyPoints = r2([...unassignedTaskPoints(done).values()].reduce((s, v) => s + v, 0));
+  const nobodyPoints = sumBy([...unassignedTaskPoints(done).values()], (v) => v);
   const totalPoints = r2(ledger.reduce((s, l) => s + l.points, 0) + nobodyPoints);
-  const freePoints = r2(ledger.filter((l) => l.free).reduce((s, l) => s + l.points, 0));
+  const freePoints = sumBy(ledger.filter((l) => l.free), (l) => l.points);
 
   const founders = db.prepare('SELECT id, name FROM people WHERE is_founder = 1 AND active = 1 ORDER BY name').all();
   const people = new Map();
@@ -482,8 +484,8 @@ export function computeFounders(ym) {
     month: ym, split, profit, pools, pending, liveEvents: live.length, pendingPoints, events: done, live,
     founders: founders.length, totalPoints, freePoints, nobodyPoints, people: rows, ledger,
     payout: {
-      paidAt, due: r2(rows.reduce((a, p) => a + p.total, 0)), paid: r2(rows.reduce((a, p) => a + p.paid, 0)),
-      owed: r2(rows.reduce((a, p) => a + p.owed, 0)), toFund: r2(rows.reduce((a, p) => a + p.toFund, 0)),
+      paidAt, due: sumBy(rows, (p) => p.total), paid: sumBy(rows, (p) => p.paid),
+      owed: sumBy(rows, (p) => p.owed), toFund: sumBy(rows, (p) => p.toFund),
     },
     unassignedPoints: totalPoints ? 0 : pools.points, // nobody earned points: the organisers' share is not paid out
   };
@@ -516,7 +518,7 @@ export function computeSport(id) {
   // Parts of the fund (e.g. a sport's academy): what each has spent / received, all time.
   const parts = db.prepare('SELECT id, name FROM fund_parts WHERE sport_id = ? ORDER BY name').all(id).map((p) => {
     const own = fundTx.filter((t) => t.fund_part_id === p.id);
-    const sum = (k) => r2(own.filter((t) => t.kind === k).reduce((a, t) => a + t.amount, 0));
+    const sum = (k) => sumBy(own.filter((t) => t.kind === k), (t) => t.amount);
     return { ...p, spent: sum('expense'), added: sum('income'), count: own.length };
   });
   return { sport, fund, months, events, fundTx, parts };
@@ -556,7 +558,7 @@ export function computeGeneral() {
 }
 
 /** Months that have payouts due or sent, with what is still owed for each. */
-export function computePayoutMonths() {
+function computePayoutMonths() {
   const months = db.prepare(`
     SELECT DISTINCT strftime('%Y-%m', date) AS m FROM events WHERE status = 'completed'
     UNION SELECT DISTINCT strftime('%Y-%m', date) FROM contributions
@@ -573,19 +575,16 @@ export function computePayoutMonths() {
  */
 export function computeCash(funds = computeFunds()) {
   const months = computePayoutMonths();
-  const sum = (k) => r2(months.reduce((a, m) => a + m[k], 0));
-  const profit = r2(loadEvents("WHERE e.status = 'completed'").reduce((a, e) => a + e.profit, 0));
+  const sum = (k) => sumBy(months, (m) => m[k]);
+  const profit = sumBy(loadEvents("WHERE e.status = 'completed'"), (e) => e.profit);
   const topups = r2(funds.general.topups + funds.sportsTotal.topups);
   const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
   const paid = r2(sum('paid') - sum('toFund')); // left to the fund: still in the account
   const starting = r2(funds.general.starting + funds.sportsTotal.starting);
   // Vouchers given but not used yet: still in the account, but the funds will pay them out.
-  const today = new Date().toISOString().slice(0, 10);
-  // Percentage vouchers have no value until they're used at a training: counted apart (pct).
-  const vouchers = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(value), 0) AS value, COALESCE(SUM(percent IS NOT NULL), 0) AS pct FROM vouchers
-    WHERE used_date IS NULL AND (expires IS NULL OR expires >= ?)`).get(today);
+  const vouchers = openVouchers();
   return {
-    funds: r2(funds.general.balance + funds.sportsTotal.balance), openVouchers: { n: vouchers.n, pct: vouchers.pct, value: toRon(vouchers.value) },
+    funds: r2(funds.general.balance + funds.sportsTotal.balance), openVouchers: { n: vouchers.n, pct: vouchers.pct, value: vouchers.value },
     balance: r2(starting + profit + topups - reinvested - paid), starting, profit, topups, reinvested, paid, owed: sum('owed'), unassigned: sum('unassigned'),
     unpaidMonths: months.filter((m) => m.owed >= 0.01), // paid more than calculated isn't "not paid"
   };
@@ -607,7 +606,7 @@ export function applyPayouts(ym, userId, { amounts, date, toFund = false, reques
     ? Object.entries(amounts).map(([id, v]) => ({ id: Number(id), amount: Number(v) || 0 })).filter((l) => Math.abs(l.amount) >= 0.01)
       .map((l) => ({ ...l, name: r.people.find((p) => p.id === l.id)?.name || db.prepare('SELECT name FROM people WHERE id = ?').get(l.id)?.name }))
     : r.people.filter((p) => Math.abs(p.owed) >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }));
-  if (lines.some((l) => !l.name)) throw Object.assign(new Error('Unknown person'), { status: 400 });
+  if (lines.some((l) => !l.name)) throw httpError(400, 'Unknown person');
   const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by, to_fund, request_id)
     VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)`);
   for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null, toFund ? 1 : 0, requestId);

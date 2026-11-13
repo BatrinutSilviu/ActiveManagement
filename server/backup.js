@@ -9,12 +9,12 @@ import { db, DB_PATH } from './db.js';
 import { errorFields, log } from './log.js';
 
 export const BACKUP_DIR = process.env.BACKUP_DIR || resolve(dirname(DB_PATH), 'backups');
-export const EVERY_DAYS = Number(process.env.BACKUP_EVERY_DAYS) || 2;
+const EVERY_DAYS = Number(process.env.BACKUP_EVERY_DAYS) || 2;
 const KEEP = Number(process.env.BACKUP_KEEP) || 30;
 const DAY = 24 * 60 * 60 * 1000;
 export const BACKUP_NAME = /^(auto|manual|pre-deploy)-[\dT-]+\.db$/;
 
-export function listBackups() {
+function listBackups() {
   mkdirSync(BACKUP_DIR, { recursive: true });
   return readdirSync(BACKUP_DIR).filter((n) => BACKUP_NAME.test(n)).map((name) => {
     const st = statSync(join(BACKUP_DIR, name));
@@ -45,7 +45,7 @@ export function backupStatus() {
 }
 
 /** Checks hourly; backs up when the last automatic backup is EVERY_DAYS old (or there is none). */
-export function backupIfDue(now = Date.now()) {
+function backupIfDue(now = Date.now()) {
   try {
     const lastAuto = listBackups().find((b) => b.kind === 'auto');
     if (lastAuto && now - Date.parse(lastAuto.at) < EVERY_DAYS * DAY) return null;
