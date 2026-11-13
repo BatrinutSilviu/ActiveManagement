@@ -27,6 +27,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       // Components used only in JSX count as used (no-unused-vars can't see JSX by itself).
       'react/jsx-uses-vars': 'error',
+      'react/jsx-no-undef': 'error',
     },
   },
 ];

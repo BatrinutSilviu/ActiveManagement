@@ -1,10 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { qs } from '../api.js';
 import { useApi, useChartColors, usePersistentState } from '../hooks.js';
-import { date, money0, MONTHS, MONTHS_LONG, signedMoney } from '../format.js';
+import { date, money0, MONTHS, MONTHS_LONG, pctLabel, signedMoney } from '../format.js';
 import { GroupedBars } from '../components/Charts.jsx';
 import { IconDownload } from '../components/Icons.jsx';
-import { pctLabel } from './Dashboard.jsx';
 import Select from '../components/Select.jsx';
 
 export default function Monthly() {

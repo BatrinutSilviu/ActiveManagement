@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api.js';
+import { money0 } from './format.js';
 import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
 import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
@@ -39,7 +40,7 @@ function AccountBalance({ path }) {
   return (
     <NavLink to="/" className="side-balance" title="Money in the account — see the Dashboard for what it is">
       <span>In the account</span>
-      <strong>{new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON', maximumFractionDigits: 0 }).format(data.cash.balance)}</strong>
+      <strong>{money0(data.cash.balance)}</strong>
     </NavLink>
   );
 }

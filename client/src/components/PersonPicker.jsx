@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { fold } from '../util.js';
 
-const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /**
  * Pick a person by typing: suggestions appear as you type (no long list), and a name that isn't in

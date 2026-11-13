@@ -9,7 +9,7 @@ import TxTable from '../components/TxTable.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { BalanceLine, GroupedBars } from '../components/Charts.jsx';
 import { IconPlus, IconTrash, IconTrend, IconChevronLeft } from '../components/Icons.jsx';
-import { StatusBadge } from './Events.jsx';
+import StatusBadge from '../components/StatusBadge.jsx';
 
 const ymLabel = (ym) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
 

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, usePermissions, usePersistentState } from '../hooks.js';
+import { useAction, useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money, money0, number, today } from '../format.js';
 import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
 import PersonPicker from '../components/PersonPicker.jsx';
+import CardError from '../components/CardError.jsx';
 
 const STATUS = { open: 'Not used yet', used: 'Used', expired: 'Expired' };
 const isPct = (v) => v.percent != null;
@@ -123,11 +124,10 @@ function UseValueForm({ voucher, onClose, onSaved }) {
 export function VoucherTable({ list, reload, showEvent = true, setForm }) {
   const { canEdit } = usePermissions();
   const [using, setUsing] = useState(null);
-  const [error, setError] = useState(null);
-  const run = async (fn) => { try { await fn(); setError(null); reload(); } catch (e) { setError(e.message); } };
+  const [error, run] = useAction(reload);
   return (
     <>
-      {error && <div className="error-box" style={{ margin: '0 22px 12px' }}>{error}</div>}
+      <CardError error={error} />
       <div className="table-wrap">
         <table>
           <thead><tr><th>Won by</th>{showEvent && <th className="hide-sm">Won at</th>}<th className="r">Value</th><th>Status</th>{canEdit && <th />}</tr></thead>

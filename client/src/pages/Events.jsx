@@ -3,13 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money0, number, signedMoney } from '../format.js';
-import EventForm, { STATUS_LABELS } from '../components/EventForm.jsx';
+import EventForm from '../components/EventForm.jsx';
+import StatusBadge from '../components/StatusBadge.jsx';
 import { IconEdit, IconPlus } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
-
-export function StatusBadge({ status }) {
-  return <span className={`badge status-${status}`}><span className="dot" />{STATUS_LABELS[status]}</span>;
-}
 
 export default function Events() {
   const navigate = useNavigate();

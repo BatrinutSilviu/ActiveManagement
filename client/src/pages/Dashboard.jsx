@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { qs } from '../api.js';
 import { useApi, useChartColors, usePermissions, usePersistentState } from '../hooks.js';
-import { change, date, money, money0, MONTHS, MONTHS_LONG, number, pct, signedMoney } from '../format.js';
+import { change, date, money, money0, monthName, MONTHS, number, pct, pctLabel, signedMoney } from '../format.js';
 import Kpi from '../components/Kpi.jsx';
 import EventForm from '../components/EventForm.jsx';
 import { BarList, CumulativeChart, EventProfitList, IncomeExpenseChart, Legend, ProfitChart, SignedBarList } from '../components/Charts.jsx';
@@ -27,9 +27,6 @@ export function PeriodFilters({ year, setYear, type, setType, allowAll = true })
     </div>
   );
 }
-
-export const pctLabel = (v) => `${Math.round(v * 10) / 10}%`;
-export const monthName = (ym) => `${MONTHS_LONG[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
 /** The money the community has in its account, and what that money is (funds, payouts still to send…). */
 function AccountSection() {

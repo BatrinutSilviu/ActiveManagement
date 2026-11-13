@@ -1,3 +1,4 @@
+import { r2 } from '../util.js';
 import { useState } from 'react';
 import Modal from './Modal.jsx';
 import { api } from '../api.js';
@@ -11,7 +12,6 @@ export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelle
 // Price per person = venue part + community part. Fill in the two parts and the total follows, or fill in
 // the total and the community part follows (total − venue part). Only the total and the venue part are
 // stored; the community part is what's left. With a fixed venue, the venue part is the venue total ÷ people.
-const r2 = (v) => Math.round(v * 100) / 100;
 function venueShare(next) {
   const n = Number(next.participants) || 0, total = Number(next.venue_total) || 0;
   return n && total ? String(r2(total / n)) : '';

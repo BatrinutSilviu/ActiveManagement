@@ -1,5 +1,6 @@
 import { Children, Fragment, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { fold } from '../util.js';
 
 // A drop-in replacement for <select>: same children (<option>, <optgroup>), same value / onChange(e)
 // with e.target.value, but its list looks the same in every browser. Long lists get a search box.
@@ -7,7 +8,6 @@ import { createPortal } from 'react-dom';
 // (name is '' when nothing was typed — ask for one then). `createLabel` names it, e.g. "New person".
 
 const textOf = (children) => Children.toArray(children).map((c) => (typeof c === 'string' || typeof c === 'number' ? c : isValidElement(c) ? textOf(c.props.children) : '')).join('');
-const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function flatten(children, group = null, out = []) {
   Children.forEach(children, (c) => {

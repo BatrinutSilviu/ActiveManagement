@@ -24,6 +24,18 @@ export function useApi(url) {
   return { data, error, loading, reload: load };
 }
 
+/**
+ * For a component that changes data: run(fn) does the change, then `after` (e.g. reload what's shown); a failure
+ * is kept in `error` to show instead. run resolves to whether it worked; setError shows an error of one's own.
+ */
+export function useAction(after) {
+  const [error, setError] = useState(null);
+  const run = async (fn) => {
+    try { await fn(); setError(null); after(); return true; } catch (e) { setError(e.message); return false; }
+  };
+  return [error, run, setError];
+}
+
 const read = () => {
   const s = getComputedStyle(document.documentElement);
   const v = (n) => s.getPropertyValue(n).trim();
