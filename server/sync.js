@@ -39,6 +39,10 @@ const PADEL_LEVELS = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'Level 4', 5
 export function mapPadel(t) {
   const type = PADEL_TYPES[t.type] || t.type;
   const level = PADEL_LEVELS[t.division] || (t.division ? `Division ${t.division}` : null);
+  // The money: until it starts, a tournament counts the players it's planned for (its capacity), so
+  // its income is known from the start — capacity × price; once it's played, the players who played.
+  const confirmed = num(t.confirmedCount);
+  const planned = t.status === 'UPCOMING' && num(t.maxPlayers) > 0 ? Math.max(num(t.maxPlayers), confirmed) : null;
   return {
     name: t.name,
     sport: 'Padel',
@@ -48,14 +52,16 @@ export function mapPadel(t) {
     start_time: time(t.startTime),
     end_time: time(t.endTime),
     location: typeof t.location === 'string' && t.location.trim() ? t.location.trim() : null,
-    participants: num(t.confirmedCount),
+    participants: planned ?? confirmed,
     participation_fee: num(t.entryFee),
     venue_fee: null, // not known in the padel app: set on the event here
     status: 'planned',
     prizes: prizeList(t.prizes),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
-      t.maxPlayers ? `Up to ${t.maxPlayers} players` : null,
+      planned !== null
+        ? `Planned for ${planned} players — the income assumes it fills up`
+        : t.maxPlayers ? `Up to ${t.maxPlayers} players` : null,
       t.advanceFee ? `Advance: ${t.advanceFee} RON per person` : null,
       t.prizeNotes ? `Other prizes: ${t.prizeNotes}` : null,
     ),
