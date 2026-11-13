@@ -94,7 +94,7 @@ export default function Select({ value, onChange, children, className = '', styl
     const outside = (e) => { if (!pop.current?.contains(e.target) && !btn.current?.contains(e.target)) close(false); };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]);
   // Keep the highlighted option in view: when the list opens and when arrow keys move it — not on every
   // reposition, or a finger scrolling the list on a phone gets pulled back to the selected option.
   const placed = !!pos;

@@ -2,7 +2,7 @@
 
 /** Parse CSV / TSV text into a 2-D array. Detects the delimiter, honours quotes. */
 export function parseDelimited(text) {
-  text = text.replace(/^﻿/, '');
+  text = text.replace(/^\uFEFF/, '');
   const first = text.split(/\r?\n/, 1)[0] || '';
   const count = (ch) => first.split(ch).length - 1;
   const delim = count('\t') ? '\t' : count(';') > count(',') ? ';' : ',';

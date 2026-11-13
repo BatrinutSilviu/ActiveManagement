@@ -16,7 +16,9 @@ export default function PersonPicker({ people, value, onChange, onCreated, requi
   const [error, setError] = useState(null);
   const box = useRef(null);
 
-  useEffect(() => { if (current) setText(current.name); }, [current?.name]); // follows outside changes (and a new person once loaded)
+  // Follows outside changes (and a new person once loaded).
+  const currentName = current ? current.name : undefined;
+  useEffect(() => { if (currentName !== undefined) setText(currentName); }, [currentName]);
 
   const q = fold(text.trim());
   const matches = useMemo(() => {

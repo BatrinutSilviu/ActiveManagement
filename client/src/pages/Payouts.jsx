@@ -32,7 +32,7 @@ function Targets({ month, split, onSaved }) {
   const [f, setF] = useState(() => toForm(split));
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
-  useEffect(() => setF(toForm(split)), [split]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setF(toForm(split)), [split]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const total = r2(Number(f.community) + Number(f.founders) + Number(f.organisers));
   const dirty = JSON.stringify(f) !== JSON.stringify(toForm(split));

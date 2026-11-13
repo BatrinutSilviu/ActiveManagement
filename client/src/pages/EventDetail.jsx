@@ -11,7 +11,7 @@ import { IconCheck, IconCopy, IconEdit, IconPlus, IconTrash, IconChevronLeft } f
 import { StatusBadge } from './Events.jsx';
 import { pctLabel } from './Dashboard.jsx';
 import { TASK_LABELS, TASKS } from '../points.js';
-import { VoucherForm, VoucherTable, voucherWorth } from './Vouchers.jsx';
+import { VoucherForm, VoucherTable } from './Vouchers.jsx';
 import { NOT_COUNTED, PrizeForm, PrizeTable } from './Partners.jsx';
 import Select from '../components/Select.jsx';
 

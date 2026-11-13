@@ -18,7 +18,7 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
   const { data: people, reload: reloadPeople } = useApi('/people');
   const { data: events } = useApi(event ? null : '/events');
   const [f, setF] = useState(() => ({
-    partner_id: '', partner_name: '', prize: '', qty: 1, value: '', person_id: '', winner_name: '', event_id: event?.id || '',
+    partner_id: '', partner_name: '', prize: '', qty: 1, winner_name: '', event_id: event?.id || '',
     date: event?.date || today(), note: '', ...(prize || {}), value: prize?.value ?? '', person_id: prize?.person_id || '',
     // A winner who isn't in People is typed by name.
     winnerMode: prize?.winner_name && !prize?.person_id ? 'name' : 'person',
