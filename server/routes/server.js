@@ -63,10 +63,11 @@ export function summarize(snaps, bucketMin) {
   for (const s of snaps) {
     const t = Math.floor(Date.parse(s.at) / bucketMs) * bucketMs;
     let b = buckets.get(t);
-    if (!b) buckets.set(t, (b = { t, n: 0, cpu: 0, cpuMax: 0, cpuN: 0, mem: 0, apps: {}, traffic: {} }));
+    if (!b) buckets.set(t, (b = { t, n: 0, cpu: 0, cpuMax: 0, cpuN: 0, mem: 0, disk: 0, apps: {}, traffic: {} }));
     b.n++;
     if (s.cpu != null) { b.cpu += s.cpu; b.cpuN++; b.cpuMax = Math.max(b.cpuMax, s.cpu); }
     b.mem += s.mem.total - s.mem.available;
+    b.disk = Math.max(b.disk, s.disk.total - s.disk.free);
 
     for (const [app, a] of Object.entries(byApp(s.containers))) {
       const ba = (b.apps[app] ??= { cpu: 0, mem: 0 });
@@ -94,6 +95,7 @@ export function summarize(snaps, bucketMin) {
     cpu: b.cpuN ? b.cpu / b.cpuN : null,
     cpuMax: b.cpuN ? b.cpuMax : null,
     mem: b.mem / b.n,
+    disk: b.disk,
     apps: Object.fromEntries(Object.entries(b.apps).map(([k, v]) => [k, { cpu: v.cpu / b.n, mem: v.mem / b.n }])),
     traffic: b.traffic,
   }));
@@ -115,6 +117,13 @@ export function summarize(snaps, bucketMin) {
     }
   }
   const cpus = snaps.map((s) => s.cpu).filter((x) => x != null);
+  // How fast the disk fills: the change in used space per day over the period (a straight line through
+  // the first and last snapshot). Deploys and the Sunday cleanup move it around, so it's a rough guide.
+  const first = snaps[0], last = snaps.at(-1);
+  const days = first && last ? (Date.parse(last.at) - Date.parse(first.at)) / 86_400_000 : 0;
+  const diskGrowthPerDay = days >= 0.9
+    ? ((last.disk.total - last.disk.free) - (first.disk.total - first.disk.free)) / days
+    : null;
   return {
     points,
     apps,
@@ -125,6 +134,7 @@ export function summarize(snaps, bucketMin) {
       errors: v.errors,
       lastDown: v.lastDown,
     }])),
+    diskGrowthPerDay,
     host: {
       cpuAvg: cpus.length ? cpus.reduce((a, x) => a + x, 0) / cpus.length : null,
       cpuMax: cpus.length ? Math.max(...cpus) : null,

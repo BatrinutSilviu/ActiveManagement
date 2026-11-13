@@ -93,13 +93,13 @@ export default function Server() {
   const memUsed = latest.mem.total - latest.mem.available;
   const diskUsed = latest.disk.total - latest.disk.free;
   const chart = points.map((p) => ({
-    t: p.t, cpu: p.cpu, cpuMax: p.cpuMax, mem: p.mem,
+    t: p.t, cpu: p.cpu, cpuMax: p.cpuMax, mem: p.mem, disk: p.disk,
     ...Object.fromEntries(present.flatMap((a) => [[`mem_${a.key}`, p.apps[a.key]?.mem ?? 0], [`net_${a.key}`, p.traffic[a.key] ?? 0]])),
   }));
   const tick = (t) => timeLabel(t, range);
   const bucket = data.bucketMin >= 60 ? `${data.bucketMin / 60} hours` : `${data.bucketMin} minutes`;
 
-  const storageByApp = {};
+  const storageByApp = {};  // per app, for the Apps table
   for (const s of storage?.storage ?? []) {
     const row = (storageByApp[s.app] ??= { total: 0, parts: [] });
     row.total += s.bytes ?? 0;
@@ -262,28 +262,123 @@ export default function Server() {
           </div>
 
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Storage</h2><p>Measured hourly{storage ? `, last at ${new Date(storage.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}</p></div></div>
-            {storage ? (
-              <table className="compact-table">
-                <tbody>
-                  {Object.entries(storageByApp).sort((a, b) => b[1].total - a[1].total).flatMap(([app, row]) => row.parts
-                    .filter((p) => p.bytes > 0)
-                    .map((p) => (
-                      <tr key={p.name}>
-                        <td>{APPS.find((a) => a.key === app)?.name ?? (app === 'all' ? 'All apps' : app === 'docker' ? 'Docker' : app)}</td>
-                        <td className="muted">{app === 'all' ? `${p.kind} · ${p.name.replace('/var/log/active-apps', 'archived')}` : p.kind}</td>
-                        <td className="num" style={{ textAlign: 'right' }}>{bytes(p.bytes)}</td>
-                      </tr>
-                    )))}
-                </tbody>
-              </table>
-            ) : <p className="muted">Not measured yet (once an hour).</p>}
-            <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
-              Docker images and build cache are cleaned on Sundays. Backups: kept 30 days here and copied, encrypted, to Backblaze every night.
-            </p>
+            <div className="card-head"><div><h2>Disk used over time</h2><p>Highest per {bucket} · the disk holds {bytes(latest.disk.total)}</p></div></div>
+            <div className="chart" style={{ height: 220 }}>
+              <ResponsiveContainer>
+                <LineChart data={chart} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke={c.grid} />
+                  <XAxis dataKey="t" tickFormatter={tick} {...axis(c)} minTickGap={24} />
+                  <YAxis tickFormatter={bytes} {...axis(c)} width={64} domain={[0, (max) => Math.max(max * 1.2, 1)]} />
+                  <Tooltip cursor={{ stroke: c.axis }} content={<Tip range={range} rows={(d) => [
+                    { name: 'Used', value: `${bytes(d.disk)} (${((100 * d.disk) / latest.disk.total).toFixed(1)}%)`, color: c.apps[0] },
+                  ]} />} />
+                  <Line dataKey="disk" stroke={c.apps[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: c.surface, strokeWidth: 2 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>{growthText(data.diskGrowthPerDay, latest.disk.free, rangeLabel)}</p>
           </div>
         </div>
+
+        <StorageCard storage={storage} disk={latest.disk} colors={c} />
       </div>
     </div>
+  );
+}
+
+// "+120 MB a day in 7 days → full in about 9 months", or why there's no estimate.
+function growthText(perDay, free, rangeLabel) {
+  if (perDay == null) return 'The fill rate shows once there is a day of measurements.';
+  const per = `${perDay >= 0 ? '+' : '−'}${bytes(Math.abs(perDay))} a day over the last ${rangeLabel}`;
+  if (perDay <= 1024 ** 2) return `${per}: not filling up.`;
+  const daysLeft = free / perDay;
+  const when = daysLeft > 730 ? 'more than 2 years' : daysLeft > 60 ? `about ${Math.round(daysLeft / 30)} months` : `about ${Math.round(daysLeft)} days`;
+  return `${per}. At that rate the disk is full in ${when}. Deploys and the Sunday cleanup make this move around.`;
+}
+
+// What fills the disk, grouped, as a share of the whole disk; the rest of the used space is the
+// system (Ubuntu, Docker itself, other programs).
+const STORAGE_GROUPS = [
+  { key: 'docker', name: 'Docker images & build cache', kinds: ['images & build cache'] },
+  { key: 'database', name: 'Databases', kinds: ['database'] },
+  { key: 'files', name: 'Uploads & files', kinds: ['uploads', 'files', 'certificates'] },
+  { key: 'backups', name: 'Backups', kinds: ['backups'] },
+  { key: 'logs', name: 'Logs', kinds: ['logs'] },
+  { key: 'system', name: 'System, app code & other', kinds: ['code'] },
+];
+const APP_NAMES = { all: 'All apps', docker: 'Docker' };
+const pct = (part, whole) => {
+  const p = (100 * part) / whole;
+  return part > 0 && p < 0.01 ? '<0.01%' : `${p.toFixed(p < 1 ? 2 : 1)}%`;
+};
+
+function StorageCard({ storage, disk, colors }) {
+  if (!storage) {
+    return <div className="card card-pad"><h2>Storage</h2><p className="muted">Not measured yet (once an hour).</p></div>;
+  }
+  const used = disk.total - disk.free;
+  const groups = STORAGE_GROUPS.map((g, i) => {
+    const items = g.kinds ? storage.storage.filter((x) => g.kinds.includes(x.kind) && x.bytes > 0) : [];
+    return { ...g, color: colors.apps[i], items, bytes: items.reduce((a, x) => a + x.bytes, 0) };
+  });
+  // Whatever isn't measured above is the system itself (Ubuntu, programs) — added to the last group.
+  const system = groups.find((g) => g.key === 'system');
+  const rest = Math.max(0, used - groups.reduce((a, g) => a + g.bytes, 0));
+  system.bytes += rest;
+  if (rest > 0) system.items = [...system.items, { app: 'all', kind: 'system', name: 'system & programs', bytes: rest }];
+  const segments = [...groups, { key: 'free', name: 'Free', color: colors.grid, bytes: disk.free }];
+  const label = (x) => x.app === 'all'
+    ? x.name.replace('/var/log/active-apps', 'archived app logs')
+    : `${APP_NAMES[x.app] ?? APPS.find((a) => a.key === x.app)?.name ?? x.app} · ${x.kind}`;
+
+  return (
+    <div className="card card-pad">
+      <div className="card-head">
+        <div><h2>Storage</h2><p>Share of the whole disk ({bytes(disk.total)}) · measured hourly, last at {new Date(storage.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p></div>
+        <div className="kpi-value" style={{ fontSize: 20 }}>{pct(used, disk.total)} used</div>
+      </div>
+
+      <div className="storage-bar" role="img" aria-label={segments.map((g) => `${g.name} ${pct(g.bytes, disk.total)}`).join(', ')}>
+        {segments.filter((g) => g.bytes > 0).map((g) => (
+          <span key={g.key} title={`${g.name}: ${bytes(g.bytes)} (${pct(g.bytes, disk.total)})`}
+            style={{ flexGrow: g.bytes, background: g.color, minWidth: g.bytes / disk.total > 0.0005 ? 3 : 0 }} />
+        ))}
+      </div>
+
+      <div className="table-wrap">
+      <table className="compact-table storage-table">
+        <thead><tr><th>What</th><th className="num">Size</th><th className="num">Of the disk</th><th className="num">Of used</th></tr></thead>
+        <tbody>
+          {segments.map((g) => (
+            <StorageGroupRows key={g.key} group={g} total={disk.total} used={used} label={label} />
+          ))}
+        </tbody>
+      </table>
+      </div>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+        Docker images and build cache are cleaned on Sundays. Backups: kept 30 days here and copied, encrypted, to Backblaze every night.
+      </p>
+    </div>
+  );
+}
+
+function StorageGroupRows({ group, total, used, label }) {
+  return (
+    <>
+      <tr className="storage-group">
+        <td><span className="row-title"><i className="kpi-key" style={{ background: group.color, height: 10, width: 10 }} />{group.name}</span></td>
+        <td className="num">{bytes(group.bytes)}</td>
+        <td className="num">{pct(group.bytes, total)}</td>
+        <td className="num">{group.key === 'free' ? '—' : pct(group.bytes, used)}</td>
+      </tr>
+      {group.items?.length > 1 && group.items.sort((a, b) => b.bytes - a.bytes).map((x) => (
+        <tr key={x.name} className="storage-item">
+          <td className="muted">{label(x)}</td>
+          <td className="num muted">{bytes(x.bytes)}</td>
+          <td className="num muted">{pct(x.bytes, total)}</td>
+          <td className="num muted">{pct(x.bytes, used)}</td>
+        </tr>
+      ))}
+    </>
   );
 }
