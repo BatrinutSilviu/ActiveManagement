@@ -12,9 +12,17 @@ exec 9>/tmp/deploy-activemanagement.lock
 flock 9
 
 echo "==> Backing up the database"
+# A consistent copy (VACUUM INTO works while the app runs), checked before it's trusted. Errors are shown,
+# not hidden: a deploy without a good backup stops here.
+BACKUP_JS='const { DatabaseSync } = require("node:sqlite");
+const [src, out] = process.argv.slice(1);
+new DatabaseSync(src).prepare("VACUUM INTO ?").run(out);
+const check = new DatabaseSync(out).prepare("PRAGMA quick_check").get();
+if (Object.values(check)[0] !== "ok") { console.error("The backup failed its integrity check:", check); process.exit(1); }'
 if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
   NAME="pre-deploy-$(date +%Y%m%d-%H%M%S).db"
-  docker exec "$CONTAINER" sh -c "mkdir -p /data/backups && node -e \"new (require('node:sqlite').DatabaseSync)('/data/active.db').exec(\\\"VACUUM INTO '/data/backups/$NAME'\\\")\"" 2>/dev/null
+  docker exec "$CONTAINER" mkdir -p /data/backups
+  docker exec "$CONTAINER" node --disable-warning=ExperimentalWarning -e "$BACKUP_JS" /data/active.db "/data/backups/$NAME"
   docker exec "$CONTAINER" sh -c 'ls -1t /data/backups/pre-deploy-*.db | tail -n +11 | xargs -r rm -f'   # keep the last 10
   echo "    /data/backups/$NAME"
 fi

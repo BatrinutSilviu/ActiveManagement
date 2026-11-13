@@ -9,6 +9,12 @@ services:
     image: active-management:latest
     container_name: active-management
     restart: unless-stopped
+    # At most 5 × 20 MB of logs in Docker; the server archives them daily and deletes them after 30 days.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     volumes:
       - active-data:/data
     environment:

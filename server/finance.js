@@ -1,6 +1,7 @@
 // All money maths for events, the profit split and the funds lives here, so every
 // page (event, month, sport, dashboard) reports the same numbers.
 import { db, eventTaskShares, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitResolver, toBani, toRon, manualTaskPoints, TASKS } from './db.js';
+import { errorFields, log } from './log.js';
 
 export const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -180,7 +181,7 @@ export function closeDueMonths() {
   const due = db.prepare(`SELECT DISTINCT strftime('%Y-%m', date) AS m FROM events WHERE status = 'completed'
     AND strftime('%Y-%m', date) < ? AND strftime('%Y-%m', date) NOT IN (SELECT month FROM month_points) ORDER BY m`).all(current);
   for (const { m } of due) {
-    try { closeMonth(m); console.log(`Real points calculated for ${m}`); } catch (e) { console.error(`Real points for ${m} failed:`, e.message); }
+    try { closeMonth(m); log('info', `Real points calculated for ${m}`); } catch (e) { log('error', `Real points for ${m} failed`, errorFields(e)); }
   }
   return due.map((d) => d.m);
 }
@@ -594,15 +595,21 @@ export function computeCash(funds = computeFunds()) {
 // `amounts` ({ personId: RON }) records what was really sent, e.g. a round 700 each; without it,
 // whatever each person is owed. `date` is when it was paid (today by default).
 // `toFund`: what everyone is still owed goes to the general community fund instead of being sent.
-export function applyPayouts(ym, userId, { amounts, date, toFund = false } = {}) {
+// `requestId`: the form's own random id. If rows with it exist, this is the same submission again (a double
+// click, a retry after a lost response): nothing more is recorded and the first result is returned.
+export function applyPayouts(ym, userId, { amounts, date, toFund = false, requestId = null } = {}) {
+  if (requestId) {
+    const done = db.prepare('SELECT COUNT(*) AS n FROM payouts WHERE request_id = ?').get(requestId).n;
+    if (done) return done;
+  }
   const r = computeFounders(ym);
   const lines = toFund ? r.people.filter((p) => p.owed >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed })) : amounts
     ? Object.entries(amounts).map(([id, v]) => ({ id: Number(id), amount: Number(v) || 0 })).filter((l) => Math.abs(l.amount) >= 0.01)
       .map((l) => ({ ...l, name: r.people.find((p) => p.id === l.id)?.name || db.prepare('SELECT name FROM people WHERE id = ?').get(l.id)?.name }))
     : r.people.filter((p) => Math.abs(p.owed) >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }));
   if (lines.some((l) => !l.name)) throw Object.assign(new Error('Unknown person'), { status: 400 });
-  const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by, to_fund)
-    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?)`);
-  for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null, toFund ? 1 : 0);
+  const ins = db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by, to_fund, request_id)
+    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)`);
+  for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null, toFund ? 1 : 0, requestId);
   return lines.length;
 }

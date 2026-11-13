@@ -2,13 +2,49 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { log } from './log.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DB_PATH = process.env.DB_PATH || resolve(root, 'data/active.db');
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+// busy_timeout: another connection writing (a script run with docker exec, a backup) makes us wait up to 5 s
+// for the lock instead of failing at once. synchronous = FULL: a committed change survives a power cut too
+// (with WAL, NORMAL could lose the last transactions) — worth it for money, the app writes little.
+db.exec('PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON;');
+
+// A damaged database file is reported loudly at start (and by /api/health) before anything is written to it.
+const checked = db.prepare('PRAGMA quick_check').all().map((r) => Object.values(r)[0]);
+export const integrity = { ok: checked.length === 1 && checked[0] === 'ok', problems: checked[0] === 'ok' ? [] : checked.slice(0, 20) };
+if (!integrity.ok) log('error', 'DATABASE INTEGRITY CHECK FAILED — restore a backup', { db: DB_PATH, problems: integrity.problems });
+
+// Every write made by tx() runs in one transaction, committed or rolled back as a whole. Nested calls become
+// savepoints, so a helper that uses tx() can run inside another tx() (or inside the migrations below).
+// BEGIN IMMEDIATE takes the write lock up front: a transaction that only read first could otherwise fail
+// half-way with SQLITE_BUSY when another connection (a script, a backup) has written in the meantime.
+let txDepth = 0;
+export function tx(fn) {
+  const sp = txDepth ? `tx${txDepth}` : null;
+  db.exec(sp ? `SAVEPOINT ${sp}` : 'BEGIN IMMEDIATE');
+  txDepth++;
+  try {
+    const r = fn();
+    db.exec(sp ? `RELEASE ${sp}` : 'COMMIT');
+    return r;
+  } catch (e) {
+    try { db.exec(sp ? `ROLLBACK TO ${sp}; RELEASE ${sp}` : 'ROLLBACK'); } catch { /* SQLite already rolled it back */ }
+    throw e;
+  } finally {
+    txDepth--;
+  }
+}
+
+// The schema and the migrations below run as one transaction: a crash or an error part-way through leaves
+// the database exactly as it was (rather than e.g. one of two new columns added, which the "column missing?"
+// checks would then never finish). Committed once the last migration has run, further down.
+db.exec('BEGIN IMMEDIATE');
+txDepth = 1;
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -699,6 +735,33 @@ db.exec(`CREATE TABLE IF NOT EXISTS payouts (
 db.exec('CREATE INDEX IF NOT EXISTS payouts_month ON payouts (month)');
 // to_fund = 1: not sent to the person — what they were still owed went to the general community fund instead.
 if (!columns('payouts').includes('to_fund')) db.exec('ALTER TABLE payouts ADD COLUMN to_fund INTEGER NOT NULL DEFAULT 0');
+// The form that recorded the rows (a random id it sends): submitting it twice (double click, a retry) must
+// not record the payment twice — see applyPayouts.
+if (!columns('payouts').includes('request_id')) {
+  db.exec(`ALTER TABLE payouts ADD COLUMN request_id TEXT;
+    CREATE INDEX IF NOT EXISTS payouts_request ON payouts (request_id) WHERE request_id IS NOT NULL;`);
+}
+
+// Edit forms send a whole event / transaction back. `version` goes up on every change to what those forms
+// edit (by anyone: another admin, a push from the padel or hikes app, a script), so a form opened before that
+// change is refused (409) instead of silently writing the old values back over it. Triggers, so no writer can forget.
+if (!columns('events').includes('version')) db.exec('ALTER TABLE events ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
+if (!columns('transactions').includes('version')) db.exec('ALTER TABLE transactions ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
+db.exec(`
+CREATE TRIGGER IF NOT EXISTS events_version AFTER UPDATE OF name, type_id, activity_id, date, end_date, start_time, end_time, location,
+  status, participants, participation_fee, venue_fee, budget, notes, venue_mode, venue_total, price_parts, community_fee, training ON events
+BEGIN UPDATE events SET version = version + 1 WHERE id = NEW.id; END;
+CREATE TRIGGER IF NOT EXISTS transactions_version AFTER UPDATE OF event_id, kind, category_id, amount, date, description,
+  payment_method, fund_sport_id, fund_part_id ON transactions
+BEGIN UPDATE transactions SET version = version + 1 WHERE id = NEW.id; END;
+`);
+
+db.exec('COMMIT'); // end of the schema & migrations transaction (see the top)
+txDepth = 0;
+
+// Rows pointing at something that no longer exists. Shouldn't happen with foreign keys on, so say it loudly.
+const orphans = db.prepare('PRAGMA foreign_key_check').all();
+if (orphans.length) log('error', 'Foreign key check found rows pointing at missing rows', { count: orphans.length, rows: orphans.slice(0, 20) });
 
 /* ----------------------------------------------------- starting balance */
 
@@ -747,17 +810,11 @@ export function setMonthSplit(ym, split) {
 }
 
 // Money is stored as integer bani; the API speaks RON with 2 decimals.
-export const toBani = (v) => Math.round(Number(v || 0) * 100);
+// Anything that isn't a finite amount (text, "1e400"…) is refused here, so no NaN / Infinity / non-integer
+// reaches a money column (SQLite would store NULL or a REAL there).
+export const toBani = (v) => {
+  const b = Math.round(Number(v || 0) * 100);
+  if (!Number.isSafeInteger(b)) throw Object.assign(new Error(`Invalid amount: ${String(v).slice(0, 30)}`), { status: 400 });
+  return b;
+};
 export const toRon = (v) => Math.round(Number(v || 0)) / 100;
-
-export function tx(fn) {
-  db.exec('BEGIN');
-  try {
-    const r = fn();
-    db.exec('COMMIT');
-    return r;
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-}

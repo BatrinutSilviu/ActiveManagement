@@ -1,10 +1,11 @@
 import express from 'express';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from './sync.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ensureStockCategories, purchaseFund, movePurchaseFunds, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RATE_KEYS, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { db, integrity, ensureStockCategories, purchaseFund, movePurchaseFunds, manualTaskPoints, HIGHLIGHT_KINDS, POINTS_RATE_KEYS, eventTaskShares, getPointsRates, getStartingBalance, setStartingBalance, getSplit, getTaskShares, IS_MEMBER_SQL, setPointsRates, setTaskShares, TASKS, memberReduction, setMonthSplit, setSplit, splitResolver, toBani, toRon, tx } from './db.js';
+import { errorFields, log } from './log.js';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup, startBackupSchedule } from './backup.js';
 import { checkRole, createSession, currentUser, destroySession, hashPassword, requireAuth, ROLES, verifyPassword } from './auth.js';
 import {
@@ -14,6 +15,21 @@ import {
 const app = express();
 // Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
 app.set('trust proxy', ['loopback', 'uniquelocal']);
+
+// Every request gets an id (sent back as X-Request-Id, and in error responses) and one log line when it's done.
+// The health check every 30 s is only logged when it fails.
+app.use((req, res, next) => {
+  req.id = randomUUID().slice(0, 8);
+  res.setHeader('X-Request-Id', req.id);
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const path = req.originalUrl.split('?')[0];
+    if (path === '/api/health' && res.statusCode < 400) return;
+    log(res.statusCode >= 500 ? 'error' : 'info', 'request', { id: req.id, method: req.method, path, status: res.statusCode,
+      ms: Number((process.hrtime.bigint() - start) / 1000n) / 1000, user: req.user?.id });
+  });
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 
 const api = express.Router();
@@ -24,6 +40,13 @@ const need = (cond, msg) => { if (!cond) throw httpError(400, msg); };
 const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const idParam = (req) => Number(req.params.id);
 const today = () => new Date().toISOString().slice(0, 10);
+
+// For Docker's health check: the process answers and the database can be read (and passed its check at start).
+api.get('/health', (req, res) => {
+  db.prepare('SELECT 1').get();
+  if (!integrity.ok) return res.status(503).json({ ok: false, error: 'Database integrity check failed', problems: integrity.problems });
+  res.json({ ok: true });
+});
 
 /* ---------------------------------------------------------------- auth */
 
@@ -111,6 +134,8 @@ function upsertSyncedEvent(source, externalId, record) {
   if (!record) {
     if (!ev) return { action: 'ignored', reason: 'not here' };
     if (ev.status === 'completed') return { action: 'ignored', reason: 'finalized', id: ev.id };
+    // Pushes are retried: a delete that arrives again changes nothing (and doesn't add the note twice).
+    if (ev.status === 'cancelled') return { action: 'unchanged', id: ev.id };
     db.prepare(`UPDATE events SET status = 'cancelled', notes = TRIM(COALESCE(notes, '') || ?), synced_at = datetime('now') WHERE id = ?`)
       .run(`\n\nDeleted in the ${label} on ${today()}.`, ev.id);
     return { action: 'cancelled', id: ev.id };
@@ -508,22 +533,26 @@ api.post('/events/:id/discounts', (req, res) => {
   }
   const given = db.prepare('SELECT COUNT(*) n FROM event_discounts WHERE event_id = ?').get(ev.id).n;
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
-  try {
-    db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(ev.id, Number(person_id), !member && !free && discount_id ? Number(discount_id) : null, kind, value,
-        discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null);
-  } catch (e) {
-    if (e.status) throw e;
-    throw httpError(400, 'This person already pays a reduced price at this event');
-  }
-  syncTrainingVouchers(ev.id); // a voucher used here is a % of what's left to pay
+  tx(() => {
+    try {
+      db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(ev.id, Number(person_id), !member && !free && discount_id ? Number(discount_id) : null, kind, value,
+          discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null);
+    } catch (e) {
+      if (e.status) throw e;
+      throw httpError(400, 'This person already pays a reduced price at this event');
+    }
+    syncTrainingVouchers(ev.id); // a voucher used here is a % of what's left to pay
+  });
   res.json({ ok: true });
 });
 
 api.delete('/event-discounts/:id', (req, res) => {
-  const d = db.prepare('SELECT event_id FROM event_discounts WHERE id = ?').get(idParam(req));
-  db.prepare('DELETE FROM event_discounts WHERE id = ?').run(idParam(req));
-  if (d) syncTrainingVouchers(d.event_id);
+  tx(() => {
+    const d = db.prepare('SELECT event_id FROM event_discounts WHERE id = ?').get(idParam(req));
+    db.prepare('DELETE FROM event_discounts WHERE id = ?').run(idParam(req));
+    if (d) syncTrainingVouchers(d.event_id);
+  });
   res.json({ ok: true });
 });
 
@@ -876,8 +905,20 @@ api.post('/events', (req, res) => {
   res.json({ id });
 });
 
+// The form was opened before someone else changed this record: refuse, rather than write its old values back
+// over their change. Only when the form says which version it had (see events.version in db.js).
+function checkVersion(table, id, body, what) {
+  if (body.version == null || body.version === '') return;
+  const row = db.prepare(`SELECT version FROM ${table} WHERE id = ?`).get(id);
+  if (!row) throw httpError(404, `This ${what} no longer exists`);
+  if (row.version !== Number(body.version))
+    throw httpError(409, `Someone else changed this ${what} after you opened it, so it wasn't saved. Close this form and open it again `
+      + 'to see the current values, then make your change again.');
+}
+
 api.put('/events/:id', (req, res) => {
   tx(() => {
+    checkVersion('events', idParam(req), req.body, 'event');
     db.prepare(`
       UPDATE events SET name = ?, type_id = ?, activity_id = ?, date = ?, end_date = ?, location = ?, status = ?, participants = ?,
         participation_fee = ?, venue_fee = ?, budget = ?, notes = ? WHERE id = ?`).run(...readEvent(req.body), idParam(req));
@@ -988,7 +1029,7 @@ api.delete('/events/:id/tasks/:task/skip', (req, res) => {
 });
 
 api.post('/events/:id/tasks', (req, res) => {
-  addTask(idParam(req), req.body.task, req.body.person_id, !!req.body.free);
+  tx(() => addTask(idParam(req), req.body.task, req.body.person_id, !!req.body.free));
   res.json({ ok: true });
 });
 
@@ -1008,18 +1049,20 @@ api.delete('/event-tasks/:id', (req, res) => {
 // Add someone to an event's attendee list, by id or by name (a new name creates the person).
 api.post('/events/:id/attendees', (req, res) => {
   need(db.prepare('SELECT 1 FROM events WHERE id = ?').get(idParam(req)), 'Event not found');
-  let personId = Number(req.body.person_id) || null;
-  if (!personId) {
-    const name = req.body.name?.trim();
-    need(name, 'Enter a name');
-    personId = db.prepare('SELECT id FROM people WHERE name = ?').get(name)?.id
-      ?? Number(db.prepare('INSERT INTO people (name) VALUES (?)').run(name).lastInsertRowid);
-  }
-  try {
-    db.prepare('INSERT INTO event_attendees (event_id, person_id, paid) VALUES (?, ?, ?)').run(idParam(req), personId, req.body.paid ? 1 : 0);
-  } catch {
-    throw httpError(400, 'This person is already on the list');
-  }
+  tx(() => {
+    let personId = Number(req.body.person_id) || null;
+    if (!personId) {
+      const name = req.body.name?.trim();
+      need(name, 'Enter a name');
+      personId = db.prepare('SELECT id FROM people WHERE name = ?').get(name)?.id
+        ?? Number(db.prepare('INSERT INTO people (name) VALUES (?)').run(name).lastInsertRowid);
+    }
+    try {
+      db.prepare('INSERT INTO event_attendees (event_id, person_id, paid) VALUES (?, ?, ?)').run(idParam(req), personId, req.body.paid ? 1 : 0);
+    } catch {
+      throw httpError(400, 'This person is already on the list');
+    }
+  });
   res.json({ ok: true });
 });
 
@@ -1158,9 +1201,12 @@ api.post('/transactions', (req, res) => {
 });
 
 api.put('/transactions/:id', (req, res) => {
-  db.prepare(`
-    UPDATE transactions SET event_id = ?, kind = ?, category_id = ?, amount = ?, date = ?, description = ?,
-      payment_method = ?, fund_sport_id = ?, fund_part_id = ? WHERE id = ?`).run(...readTx(req.body), idParam(req));
+  tx(() => {
+    checkVersion('transactions', idParam(req), req.body, 'transaction');
+    db.prepare(`
+      UPDATE transactions SET event_id = ?, kind = ?, category_id = ?, amount = ?, date = ?, description = ?,
+        payment_method = ?, fund_sport_id = ?, fund_part_id = ? WHERE id = ?`).run(...readTx(req.body), idParam(req));
+  });
   res.json({ ok: true });
 });
 
@@ -1178,15 +1224,19 @@ api.post('/fund-parts', (req, res) => {
 });
 api.delete('/fund-parts/:id', (req, res) => {
   // Its money stays in the sport's fund; it's just no longer counted apart.
-  db.prepare('UPDATE transactions SET fund_part_id = NULL WHERE fund_part_id = ?').run(idParam(req));
-  db.prepare('DELETE FROM fund_parts WHERE id = ?').run(idParam(req));
+  tx(() => {
+    db.prepare('UPDATE transactions SET fund_part_id = NULL WHERE fund_part_id = ?').run(idParam(req));
+    db.prepare('DELETE FROM fund_parts WHERE id = ?').run(idParam(req));
+  });
   res.json({ ok: true });
 });
 
 api.delete('/transactions/:id', (req, res) => {
   // A voucher whose cost this was becomes unused again.
-  db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE transaction_id = ?').run(idParam(req));
-  db.prepare('DELETE FROM transactions WHERE id = ?').run(idParam(req));
+  tx(() => {
+    db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE transaction_id = ?').run(idParam(req));
+    db.prepare('DELETE FROM transactions WHERE id = ?').run(idParam(req));
+  });
   res.json({ ok: true });
 });
 
@@ -1309,10 +1359,13 @@ api.get(['/founders', '/payouts'], (req, res) => {
 });
 
 // "Mark as paid": records what each person is owed for the month (only the difference if paid before).
+// request_id: the form's random id, so the same submission arriving twice is recorded once.
 api.post('/payouts/:month/apply', (req, res) => {
   need(isMonth(req.params.month), 'Invalid month');
   need(!req.body.date || isDate(req.body.date), 'Invalid date');
-  const n = tx(() => applyPayouts(req.params.month, req.user.id, { amounts: req.body.amounts, date: req.body.date }));
+  const requestId = req.body.request_id == null ? null : String(req.body.request_id);
+  need(!requestId || /^[\w-]{8,64}$/.test(requestId), 'Invalid request id');
+  const n = tx(() => applyPayouts(req.params.month, req.user.id, { amounts: req.body.amounts, date: req.body.date, requestId }));
   need(n > 0, 'Enter at least one amount paid');
   res.json({ ok: true, people: n });
 });
@@ -1829,19 +1882,45 @@ api.get('/export/transactions.csv', (req, res) => {
 
 api.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-app.use((err, req, res, next) => {
-  if (!err.status) console.error(err);
-  res.status(err.status || 500).json({ error: err.status ? err.message : 'Something went wrong' });
-});
-
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../client/dist');
 if (existsSync(dist)) {
   app.use(express.static(dist));
   app.get('/{*splat}', (req, res) => res.sendFile(resolve(dist, 'index.html')));
 }
 
+// Last, so it also catches errors from the static files. Expected errors (4xx with a message for the user) are
+// returned as they are; anything else is logged with its stack and the request it came from.
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) log('error', 'request failed', { id: req.id, method: req.method, path: req.originalUrl.split('?')[0], ...errorFields(err) });
+  if (res.headersSent) return next(err);
+  res.status(status).json({ error: status < 500 ? err.message : 'Something went wrong', requestId: req.id });
+});
+
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse proxy
-app.listen(port, host, () => console.log(`Active Management on http://${host}:${port}`));
+const server = app.listen(port, host, () => log('info', `Active Management on http://${host}:${port}`, { db: process.env.DB_PATH || 'data/active.db' }));
 startBackupSchedule();
 startPointsSchedule();
+
+// Docker sends SIGTERM on every redeploy: stop taking requests, let the ones under way finish, then close the
+// database (which checkpoints the WAL into the main file) before exiting — instead of being killed after 10 s.
+let stopping = false;
+function shutdown(signal, code = 0) {
+  if (stopping) return;
+  stopping = true;
+  log('info', 'Shutting down', { signal });
+  const done = () => {
+    try { db.close(); } catch (e) { log('error', 'Closing the database failed', errorFields(e)); }
+    process.exit(code);
+  };
+  server.close(done);
+  server.closeIdleConnections();
+  setTimeout(() => { server.closeAllConnections(); done(); }, 5000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+// Never die without a word. A thrown error nobody caught leaves the process in an unknown state: log it and
+// exit (Docker restarts the app); the database is fine, since every write is in a transaction.
+process.on('uncaughtException', (e) => { log('error', 'Uncaught exception', errorFields(e)); shutdown('uncaughtException', 1); });
+process.on('unhandledRejection', (e) => log('error', 'Unhandled promise rejection', errorFields(e)));

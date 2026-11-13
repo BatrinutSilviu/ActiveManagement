@@ -6,6 +6,7 @@
 import { mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { db, DB_PATH } from './db.js';
+import { errorFields, log } from './log.js';
 
 export const BACKUP_DIR = process.env.BACKUP_DIR || resolve(dirname(DB_PATH), 'backups');
 export const EVERY_DAYS = Number(process.env.BACKUP_EVERY_DAYS) || 2;
@@ -49,10 +50,10 @@ export function backupIfDue(now = Date.now()) {
     const lastAuto = listBackups().find((b) => b.kind === 'auto');
     if (lastAuto && now - Date.parse(lastAuto.at) < EVERY_DAYS * DAY) return null;
     const name = makeBackup('auto');
-    console.log(`Backup written: ${name}`);
+    log('info', 'Backup written', { name });
     return name;
   } catch (e) {
-    console.error('Automatic backup failed:', e.message);
+    log('error', 'Automatic backup failed', errorFields(e));
     return null;
   }
 }
