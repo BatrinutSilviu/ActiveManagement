@@ -35,6 +35,7 @@ import { router as partners } from './routes/partners.js';
 import { router as backups } from './routes/backups.js';
 import { router as exportRoutes } from './routes/export.js';
 import { router as serverStatus } from './routes/server.js';
+import { router as publicCalendar } from './routes/publicCalendar.js';
 
 const app = express();
 // Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
@@ -46,8 +47,9 @@ app.use(express.json({ limit: '10mb' }));
 const api = express.Router();
 app.use('/api', api);
 
-// Open to anyone: the health check, signing in, and the other apps' pushes (which bring their own token).
-api.use(health, auth, integrations);
+// Open to anyone: the health check, signing in, the other apps' pushes (which bring their own token) and the
+// public calendar the presentation site reads.
+api.use(health, auth, integrations, publicCalendar);
 
 // Everything else needs a signed-in account, with a role allowed to do it.
 api.use(requireAuth, checkRole);

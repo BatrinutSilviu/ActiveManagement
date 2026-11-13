@@ -1,5 +1,5 @@
 // Events created in the community's other apps are pushed here (POST /api/integrations/events) and
-// become events in this app: padel tournaments from padel.activetimisoara.ro, hikes and via ferratas
+// become events in this app: padel tournaments from padel.activetimisoara.ro, hikes, via ferratas and general events
 // from hikes.activetimisoara.ro. Each app sends its own record as it is; this file turns it into the
 // fields of an event. See upsertSyncedEvent in domain/eventSync.js for how they're applied.
 
@@ -56,6 +56,8 @@ function mapPadel(t) {
     participation_fee: num(t.entryFee),
     venue_fee: null, // not known in the padel app: set on the event here
     status: 'planned',
+    // Shown on the public calendar (routes/publicCalendar.js): padel tournaments have no drafts.
+    listed: t.status !== 'CANCELLED',
     prizes: prizeList(t.prizes),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
@@ -69,12 +71,14 @@ function mapPadel(t) {
 }
 
 /**
- * A hike or via ferrata (hikes app's Hike + confirmedCount + url). Drafts are synced too. Its notes aren't
- * taken (they're for participants); notes typed here are kept.
+ * A hike, via ferrata or general event (hikes app's Hike + confirmedCount + url). Drafts are synced too, but
+ * aren't listed on the public calendar. Its notes aren't taken (they're for participants); notes typed here are kept.
  * Hike price = entry fee, plus accommodation when there is one (the accommodation is the venue's part).
  * Via ferrata: the hikes app keeps its total price in accommodationPrice.
+ * General event: its sport is the kind of event typed in the hikes app (e.g. Running), its price the entry fee.
  */
 function mapHike(h) {
+  if (h.type === 'event') return mapGeneralEvent(h);
   const via = h.type === 'via_ferrata';
   const lodging = !via && h.hasAccommodation ? num(h.accommodationPrice) : 0;
   const price = via ? num(h.accommodationPrice) || num(h.entryFee) : num(h.entryFee) + lodging;
@@ -91,7 +95,27 @@ function mapHike(h) {
     participation_fee: price,
     venue_fee: lodging || null,
     status: h.status === 'cancelled' ? 'cancelled' : 'planned',
+    listed: h.status !== 'draft' && h.status !== 'cancelled',
     // No notes: a hike's details and description are written for its participants, not for this app.
+  };
+}
+
+function mapGeneralEvent(h) {
+  const end = day(h.endDate);
+  return {
+    name: h.title,
+    sport: typeof h.category === 'string' && h.category.trim() ? h.category.trim() : 'Events',
+    activity: null,
+    date: day(h.date),
+    end_date: end && end > day(h.date) ? end : null,
+    start_time: time(h.meetingTime),
+    end_time: time(h.endTime),
+    location: [...new Set([h.destination, h.meetingPoint].filter(Boolean))].join(', ') || null,
+    participants: num(h.confirmedCount),
+    participation_fee: num(h.entryFee),
+    venue_fee: null,
+    status: h.status === 'cancelled' ? 'cancelled' : 'planned',
+    listed: h.status !== 'draft' && h.status !== 'cancelled',
   };
 }
 
