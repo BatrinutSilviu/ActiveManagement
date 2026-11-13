@@ -100,10 +100,31 @@ export function summarize(snaps, bucketMin) {
   const apps = Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, {
     cpuAvg: v.cpuSum / v.n, memAvg: v.memSum / v.n, memPeak: v.memPeak, traffic: v.traffic,
   }]));
+  // Per site: how often its public address answered, how fast, and the errors its app logged.
+  const sites = {};
+  for (const s of snaps) {
+    for (const c of s.sites ?? []) {
+      const st = (sites[c.app] ??= { checks: 0, up: 0, msSum: 0, msN: 0, msMax: 0, errors: 0, lastDown: null });
+      st.checks++;
+      const up = c.status >= 200 && c.status < 400;
+      if (up) st.up++; else st.lastDown = s.at;
+      if (up && c.ms != null) { st.msSum += c.ms; st.msN++; st.msMax = Math.max(st.msMax, c.ms); }
+    }
+    for (const [app, n] of Object.entries(s.errors ?? {})) {
+      (sites[app] ??= { checks: 0, up: 0, msSum: 0, msN: 0, msMax: 0, errors: 0, lastDown: null }).errors += n ?? 0;
+    }
+  }
   const cpus = snaps.map((s) => s.cpu).filter((x) => x != null);
   return {
     points,
     apps,
+    sites: Object.fromEntries(Object.entries(sites).map(([k, v]) => [k, {
+      uptime: v.checks ? v.up / v.checks : null,
+      msAvg: v.msN ? Math.round(v.msSum / v.msN) : null,
+      msMax: v.msN ? v.msMax : null,
+      errors: v.errors,
+      lastDown: v.lastDown,
+    }])),
     host: {
       cpuAvg: cpus.length ? cpus.reduce((a, x) => a + x, 0) / cpus.length : null,
       cpuMax: cpus.length ? Math.max(...cpus) : null,

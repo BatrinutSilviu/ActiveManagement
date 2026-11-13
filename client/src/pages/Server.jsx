@@ -16,6 +16,14 @@ const APPS = [
   { key: 'proxy', name: 'Proxy (Traefik)' },
   { key: 'other', name: 'Other' },
 ];
+// Every public site, in the order the overview shows them.
+const SITES = [
+  { key: 'padel', name: 'Padel', url: 'https://padel.activetimisoara.ro' },
+  { key: 'hikes', name: 'Hikes & events', url: 'https://hikes.activetimisoara.ro' },
+  { key: 'management', name: 'Management', url: 'https://management.activetimisoara.ro' },
+  { key: 'website', name: 'Website', url: 'https://activetimisoara.ro' },
+  { key: 'padelacademy', name: 'Padel Academy', url: 'https://padelacademy.activetimisoara.ro' },
+];
 const RANGES = [['1d', '24 hours'], ['7d', '7 days'], ['30d', '30 days']];
 
 const bytes = (b) => {
@@ -77,7 +85,9 @@ export default function Server() {
     return <div className="card card-pad empty">No snapshots yet: the server's metrics job (active-metrics) hasn't written any, or its folder isn't mounted.</div>;
   }
 
-  const { latest, storage, points, apps, host } = data;
+  const { latest, storage, points, apps, host, sites = {} } = data;
+  const nowSites = Object.fromEntries((latest.sites ?? []).map((x) => [x.app, x]));
+  const rangeLabel = RANGES.find((r) => r[0] === range)[1];
   const color = Object.fromEntries(APPS.map((a, i) => [a.key, c.apps[i]]));
   const present = APPS.filter((a) => apps[a.key] || latest.apps[a.key]);
   const memUsed = latest.mem.total - latest.mem.available;
@@ -112,9 +122,38 @@ export default function Server() {
       </div>
 
       <div className="stack">
+        <div className="card table-wrap">
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+            <div><h2>All apps</h2><p>Each site is checked from the server every 5 minutes, as a visitor would open it. Errors are the ones the app logged.</p></div>
+          </div>
+          <table>
+            <thead><tr><th>Site</th><th>Now</th><th className="num">Response</th><th className="num">Up · {rangeLabel}</th><th className="num">Response avg · slowest</th><th className="num">Errors · {rangeLabel}</th></tr></thead>
+            <tbody>
+              {SITES.map((site) => {
+                const now = nowSites[site.key];
+                const st = sites[site.key];
+                const up = now && now.status >= 200 && now.status < 400;
+                return (
+                  <tr key={site.key}>
+                    <td><a className="row-title" href={site.url} target="_blank" rel="noreferrer">{site.name}</a>
+                      {st?.lastDown && <div className="row-sub">last down {ago(st.lastDown)}</div>}</td>
+                    <td>{!now ? '—' : up
+                      ? <span className="badge status-completed"><span className="dot" />✓ up</span>
+                      : <span className="badge server-bad"><span className="dot" />⚠ down ({now.status || 'no answer'})</span>}</td>
+                    <td className="num">{now?.ms != null ? `${now.ms} ms` : '—'}</td>
+                    <td className="num">{st?.uptime != null ? `${(st.uptime * 100).toFixed(st.uptime === 1 ? 0 : 2)}%` : '—'}</td>
+                    <td className="num">{st?.msAvg != null ? `${st.msAvg} · ${st.msMax} ms` : '—'}</td>
+                    <td className="num">{site.key in (latest.errors ?? {}) ? (st?.errors ?? 0) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
         <div className="grid grid-kpi">
           <div className="card kpi"><div className="kpi-label">CPU now · {latest.cores} cores</div>
-            <div className="kpi-value">{pctText(latest.cpu)}</div><div className="kpi-sub">average {pctText(host.cpuAvg)}, peak {pctText(host.cpuMax)} in {RANGES.find((r) => r[0] === range)[1]}</div></div>
+            <div className="kpi-value">{pctText(latest.cpu)}</div><div className="kpi-sub">average {pctText(host.cpuAvg)}, peak {pctText(host.cpuMax)} in {rangeLabel}</div></div>
           <div className="card kpi"><div className="kpi-label">Memory used</div>
             <div className="kpi-value">{bytes(memUsed)}</div><div className="kpi-sub">of {bytes(latest.mem.total)} · peak {bytes(host.memPeak)}</div></div>
           <div className="card kpi"><div className="kpi-label">Disk used</div>
