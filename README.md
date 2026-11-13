@@ -17,6 +17,19 @@ npm run seed      # optional: demo data + demo admin admin@active.local / active
 npm run dev       # API on :3001, web UI on http://localhost:5173
 ```
 
+`npm run lint` checks the code (ESLint).
+
+Where things are:
+
+- `server/index.js` sets up the app; every API route is in `server/routes/` (one file per area: events, stock,
+  payouts…), all mounted under `/api`. Logic shared by several routes is in `server/domain/`, and all the money
+  maths (event profit, the split, funds, payouts, points) in `server/finance.js`.
+- `server/db.js` is the database: the connection and `tx()` in `server/db/connection.js`, the schema and its
+  migrations in `server/db/schema.js` (new migrations go at its end), stored settings in `server/db/settings.js`.
+- `client/src/pages/` holds one file per page; the bigger pages keep their sections in a folder of the same
+  name (`event/`, `settings/`, `payouts/`, `stock/`). Shared formatting is in `client/src/format.js`, the API
+  call in `api.js` and hooks in `hooks.js`.
+
 Production (one process serves the API and the built UI):
 
 ```bash
