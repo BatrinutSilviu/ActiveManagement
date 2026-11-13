@@ -16,6 +16,7 @@ import Stock from './pages/Stock.jsx';
 import Vouchers from './pages/Vouchers.jsx';
 import Partners from './pages/Partners.jsx';
 import Settings from './pages/Settings.jsx';
+import Server from './pages/Server.jsx';
 import Import from './pages/Import.jsx';
 
 const NAV = [
@@ -29,6 +30,7 @@ const NAV = [
   { to: '/partners', label: 'Partners', icon: IconGift },
   { to: '/transactions', label: 'Transactions', icon: IconWallet },
   { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true },
+  { to: '/server', label: 'Server', icon: IconActivity, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -136,6 +138,7 @@ export default function App() {
           <Route path="/vouchers" element={<Vouchers />} />
           <Route path="/partners" element={<Partners />} />
           {isAdmin && <Route path="/import" element={<Import />} />}
+          {isAdmin && <Route path="/server" element={<Server />} />}
           <Route path="/settings" element={<Settings user={auth.user} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

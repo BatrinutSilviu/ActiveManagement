@@ -65,7 +65,7 @@ export const ROLES = ['admin', 'editor', 'viewer'];
 export function checkRole(req, res, next) {
   const { role } = req.user;
   if (req.method === 'PUT' && req.path === '/users/me/password') return next();
-  const adminOnly = /^\/(users|imports?|backups)(\/|$)/.test(req.path);
+  const adminOnly = /^\/(users|imports?|backups|server)(\/|$)/.test(req.path);
   if (adminOnly && role !== 'admin') return res.status(403).json({ error: 'Only admins can do this' });
   if (!['GET', 'HEAD'].includes(req.method) && role === 'viewer') return res.status(403).json({ error: 'Your account can only view data' });
   next();

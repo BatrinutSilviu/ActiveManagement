@@ -33,6 +33,7 @@
   --sportfund: #eda100;
   --general: #2a78d6;
   --reinvested: #e87ba4;
+  --app-1: #2a78d6; --app-2: #eb6834; --app-3: #1baf7a; --app-4: #eda100; --app-5: #e87ba4; --app-6: #008300;
 
   --good-text: #00731f;
   --bad-text: #c02626;
@@ -83,6 +84,7 @@
     --general: #3987e5;
   --reinvested: #d55181;
     --reinvested: #d55181;
+    --app-1: #3987e5; --app-2: #d95926; --app-3: #199e70; --app-4: #c98500; --app-5: #d55181; --app-6: #008300;
     --good-text: #2fbf5a;
     --bad-text: #f07a7a;
     --income-soft: rgba(25, 158, 112, 0.18);
@@ -120,6 +122,7 @@
   --sportfund: #c98500;
   --general: #3987e5;
   --reinvested: #d55181;
+  --app-1: #3987e5; --app-2: #d95926; --app-3: #199e70; --app-4: #c98500; --app-5: #d55181; --app-6: #008300;
   --good-text: #2fbf5a;
   --bad-text: #f07a7a;
   --income-soft: rgba(25, 158, 112, 0.18);
@@ -389,6 +392,8 @@ tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--axis)
 .status-completed { background: color-mix(in srgb, var(--good) 13%, transparent); color: var(--good-text); }
 .status-completed .dot { background: var(--good); }
 .status-cancelled .dot { background: var(--muted); }
+.server-bad { background: color-mix(in srgb, var(--critical) 13%, transparent); color: var(--bad-text); }
+.server-bad .dot { background: var(--critical); }
 .badge-training { background: color-mix(in srgb, var(--founders) 12%, transparent); color: var(--founders); }
 .kind-income { color: var(--good-text); }
 .kind-expense { color: var(--bad-text); }

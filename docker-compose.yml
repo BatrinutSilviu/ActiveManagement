@@ -17,6 +17,8 @@ services:
         max-file: "5"
     volumes:
       - active-data:/data
+      # The server's usage snapshots (written by the ops job active-metrics), for the Server page.
+      - /var/lib/active-ops/metrics:/metrics:ro
     environment:
       # Shared secret the padel and hikes apps use to push their events here (empty = disabled).
       - INTEGRATION_TOKEN=${INTEGRATION_TOKEN:-}

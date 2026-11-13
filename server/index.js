@@ -34,6 +34,7 @@ import { router as vouchers } from './routes/vouchers.js';
 import { router as partners } from './routes/partners.js';
 import { router as backups } from './routes/backups.js';
 import { router as exportRoutes } from './routes/export.js';
+import { router as serverStatus } from './routes/server.js';
 
 const app = express();
 // Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
@@ -51,7 +52,7 @@ api.use(health, auth, integrations);
 // Everything else needs a signed-in account, with a role allowed to do it.
 api.use(requireAuth, checkRole);
 api.use(users, settings, sports, categories, people, discounts, stock, equipment, events, eventTasks, eventAttendees, eventStock,
-  transactions, activities, funds, payouts, stats, imports, vouchers, partners, backups, exportRoutes);
+  transactions, activities, funds, payouts, stats, imports, vouchers, partners, backups, exportRoutes, serverStatus);
 api.use(apiNotFound);
 
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../client/dist');

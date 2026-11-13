@@ -42,6 +42,7 @@ const read = () => {
   return {
     income: v('--income'), expense: v('--expense'), founders: v('--founders'), sportfund: v('--sportfund'), general: v('--general'), reinvested: v('--reinvested'), pos: v('--profit-pos'), neg: v('--profit-neg'), series: v('--series'),
     grid: v('--grid'), axis: v('--axis'), muted: v('--muted'), surface: v('--surface'), text: v('--text'),
+    apps: [1, 2, 3, 4, 5, 6].map((i) => v(`--app-${i}`)),
   };
 };
 
