@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
 import { idParam, isDate, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 const EQUIPMENT_STATES = ['new', 'good', 'worn', 'broken', 'lost'];
 

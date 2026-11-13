@@ -6,7 +6,7 @@ import { upsertSyncedEvent } from '../domain/eventSync.js';
 import { httpError, need } from '../http.js';
 import { SOURCES } from '../sync.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // The padel and hikes apps push every created / changed / deleted tournament or hike here, with the
 // shared secret INTEGRATION_TOKEN as a Bearer token. Body: { source: 'padel' | 'hikes', id, deleted?, record }.

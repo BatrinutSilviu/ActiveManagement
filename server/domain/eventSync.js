@@ -39,7 +39,8 @@ export function upsertSyncedEvent(source, externalId, record) {
   }
   const m = SOURCES[source].map(record);
   need(isDate(m.date), 'The record has no valid date');
-  const url = record.url || null;
+  // A link to the event in its app: only https addresses are kept (it ends up in links on pages).
+  const url = typeof record.url === 'string' && /^https:\/\/[^\s"'<>]+$/.test(record.url) ? record.url : null;
   if (!ev) {
     if (m.date < SYNC_FROM) return { action: 'ignored', reason: `dated before ${SYNC_FROM}` };
     // Already entered here by hand (same day and sport, same name or tournament number): link it instead

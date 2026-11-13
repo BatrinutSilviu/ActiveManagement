@@ -1,10 +1,10 @@
 // App accounts (admins, editors, viewers) and changing one's own password.
 import express from 'express';
-import { hashPassword, ROLES, verifyPassword } from '../auth.js';
+import { endSessions, hashPassword, ROLES, verifyPassword } from '../auth.js';
 import { db } from '../db.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/users', (req, res) => {
   res.json(db.prepare('SELECT id, name, email, role, created_at FROM users ORDER BY name').all());
@@ -16,7 +16,7 @@ router.post('/users', (req, res) => {
   need(ROLES.includes(role), 'Invalid role');
   try {
     db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-      .run(name.trim(), email.trim(), hashPassword(password), role);
+      .run(name.trim(), email.trim().toLowerCase(), hashPassword(password), role);
   } catch {
     throw httpError(400, 'An account with this email already exists');
   }
@@ -28,6 +28,7 @@ router.put('/users/:id/role', (req, res) => {
   need(ROLES.includes(req.body.role), 'Invalid role');
   need(idParam(req) !== req.user.id, "You can't change your own role");
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(req.body.role, idParam(req));
+  endSessions(idParam(req)); // the new role counts from their next sign-in
   res.json({ ok: true });
 });
 
@@ -37,6 +38,7 @@ router.put('/users/me/password', (req, res) => {
   need(verifyPassword(String(current || ''), u.password_hash), 'Current password is wrong');
   need(password?.length >= 8, 'New password must have at least 8 characters');
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), req.user.id);
+  endSessions(req.user.id, req); // signed out everywhere else
   res.json({ ok: true });
 });
 

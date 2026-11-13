@@ -5,7 +5,7 @@ import { toBani, toRon } from '../domain/money.js';
 import { checkVersion } from '../domain/versions.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 const shapeTx = (t) => ({ ...t, amount: toRon(t.amount) });
 

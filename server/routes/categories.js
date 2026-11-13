@@ -3,7 +3,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/categories', (req, res) => {
   res.json(db.prepare(`

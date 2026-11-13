@@ -4,7 +4,7 @@ import { db, tx } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
 import { httpError, idParam, isDate, need, today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // Partners and the prizes they give at our events: a record only — none of it is money of ours, so it
 // never counts in an event's profit, a fund or a payout. `value` is an estimate, shown for information.

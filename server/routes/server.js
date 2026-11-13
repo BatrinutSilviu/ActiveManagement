@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 const DIR = process.env.METRICS_DIR || '/metrics';
 // How far back each range looks, and how much time one chart point covers.

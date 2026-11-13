@@ -3,7 +3,7 @@ import express from 'express';
 import { db, tx } from '../db.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // Add someone to an event's attendee list, by id or by name (a new name creates the person).
 router.post('/events/:id/attendees', (req, res) => {

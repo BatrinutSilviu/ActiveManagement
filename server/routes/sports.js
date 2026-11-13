@@ -6,7 +6,7 @@ import { computeFunds, computeSport, recalcClosedMonths } from '../finance.js';
 import { openVouchers } from '../domain/vouchers.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/event-types', (req, res) => {
   res.json(db.prepare(`

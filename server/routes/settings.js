@@ -9,7 +9,7 @@ import { TASKS } from '../domain/tasks.js';
 import { recalcClosedMonths } from '../finance.js';
 import { isDate, isMonth, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 /** The profit split's percentages from a form (see getSplit). */
 function readSplit(body) {

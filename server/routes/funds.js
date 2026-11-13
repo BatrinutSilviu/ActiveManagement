@@ -4,7 +4,7 @@ import { getSplit } from '../db.js';
 import { openVouchers } from '../domain/vouchers.js';
 import { computeCash, computeFunds, computeGeneral } from '../finance.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/funds', (req, res) => {
   const funds = computeFunds();

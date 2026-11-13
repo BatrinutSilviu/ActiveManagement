@@ -5,7 +5,7 @@ import { toBani } from '../domain/money.js';
 import { FINALIZED, LIVE } from '../finance.js';
 import { httpError, idParam, isDate, need, today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // Rows arrive already parsed by the browser:
 //   events: [{ key, name, date, type_id }]

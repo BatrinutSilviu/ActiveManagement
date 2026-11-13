@@ -5,7 +5,7 @@ import { toBani, toRon } from '../domain/money.js';
 import { shapeVoucher, syncTrainingVouchers, unuseVoucher, VOUCHER_SQL, voucherCategory, voucherText } from '../domain/vouchers.js';
 import { idParam, isDate, need, today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/vouchers', (req, res) => {
   const where = [], params = [];

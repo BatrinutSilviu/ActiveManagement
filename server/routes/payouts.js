@@ -5,7 +5,7 @@ import { r2, sumBy, toRon } from '../domain/money.js';
 import { applyPayouts, closeMonth, computeCash, computeFounders, reviewMonth } from '../finance.js';
 import { isDate, isMonth, need, today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get(['/founders', '/payouts'], (req, res) => {
   const r = computeFounders(isMonth(req.query.month) ? req.query.month : today().slice(0, 7));

@@ -4,7 +4,7 @@ import { db, tx } from '../db.js';
 import { recalcClosedMonths } from '../finance.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/activities', (req, res) => {
   res.json(db.prepare(`SELECT a.*, et.name AS sport_name,

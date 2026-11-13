@@ -6,7 +6,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 const DAYS_AHEAD = 120;
 const MAX_AGE = 300; // seconds browsers and the site may cache it

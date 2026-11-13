@@ -155,13 +155,12 @@ sudo docker cp /tmp/sheet-2026.mjs active-management:/data/import/ && rm /tmp/sh
 sudo docker exec active-management node --disable-warning=ExperimentalWarning \
   server/scripts/import-sheet.js /data/import/sheet-2026.mjs
 
-# 7. Optional: also copy backups out of the container daily, to /var/backups/active-management (kept 30 days)
-sudo cp deploy/backup-docker.sh /usr/local/bin/active-backup && sudo chmod +x /usr/local/bin/active-backup
-echo '30 3 * * * root /usr/local/bin/active-backup' | sudo tee /etc/cron.d/active-backup
 ```
 
 Backups: the app backs the database up by itself every 2 days into `/data/backups` (on the `active-data`
-volume), keeping the last 30; the deploy script adds one before every update. Admins see them in
+volume), keeping the last 30; the deploy script adds one before every update. On top of that, the server's
+ops jobs (in the padel backend repo's `ops/`) back it up daily with the other apps and copy it, encrypted,
+to Backblaze. Admins see them in
 Settings → Backups, can back up now and download any of them — keep a copy off the server now and then.
 Change the schedule with the `BACKUP_EVERY_DAYS` / `BACKUP_KEEP` environment variables.
 
@@ -179,50 +178,3 @@ One-time setup:
    `command="/root/deploy-activemanagement.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA… github-actions-deploy-activemanagement`
 3. In GitHub → repo → Settings → Secrets and variables → Actions, add `VPS_HOST`, `VPS_USER` (root) and
    `VPS_SSH_KEY` (the private key file's full contents).
-
-## Deploying without Docker (Ubuntu/Debian VPS + Nginx)
-
-Files in `deploy/`: systemd unit, Nginx site, daily backup script, update script. Replace
-`admin.example.com` with your domain and point its DNS A record at the server first.
-
-```bash
-# 1. Node 22 (needs ≥ 22.13 for the built-in SQLite), Nginx, Certbot, git
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs nginx certbot python3-certbot-nginx git
-
-# 2. App user, code and data folder
-sudo useradd --system --create-home --shell /bin/bash active
-sudo mkdir -p /opt/active-management /var/lib/active-management
-sudo chown active:active /opt/active-management /var/lib/active-management
-sudo -u active git clone https://github.com/BatrinutSilviu/ActiveManagement.git /opt/active-management
-cd /opt/active-management && sudo -u active npm ci && sudo -u active npm run build
-
-# 3. Service
-sudo cp deploy/active-management.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now active-management
-systemctl status active-management        # should be "active (running)"
-
-# 4. Nginx + HTTPS
-sudo cp deploy/nginx-active-management.conf /etc/nginx/sites-available/active-management
-sudo nano /etc/nginx/sites-available/active-management      # set server_name
-sudo ln -s /etc/nginx/sites-available/active-management /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d admin.example.com
-
-# 5. Open https://admin.example.com and create the first admin account, then import the data
-scp data/import/sheet-2026.mjs you@server:/tmp/                 # from your computer
-sudo -u active mkdir -p /opt/active-management/data/import
-sudo install -o active -m 600 /tmp/sheet-2026.mjs /opt/active-management/data/import/ && rm /tmp/sheet-2026.mjs
-cd /opt/active-management && sudo -u active DB_PATH=/var/lib/active-management/active.db npm run import:sheet -- data/import/sheet-2026.mjs
-# Later, after the sheet changes: update the data file the same way, then preview and apply
-sudo -u active DB_PATH=/var/lib/active-management/active.db npm run sync:sheet -- data/import/sheet-2026.mjs           # preview
-sudo -u active DB_PATH=/var/lib/active-management/active.db npm run sync:sheet -- data/import/sheet-2026.mjs --apply
-
-# 6. Daily backups (kept 30 days in /var/lib/active-management/backups)
-sudo cp deploy/backup.sh /usr/local/bin/active-backup && sudo chmod +x /usr/local/bin/active-backup
-echo '30 3 * * * active /usr/local/bin/active-backup' | sudo tee /etc/cron.d/active-backup
-```
-
-Updating later: `sudo -u active /opt/active-management/deploy/update.sh` (give `active` sudo rights for
-`systemctl restart active-management`, or run the restart yourself).
-Logs: `journalctl -u active-management -f`.

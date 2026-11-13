@@ -3,7 +3,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { toRon } from '../domain/money.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/export/transactions.csv', (req, res) => {
   const year = req.query.year ? String(req.query.year) : null;
@@ -20,8 +20,11 @@ router.get('/export/transactions.csv', (req, res) => {
     ${year ? "WHERE strftime('%Y', COALESCE(e.date, t.date)) = ?" : ''}
     ORDER BY t.date`).all(...(year ? [year] : []));
   const cols = ['date', 'kind', 'amount', 'category', 'cost_group', 'event', 'sport', 'event_date', 'fund', 'description', 'payment_method', 'added_by'];
+  // Text that starts like a formula (= + - @, tab, CR) gets a leading ' so a spreadsheet shows it
+  // instead of running it (CSV injection). Amounts are written by us and stay numbers.
+  const text = (v) => (v != null && /^[=+\-@\t\r]/.test(String(v)) ? `'${v}` : v);
   const esc = (v) => (v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-  const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(c === 'amount' ? toRon(r[c]).toFixed(2) : r[c])).join(','))]
+  const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(c === 'amount' ? toRon(r[c]).toFixed(2) : text(r[c]))).join(','))]
     .join('\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="active-transactions${year ? '-' + year : ''}.csv"`);

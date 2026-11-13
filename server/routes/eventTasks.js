@@ -4,7 +4,7 @@ import { db, getPointsRates, tx } from '../db.js';
 import { addTask, HIGHLIGHT_KINDS, manualTaskPoints, TASKS } from '../domain/tasks.js';
 import { idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // Points typed by hand instead of worked out from the activity and profit; null = automatic again.
 function savePoints(id, b) {

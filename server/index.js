@@ -8,7 +8,7 @@ import { errorFields, log } from './log.js';
 import { startBackupSchedule } from './backup.js';
 import { checkRole, requireAuth } from './auth.js';
 import { startPointsSchedule } from './finance.js';
-import { apiNotFound, errorHandler, requestLog } from './middleware.js';
+import { apiNotFound, errorHandler, requestLog, sameOrigin, securityHeaders } from './middleware.js';
 import { router as health } from './routes/health.js';
 import { router as auth } from './routes/auth.js';
 import { router as integrations } from './routes/integrations.js';
@@ -40,11 +40,14 @@ import { router as publicCalendar } from './routes/publicCalendar.js';
 const app = express();
 // Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
 app.set('trust proxy', ['loopback', 'uniquelocal']);
+app.disable('x-powered-by');
 app.use(requestLog);
+app.use(securityHeaders);
+app.use(sameOrigin);
 app.use(express.json({ limit: '10mb' }));
 
 // The route modules use full paths (e.g. '/events/:id'), so the role check below sees the same paths it always did.
-const api = express.Router();
+const api = express.Router({ caseSensitive: true });
 app.use('/api', api);
 
 // Open to anyone: the health check, signing in, the other apps' pushes (which bring their own token) and the

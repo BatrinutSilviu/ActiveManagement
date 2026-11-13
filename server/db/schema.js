@@ -620,6 +620,11 @@ if (!columns('payouts').includes('request_id')) {
 // Edit forms send a whole event / transaction back. `version` goes up on every change to what those forms
 // edit (by anyone: another admin, a push from the padel or hikes app, a script), so a form opened before that
 // change is refused (409) instead of silently writing the old values back over it. Triggers, so no writer can forget.
+// Sessions are stored as token hashes now (auth.js): the old plaintext ones are dropped once
+// (everyone signs in again), and the column marks that this was done.
+if (!columns('sessions').includes('hashed')) {
+  db.exec('DELETE FROM sessions; ALTER TABLE sessions ADD COLUMN hashed INTEGER NOT NULL DEFAULT 1');
+}
 if (!columns('events').includes('version')) db.exec('ALTER TABLE events ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
 if (!columns('transactions').includes('version')) db.exec('ALTER TABLE transactions ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
 db.exec(`

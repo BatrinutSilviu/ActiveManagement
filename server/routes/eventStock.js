@@ -4,7 +4,7 @@ import { db, tx } from '../db.js';
 import { keptValue, returnStock, takeStock } from '../domain/stock.js';
 import { idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // Use products from someone's stock at an event: cost = qty × current price is charged to the event.
 // Kept items stay in stock (we still own them); used-up ones come off the holder's quantity.

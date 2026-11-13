@@ -6,7 +6,7 @@ import { IS_MEMBER_SQL } from '../domain/pricing.js';
 import { purchaseLines, taskLines } from '../finance.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/people', (req, res) => {
   // Points earned on event tasks (not those done for free).

@@ -6,7 +6,7 @@ import { discountAmount, IS_MEMBER_SQL, memberReduction } from '../domain/pricin
 import { syncTrainingVouchers } from '../domain/vouchers.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 const shapeDiscount = (d) => ({ ...d, value: d.kind === 'fixed' ? toRon(d.value) : d.value });
 

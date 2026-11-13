@@ -10,7 +10,7 @@ import { unuseVoucher } from '../domain/vouchers.js';
 import { LIVE, loadEvents, taskLines } from '../finance.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 /** The fields every event form sends, checked, in the order of the INSERT / UPDATE below. */
 function readEvent(body) {

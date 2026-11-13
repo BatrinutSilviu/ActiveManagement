@@ -5,7 +5,7 @@ import { r2, sumBy, toRon } from '../domain/money.js';
 import { computeYear, FINALIZED, LIVE, loadEvents, loadFundTx } from '../finance.js';
 import { today } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 // The whole picture for a period (what the Transactions list alone can't show, since participation
 // fees live on events): finalized events' fees and profit, fund money in/out, payouts sent — and so the

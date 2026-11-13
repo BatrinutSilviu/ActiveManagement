@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { BACKUP_DIR, BACKUP_NAME, backupStatus, makeBackup } from '../backup.js';
 import { need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/backups', (req, res) => res.json(backupStatus()));
 

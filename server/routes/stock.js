@@ -6,7 +6,7 @@ import { ensureStockCategories, movePurchaseFunds, needFounder, purchaseFund, re
 import { purchaseLines } from '../finance.js';
 import { httpError, idParam, need } from '../http.js';
 
-export const router = express.Router();
+export const router = express.Router({ caseSensitive: true });
 
 router.get('/stock', (req, res) => {
   ensureStockCategories();
