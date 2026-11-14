@@ -22,27 +22,29 @@ router.post('/auth/setup', (req, res) => {
 });
 
 // Brute-force protection: after too many wrong passwords from one IP (or for one email),
-// logins are refused for a while. Kept in memory; a restart clears it.
+// logins are refused for a while. Stored in the database (login_failures), so a restart doesn't clear it.
 const LOGIN_WINDOW_MS = 15 * 60 * 1000, MAX_PER_IP = 10, MAX_PER_EMAIL = 5;
-const failures = new Map(); // key -> timestamps of recent failed attempts
-const recent = (key) => (failures.get(key) || []).filter((t) => Date.now() - t < LOGIN_WINDOW_MS);
-// Forget old failures so the map doesn't grow forever.
+const recentCount = (key) => db.prepare('SELECT COUNT(*) AS n FROM login_failures WHERE key = ? AND at > ?')
+  .get(key, Date.now() - LOGIN_WINDOW_MS).n;
+const addFailure = (key) => db.prepare('INSERT INTO login_failures (key, at) VALUES (?, ?)').run(key, Date.now());
+const clearFailures = (key) => db.prepare('DELETE FROM login_failures WHERE key = ?').run(key);
+// Forget old failures so the table doesn't grow forever.
 setInterval(() => {
-  for (const key of failures.keys()) if (!recent(key).length) failures.delete(key);
+  db.prepare('DELETE FROM login_failures WHERE at <= ?').run(Date.now() - LOGIN_WINDOW_MS);
 }, LOGIN_WINDOW_MS).unref();
 
 router.post('/auth/login', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const keys = [[`ip:${req.ip}`, MAX_PER_IP], [`email:${email}`, MAX_PER_EMAIL]];
-  if (keys.some(([k, max]) => recent(k).length >= max))
+  if (keys.some(([k, max]) => recentCount(k) >= max))
     throw httpError(429, 'Too many failed attempts — try again in 15 minutes');
   const u = db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(email);
   // verifyPassword runs for unknown emails too (against a dummy hash), so timing reveals nothing.
   if (!verifyPassword(String(req.body.password || ''), u?.password_hash) || !u) {
-    for (const [k] of keys) failures.set(k, [...recent(k), Date.now()]);
+    for (const [k] of keys) addFailure(k);
     throw httpError(401, 'Wrong email or password');
   }
-  for (const [k] of keys) failures.delete(k);
+  for (const [k] of keys) clearFailures(k);
   createSession(res, u.id);
   res.json({ ok: true });
 });

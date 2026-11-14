@@ -635,4 +635,11 @@ CREATE TRIGGER IF NOT EXISTS transactions_version AFTER UPDATE OF event_id, kind
   payment_method, fund_sport_id, fund_part_id ON transactions
 BEGIN UPDATE transactions SET version = version + 1 WHERE id = NEW.id; END;
 `);
+
+// Failed sign-ins (routes/auth.js): kept in the database so a restart doesn't reset the brute-force limit.
+db.exec(`CREATE TABLE IF NOT EXISTS login_failures (
+  key TEXT NOT NULL,
+  at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS login_failures_key ON login_failures (key, at);`);
 }
