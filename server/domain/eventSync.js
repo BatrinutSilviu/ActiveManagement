@@ -1,4 +1,5 @@
 import { db } from '../db/connection.js';
+import { log } from '../log.js';
 import { isDate, need, today } from '../http.js';
 import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from '../sync.js';
 import { toBani } from './money.js';
@@ -22,6 +23,16 @@ function findHandMade(m) {
   const score = (e) => { const w = nameWords(e.name); const both = [...w].filter((x) => want.has(x)).length; return both / (new Set([...w, ...want]).size || 1); };
   const best = list.map((e) => ({ e, k: score(e) })).sort((a, b) => b.k - a.k);
   return best[0] && best[0].k >= 0.5 && !(best[1] && best[1].k === best[0].k) ? best[0].e : null;
+}
+
+/** The event type (sport) a pushed record names. This app owns the list of event types: the other apps
+ *  pick from it (GET /api/public/event-types) and never add to it, so a name not here goes under "Other". */
+function eventType(name, source) {
+  const found = db.prepare('SELECT * FROM event_types WHERE name = ? COLLATE NOCASE').get(name);
+  if (found) return found;
+  log('warn', 'Synced event has an unknown event type; filed under Other', { source, type: name });
+  return db.prepare("SELECT * FROM event_types WHERE name = 'Other' COLLATE NOCASE").get()
+    ?? db.prepare("INSERT INTO event_types (name) VALUES ('Other') RETURNING *").get();
 }
 
 /** Creates, updates, links or cancels the event for one pushed record (record null = deleted in that app). */
@@ -51,8 +62,7 @@ export function upsertSyncedEvent(source, externalId, record) {
         .run(source, externalId, url, JSON.stringify(m), own.id);
       return { action: 'linked', id: own.id };
     }
-    const sport = db.prepare('SELECT * FROM event_types WHERE name = ? COLLATE NOCASE').get(m.sport)
-      ?? { id: Number(db.prepare('INSERT INTO event_types (name) VALUES (?)').run(m.sport).lastInsertRowid) };
+    const sport = eventType(m.sport, source);
     const activity = (m.activity && db.prepare('SELECT id FROM activities WHERE name = ? COLLATE NOCASE').get(m.activity))
       || db.prepare('SELECT id FROM activities WHERE sport_id = ? ORDER BY sort LIMIT 1').get(sport.id);
     const fee = toBani(m.participation_fee);
@@ -81,6 +91,11 @@ export function upsertSyncedEvent(source, externalId, record) {
   if ('participation_fee' in set || 'venue_fee' in set) {
     const fee = set.participation_fee ?? ev.participation_fee;
     set.venue_fee = Math.min(set.venue_fee ?? ev.venue_fee, fee);
+  }
+  // Its type changed in that app (e.g. a general event moved from Running to Social): move it here too.
+  if (m.sport && before.sport && foldName(m.sport) !== foldName(before.sport)) {
+    const type = eventType(m.sport, source);
+    if (type.id !== ev.type_id) set.type_id = type.id;
   }
   const keys = Object.keys(set);
   db.prepare(`UPDATE events SET ${keys.map((k) => `${k} = ?, `).join('')}external_url = ?, sync_data = ?, synced_at = datetime('now') WHERE id = ?`)

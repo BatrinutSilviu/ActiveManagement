@@ -41,3 +41,15 @@ router.get('/public/calendar', (req, res) => {
     })),
   });
 });
+
+// The community's event types (sports, and kinds of event that aren't one, like Social), managed on the
+// Sports page here. This app is their source of truth: the hikes app offers them when an event is created,
+// and pushed events are filed under them by name (see eventType in domain/eventSync.js).
+router.get('/public/event-types', (req, res) => {
+  const rows = db.prepare('SELECT name, is_sport FROM event_types ORDER BY name').all();
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': `public, max-age=${MAX_AGE}`,
+  });
+  res.json({ eventTypes: rows.map((r) => ({ name: r.name, isSport: !!r.is_sport })) });
+});

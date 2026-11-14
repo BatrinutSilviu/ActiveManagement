@@ -75,7 +75,7 @@ function mapPadel(t) {
  * aren't listed on the public calendar. Its notes aren't taken (they're for participants); notes typed here are kept.
  * Hike price = entry fee, plus accommodation when there is one (the accommodation is the venue's part).
  * Via ferrata: the hikes app keeps its total price in accommodationPrice.
- * General event: its sport is the kind of event typed in the hikes app (e.g. Running), its price the entry fee.
+ * General event: its sport is the event type picked in the hikes app (e.g. Running), its price the entry fee.
  */
 function mapHike(h) {
   if (h.type === 'event') return mapGeneralEvent(h);
@@ -104,7 +104,8 @@ function mapGeneralEvent(h) {
   const end = day(h.endDate);
   return {
     name: h.title,
-    sport: typeof h.category === 'string' && h.category.trim() ? h.category.trim() : 'Events',
+    // One of this app's event types (the hikes app offers them from GET /api/public/event-types).
+    sport: typeof h.category === 'string' && h.category.trim() ? h.category.trim() : 'Other',
     activity: null,
     date: day(h.date),
     end_date: end && end > day(h.date) ? end : null,
