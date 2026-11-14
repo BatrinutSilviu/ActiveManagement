@@ -15,6 +15,9 @@ export const LIVE = 'planned';
 // People let in free "as if they hadn't signed up" don't bring in a fee (nor a per-person venue cost).
 const SKIPPED = "(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'skip')";
 const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
+// The venue's part of one person's price: with a two-part price, the price less the community part;
+// otherwise the venue cost per person (with a fixed venue: what members pay).
+const VENUE_PART = 'MIN(e.participation_fee, CASE WHEN e.price_parts = 1 THEN MAX(e.participation_fee - e.community_fee, 0) ELSE e.venue_fee END)';
 
 const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
@@ -25,7 +28,10 @@ const EVENT_SQL = `
     CASE WHEN e.venue_mode = 'fixed' THEN e.venue_total ELSE ${COUNTED} * e.venue_fee END AS venue_cost,
     (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discounts,
     (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discount_count,
-    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_fees,
+    -- Free, we pay: the general fund pays only their venue part; the community part is let off (we
+    -- don't pay ourselves what they'd have paid us), like a member price.
+    (SELECT COALESCE(SUM(MIN(d.amount, ${VENUE_PART})), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_fees,
+    (SELECT COALESCE(SUM(d.amount - MIN(d.amount, ${VENUE_PART})), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_waived,
     (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_count,
     (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_discounts,
     (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_count,
@@ -77,11 +83,13 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Fee income = people × fee − what members don't pay (they pay only the venue's part).
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
   // without signing up aren't counted at all.
-  // Discounts and fees we pay for someone (free, paid by us) come out of the general community fund,
-  // not the event: its fees count as if those people paid in full, and `fund_paid` is spent from the
-  // general fund once the event is finalized (see computeFunds / computeYear).
+  // Discounts and the venue part of people let in free that we pay for come out of the general
+  // community fund, not the event: its fees count those as paid, and `fund_paid` is spent from the
+  // general fund once the event is finalized (see computeFunds / computeYear). Their community part is
+  // let off (covered_waived): money we don't get, like a member price — we don't pay it to ourselves.
   const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts), memberDiscounts = toRon(e.member_discounts);
-  const feeIncome = r2(feeGross - memberDiscounts), otherIncome = toRon(e.other_income);
+  const coveredWaived = toRon(e.covered_waived);
+  const feeIncome = r2(feeGross - memberDiscounts - coveredWaived), otherIncome = toRon(e.other_income);
   const venueCost = toRon(e.venue_cost), stockCost = toRon(e.stock_cost), coveredFees = toRon(e.covered_fees);
   const fundPaid = r2(discounts + coveredFees);
   const organizing = r2(toRon(e.organizing) + venueCost);
@@ -93,7 +101,7 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
     ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
-    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, fund_paid: fundPaid,
+    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }

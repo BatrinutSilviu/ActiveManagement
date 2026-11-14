@@ -418,8 +418,8 @@ if (!columns('events').includes('venue_mode'))
 // Free entry comes in two kinds (event_discounts.free):
 //  'skip' — the person doesn't pay and costs us nothing: counted as if they hadn't signed up
 //           (no fee income, no venue part for them);
-//  'paid' — we pay their fee from our budget: the fee still counts as income and the same
-//           amount is a cost (benefits offered).
+//  'paid' — we pay their venue part from the general fund (it counts as income and the fund pays it);
+//           their community part is let off, like a member price (see covered_waived in finance.js).
 if (!columns('event_discounts').includes('free')) {
   db.exec("ALTER TABLE event_discounts ADD COLUMN free TEXT CHECK (free IN ('skip', 'paid'))");
   // Free entries given before the two kinds existed become 'paid', which keeps their profit the same.

@@ -6,7 +6,8 @@ import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
 import Select from '../../components/Select.jsx';
 
-// Free entry: 'skip' = doesn't pay and isn't counted (as if not signed up), 'paid' = we pay their fee.
+// Free entry: 'skip' = doesn't pay and isn't counted (as if not signed up), 'paid' = we pay their venue
+// part (the general fund pays it) and their community part is let off.
 const FREE_LABELS = { skip: 'Free — not counted', paid: 'Free — we pay' };
 const isFree = (d) => !!d.free;
 const discountName = (d) => (d.member ? (d.note === 'No community part' ? d.note : 'Member price') : FREE_LABELS[d.free] || d.discount_name || 'One-off');
@@ -32,6 +33,8 @@ export default function Discounts({ e, reload }) {
   // Members pay only the venue's part of the price (with a fixed venue: the member price set on the event).
   const memberPrice = e.venue_fee > 0;
   const memberOff = Math.max(e.participation_fee - e.venue_fee, 0);
+  // Free, we pay: the general fund pays only their venue part (same rule as finance.js VENUE_PART).
+  const venuePart = Math.min(e.participation_fee, e.price_parts ? Math.max(e.participation_fee - e.community_fee, 0) : e.venue_fee);
   const preview = f.discount_id === 'member' || f.discount_id === 'waive' ? memberOff : f.discount_id.startsWith('free-') ? e.participation_fee
     : f.discount_id === 'custom' ? Number(f.amount) || 0 : chosen ? discountWorth(chosen, e.participation_fee) : 0;
 
@@ -68,9 +71,9 @@ export default function Discounts({ e, reload }) {
         <div>
           <h2>Members &amp; discounts</h2>
           <p>{e.discountList.length} of {e.participants} people paid less · price {money(e.participation_fee)}
-            {memberPrice ? ` · members pay ${money(e.venue_fee)}` : ''}. Member prices and community parts let off are money we don’t get; discounts and fees we pay are paid by the general fund, not this event.</p>
+            {memberPrice ? ` · members pay ${money(e.venue_fee)}` : ''}. Member prices and community parts let off are money we don’t get; discounts and the venue part of free people we pay for are paid by the general fund, not this event.</p>
         </div>
-        {e.member_discounts > 0 && <span className="neg" title="Member prices and community parts let off: money we don’t get">−{money(e.member_discounts)}</span>}
+        {e.member_discounts + (e.covered_waived || 0) > 0 && <span className="neg" title="Member prices and community parts let off: money we don’t get">−{money(e.member_discounts + (e.covered_waived || 0))}</span>}
       </div>
       <CardError error={error} />
       {e.discountList.length > 0 && (
@@ -102,7 +105,7 @@ export default function Discounts({ e, reload }) {
         <Select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!person} required>
           <option value="" disabled={!!person}>Discount…</option>
           <option value="free-skip">Free — doesn’t pay, not counted (no cost to us)</option>
-          <option value="free-paid">Free — we pay their fee (counts as a cost)</option>
+          <option value="free-paid">Free — we pay only their venue part{venuePart > 0 ? ` (${money(venuePart)}, a cost)` : ' (nothing: no venue part)'}; the community part is let off</option>
           {memberPrice && person?.is_member && <option value="member">Member price (pays {money(e.venue_fee)})</option>}
           {memberPrice && person && !person.is_member && memberOff > 0 && (
             <option value="waive">No community part — pays only the venue ({money(e.venue_fee)}, −{money(memberOff)})</option>

@@ -21,6 +21,7 @@ export default function Statement({ e, split }) {
           ? `venue ${money(e.counted_participants === e.participants ? e.venue_total : Math.round(e.venue_total * e.counted_participants / e.participants * 100) / 100)} + ${e.counted_participants} × ${money(e.community_fee)} community`
           : `${e.counted_participants} × ${money(e.participation_fee)}`}{e.free_skip_count > 0 ? ` · ${e.free_skip_count} free not counted` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
         {e.member_discounts > 0 && <><dt>Member prices <span className="muted">{e.member_count} paid only the venue’s {money(e.venue_fee)}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
+        {e.covered_waived > 0 && <><dt>Community part let off <span className="muted">{e.covered_count} free, we pay only the venue’s part</span></dt><dd className="neg">−{money(e.covered_waived)}</dd></>}
         {e.other_income > 0 && <><dt>Other income <span className="muted">sponsors, etc.</span></dt><dd>{money(e.other_income)}</dd></>}
         <dt>Organizing costs <span className="muted">{e.venue_cost > 0 ? `venue ${e.venue_mode === 'fixed' ? `${money(e.venue_cost)} fixed` : `${e.counted_participants} × ${money(e.venue_fee)}`}${e.organizing > e.venue_cost ? ' + other costs' : ''}` : 'venues, trainers…'}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
         <dt>Benefits offered <span className="muted">{e.stock_cost > 0 ? `incl. ${money(e.stock_cost)} stock used` : 'water, fruit, balls…'}</span></dt><dd className={e.benefits ? 'neg' : ''}>{e.benefits ? '−' : ''}{money(e.benefits)}</dd>
@@ -30,8 +31,8 @@ export default function Statement({ e, split }) {
         <p className="hint" style={{ margin: '10px 0 0' }}>
           Paid by the general community fund{e.status === 'completed' ? '' : ' when finalized'}, not this event: <b>{money(e.fund_paid)}</b>
           {' '}({[e.discounts > 0 && `${money(e.discounts)} discounts for ${e.discount_count} ${e.discount_count === 1 ? 'person' : 'people'}`,
-            e.covered_fees > 0 && `${money(e.covered_fees)} fees of ${e.covered_count} free ${e.covered_count === 1 ? 'person' : 'people'}`].filter(Boolean).join(' · ')}).
-          The fees above count them as paid in full.
+            e.covered_fees > 0 && `${money(e.covered_fees)} venue part of ${e.covered_count} free ${e.covered_count === 1 ? 'person' : 'people'}`].filter(Boolean).join(' · ')}).
+          The fees above count that as paid.
         </p>
       )}
       <div className="split-bar" style={{ margin: '18px 0 14px' }} role="img" aria-label="Profit split">
