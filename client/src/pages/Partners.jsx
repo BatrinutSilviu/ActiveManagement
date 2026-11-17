@@ -15,7 +15,7 @@ export const NOT_COUNTED = 'Given by the partner — not counted in any profit, 
 /** Record a prize a partner gave (from an event, or on its own) or edit one. */
 export function PrizeForm({ prize, event, onClose, onSaved }) {
   const { data: partners } = useApi('/partners');
-  const { data: people, reload: reloadPeople } = useApi('/people');
+  const { data: people } = useApi('/people');
   const { data: events } = useApi(event ? null : '/events');
   const [f, setF] = useState(() => ({
     partner_id: '', partner_name: '', prize: '', qty: 1, winner_name: '', event_id: event?.id || '',
@@ -92,8 +92,8 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
         </div>
         {f.winnerMode === 'person' ? (
           <div className="field">Winner
-            <PersonPicker people={people} value={f.person_id} onChange={(id) => setF((x) => ({ ...x, person_id: id }))} onCreated={reloadPeople}
-              placeholder="Type a name — or add someone new" />
+            <PersonPicker people={people} value={f.person_id} onChange={(id) => setF((x) => ({ ...x, person_id: id }))}
+              allowCreate={false} placeholder="Type a name from People" />
           </div>
         ) : (
           <label className="field">Winner’s name

@@ -4,6 +4,7 @@ import { db, tx } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
 import { discountAmount, IS_MEMBER_SQL, memberReduction } from '../domain/pricing.js';
 import { syncTrainingVouchers } from '../domain/vouchers.js';
+import { whoIs } from '../domain/people.js';
 import { httpError, idParam, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -56,14 +57,14 @@ router.delete('/discounts/:id', (req, res) => {
 router.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
   if (!ev) throw httpError(404, 'Event not found');
-  const { person_id, discount_id, amount, note, free, waive } = req.body;
+  const { discount_id, amount, note, free, waive } = req.body;
   // waive: anyone can be let off the community part — they pay only the venue's part, like a member.
   const member = req.body.member || waive;
-  need(person_id, 'Choose a person');
+  const who = whoIs(req.body, 'Enter who it is for');
   let kind, value;
   if (member) {
     need(ev.venue_fee > 0, 'Set the venue cost per person on this event first — members pay only that');
-    need(waive || db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(Number(person_id)),
+    need(waive || (who.person_id && db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(who.person_id)),
       'Only founders, premium people and organisers get the member price');
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
@@ -84,8 +85,8 @@ router.post('/events/:id/discounts', (req, res) => {
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
   tx(() => {
     try {
-      db.prepare(`INSERT INTO event_discounts (event_id, person_id, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(ev.id, Number(person_id), !member && !free && discount_id ? Number(discount_id) : null, kind, value,
+      db.prepare(`INSERT INTO event_discounts (event_id, person_id, name, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(ev.id, who.person_id, who.name, !member && !free && discount_id ? Number(discount_id) : null, kind, value,
           discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null);
     } catch (e) {
       if (e.status) throw e;

@@ -1,4 +1,4 @@
-// Settings: people, and the saved discounts each is entitled to.
+// Settings: the team — founders, and the organisers and members we add — and the saved discounts each is entitled to.
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi } from '../../hooks.js';
@@ -28,33 +28,28 @@ function PersonDiscounts({ person, discounts, onClose, onSaved }) {
   );
 }
 
-export function People() {
-  const { data, reload } = useApi('/people');
-  const { data: discounts, reload: reloadDiscounts } = useApi('/discounts');
-  const [editing, setEditing] = useState(null);
-  const [error, run] = useAction(reload);
-  const [f, setF] = useState({ name: '', is_founder: false, is_premium: false });
-  const save = (p, patch) => run(() => api.put(`/people/${p.id}`, { ...p, ...patch }));
+// One list of People: founders, or the organisers and members we add.
+function PeopleList({ title, intro, founders, list, discounts, save, run, setEditing }) {
+  const [f, setF] = useState({ name: '', is_premium: false });
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>People</h2><p>Founders share the founders’ part equally; everyone earns organiser points and can hold stock. Members — founders, premium people and anyone who has organised an event — pay only the venue’s part of an event’s price.</p></div></div>
-      {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
-      <div className="table-wrap" style={{ maxHeight: 420 }}>
+      <div className="card-head"><div><h2>{title}</h2><p>{intro}</p></div></div>
+      {list.length > 0 && <div className="table-wrap" style={{ maxHeight: 420 }}>
         <table>
-          <thead><tr><th style={{ width: '100%' }}>Name</th><th>Founder</th><th>Premium</th><th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
+          <thead><tr><th style={{ width: '100%' }}>Name</th>{!founders && <th>Premium</th>}<th className="hide-sm">Discounts</th><th className="r hide-sm">Organised</th><th className="r hide-sm">Points</th><th className="r hide-sm">Holds stock</th><th className="r hide-sm">Discounts received</th><th /></tr></thead>
           <tbody>
-            {data?.map((p) => (
+            {list.map((p) => (
               <tr key={p.id} className={p.active ? '' : 'row-off'}>
                 <td className="cell-wrap">
-                  {p.name}{p.is_member ? <span className="badge" style={{ marginLeft: 6 }} title="Pays only the venue’s part of event prices">Member</span> : null}
+                  {p.name}{!founders && p.is_member ? <span className="badge" style={{ marginLeft: 6 }} title="Pays only the venue’s part of event prices">Member</span> : null}
                   <div className="row-sub show-sm">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => d.name).join(', ')}
                     {p.discount_ids.length ? ' · ' : ''}<button className="link-btn" onClick={() => setEditing(p)}>{p.discount_ids.length ? 'Edit discounts' : '+ Discount'}</button>
                     {' · '}<button className="link-btn" onClick={() => save(p, { active: !p.active })}>{p.active ? 'Deactivate' : 'Activate'}</button>
                   </div>
+                  <div className="row-sub"><button className="link-btn" onClick={() => save(p, { is_founder: !founders })}>{founders ? 'Not a founder' : 'Make founder'}</button></div>
                 </td>
-                <td><input type="checkbox" checked={!!p.is_founder} onChange={(e) => save(p, { is_founder: e.target.checked })} aria-label="Founder" /></td>
-                <td><input type="checkbox" checked={!!p.is_premium} onChange={(e) => save(p, { is_premium: e.target.checked })} aria-label="Premium" /></td>
+                {!founders && <td><input type="checkbox" checked={!!p.is_premium} onChange={(e) => save(p, { is_premium: e.target.checked })} aria-label="Premium" /></td>}
                 <td className="cell-wrap hide-sm">
                   <div className="holders">
                     {discounts?.filter((d) => p.discount_ids.includes(d.id)).map((d) => <span key={d.id} className="badge">{d.name}</span>)}
@@ -74,18 +69,36 @@ export function People() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
+      {!list.length && <p className="muted" style={{ margin: 0 }}>Nobody yet.</p>}
       <form className="filters" style={{ margin: '14px 0 0' }}
-        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/people', f))) setF({ name: '', is_founder: false, is_premium: false }); }}>
+        onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/people', { ...f, is_founder: founders }))) setF({ name: '', is_premium: false }); }}>
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Full name" required style={{ flex: 1 }} />
-        <label className="check"><input type="checkbox" checked={f.is_founder} onChange={(e) => setF({ ...f, is_founder: e.target.checked })} />Founder</label>
-        <label className="check"><input type="checkbox" checked={f.is_premium} onChange={(e) => setF({ ...f, is_premium: e.target.checked })} />Premium</label>
-        <button className="btn">Add person</button>
+        {!founders && <label className="check"><input type="checkbox" checked={f.is_premium} onChange={(e) => setF({ ...f, is_premium: e.target.checked })} />Premium</label>}
+        <button className="btn">{founders ? 'Add founder' : 'Add organiser'}</button>
       </form>
+    </div>
+  );
+}
+
+export function People() {
+  const { data, reload } = useApi('/people');
+  const { data: discounts, reload: reloadDiscounts } = useApi('/discounts');
+  const [editing, setEditing] = useState(null);
+  const [error, run] = useAction(reload);
+  const save = (p, patch) => run(() => api.put(`/people/${p.id}`, { ...p, ...patch }));
+  const shared = { discounts, save, run, setEditing };
+  return (
+    <>
+      {error && <div className="error-box">{error}</div>}
+      <PeopleList {...shared} founders title="Founders" list={data?.filter((p) => p.is_founder) || []}
+        intro="They share the founders’ part equally, earn organiser points and pay only the venue’s part of an event’s price." />
+      <PeopleList {...shared} founders={false} title="Organisers & members" list={data?.filter((p) => !p.is_founder) || []}
+        intro="The people who organise with us (and premium members). They earn organiser points, can hold stock and pay only the venue’s part of an event’s price. Voucher winners, attendees and people given a discount aren’t added here — they’re kept by name on the voucher or event." />
       {editing && discounts && (
         <PersonDiscounts person={editing} discounts={discounts} onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); reload(); reloadDiscounts(); }} />
       )}
-    </div>
+    </>
   );
 }

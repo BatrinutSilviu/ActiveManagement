@@ -6,9 +6,9 @@ import { today } from '../http.js';
 import { toRon } from './money.js';
 
 export const VOUCHER_SQL = `
-  SELECT v.*, p.name AS person_name, e.name AS event_name, e.date AS event_date, et.name AS sport_name, et.is_sport,
+  SELECT v.*, COALESCE(p.name, v.name) AS person_name, e.name AS event_name, e.date AS event_date, et.name AS sport_name, et.is_sport,
     t.amount AS cost, ue.name AS used_event_name
-  FROM vouchers v JOIN people p ON p.id = v.person_id LEFT JOIN events e ON e.id = v.event_id
+  FROM vouchers v LEFT JOIN people p ON p.id = v.person_id LEFT JOIN events e ON e.id = v.event_id
   LEFT JOIN event_types et ON et.id = v.sport_id LEFT JOIN transactions t ON t.id = v.transaction_id
   LEFT JOIN events ue ON ue.id = v.used_event_id`;
 
@@ -25,7 +25,7 @@ export const voucherText = (v) => `Voucher${v.code ? ` ${v.code}` : ''}${v.perce
 
 /** What a percentage voucher is worth at a training: its % of what that person pays there (price − their discount). */
 function trainingVoucherAmount(v, ev) {
-  const d = db.prepare('SELECT amount FROM event_discounts WHERE event_id = ? AND person_id = ?').get(ev.id, v.person_id);
+  const d = db.prepare('SELECT amount FROM event_discounts WHERE event_id = ? AND (person_id = ? OR name = ?)').get(ev.id, v.person_id, v.name);
   return Math.round((Math.max(ev.participation_fee - (d?.amount || 0), 0) * v.percent) / 100);
 }
 

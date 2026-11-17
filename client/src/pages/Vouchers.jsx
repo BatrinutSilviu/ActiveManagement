@@ -7,7 +7,7 @@ import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
-import PersonPicker from '../components/PersonPicker.jsx';
+import NameInput from '../components/NameInput.jsx';
 import CardError from '../components/CardError.jsx';
 
 const STATUS = { open: 'Not used yet', used: 'Used', expired: 'Expired' };
@@ -17,12 +17,12 @@ export const voucherWorth = (v) => (isPct(v) ? `${number(v.percent)}% off` : mon
 
 /** Give a voucher (from an event, or on its own) or edit one. */
 export function VoucherForm({ voucher, event, onClose, onSaved }) {
-  const { data: people, reload: reloadPeople } = useApi('/people');
+  const { data: people } = useApi('/people');
   const { data: types } = useApi('/event-types');
   const { data: events } = useApi('/events');
   const padel = types?.find((t) => /padel/i.test(t.name));
   const [f, setF] = useState(() => ({
-    person_id: '', value: '', percent: '', code: '', expires: '', note: '', event_id: event?.id || '', sport_id: event?.type_id || '', ...(voucher || {}),
+    value: '', percent: '', code: '', expires: '', note: '', event_id: event?.id || '', sport_id: event?.type_id || '', ...(voucher || {}), name: voucher?.person_name || '',
     kind: voucher && !isPct(voucher) ? 'value' : 'percent',
   }));
   const [error, setError] = useState(null);
@@ -30,7 +30,7 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
   const sportId = f.sport_id || padel?.id || '';
   const save = async () => {
     try {
-      const body = { ...f, sport_id: sportId };
+      const body = { ...f, person_id: null, sport_id: sportId }; // by name: linked to People on the server when it matches
       if (voucher) await api.put(`/vouchers/${voucher.id}`, body);
       else await api.post('/vouchers', body);
       onSaved();
@@ -47,8 +47,8 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
         <div className="field">Won by
-          <PersonPicker people={people} value={f.person_id} onChange={(id) => setF((x) => ({ ...x, person_id: id }))} onCreated={reloadPeople}
-            required autoFocus={!voucher} placeholder="Type a name — or add someone new" />
+          <NameInput people={people} value={f.name} onChange={(name) => setF((x) => ({ ...x, name }))}
+            required autoFocus={!voucher} placeholder="Winner’s name" ariaLabel="Won by" />
         </div>
         <div className="field">Worth
           <div className="segmented">

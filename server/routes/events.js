@@ -48,11 +48,11 @@ router.get('/events/:id', (req, res) => {
   e.taskPoints = manualTaskPoints(e.task_points);
   e.highlights = db.prepare(`SELECT h.*, p.name AS partner_name FROM event_highlights h LEFT JOIN partners p ON p.id = h.partner_id
     WHERE h.event_id = ? ORDER BY h.id`).all(e.id);
-  e.discountList = db.prepare(`SELECT ed.*, p.name AS person_name, d.name AS discount_name FROM event_discounts ed
-    JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, p.name`)
+  e.discountList = db.prepare(`SELECT ed.*, COALESCE(p.name, ed.name) AS person_name, d.name AS discount_name FROM event_discounts ed
+    LEFT JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, person_name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
-  e.attendees = db.prepare(`SELECT a.*, p.name, ${IS_MEMBER_SQL} AS is_member FROM event_attendees a
-    JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY p.name`).all(e.id);
+  e.attendees = db.prepare(`SELECT a.*, COALESCE(p.name, a.name) AS name, p.id IS NOT NULL AND ${IS_MEMBER_SQL} AS is_member FROM event_attendees a
+    LEFT JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY COALESCE(p.name, a.name)`).all(e.id);
   e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, i.prepaid, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
     .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: s.prepaid ? 0 : r2(s.qty * toRon(s.unit_price)) }));

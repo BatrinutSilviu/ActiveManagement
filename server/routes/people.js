@@ -1,4 +1,5 @@
-// People: founders, organisers, premium members and anyone else the community keeps track of.
+// People: the team — founders, and the organisers and members we add. Voucher winners, attendees and people
+// given a discount aren't added here: those rows keep a name (see domain/people.js).
 import express from 'express';
 import { db, tx } from '../db.js';
 import { r2, toRon } from '../domain/money.js';
@@ -40,7 +41,17 @@ router.post('/people', (req, res) => {
 });
 
 router.put('/people/:id', (req, res) => {
-  db.prepare('UPDATE people SET name = ?, is_founder = ?, is_premium = ?, active = ? WHERE id = ?').run(...readPerson(req.body), idParam(req));
+  const row = readPerson(req.body);
+  try {
+    tx(() => {
+      db.prepare('UPDATE people SET name = ?, is_founder = ?, is_premium = ?, active = ? WHERE id = ?').run(...row, idParam(req));
+      // The names kept on their vouchers, attendances and discounts follow (they stay if the person is deleted).
+      for (const t of ['vouchers', 'event_attendees', 'event_discounts']) db.prepare(`UPDATE ${t} SET name = ? WHERE person_id = ?`).run(row[0], idParam(req));
+    });
+  } catch (e) {
+    if (e.status) throw e;
+    throw httpError(400, 'A person with this name already exists');
+  }
   res.json({ ok: true });
 });
 
@@ -49,16 +60,11 @@ router.delete('/people/:id', (req, res) => {
     'This person still holds stock — move it to someone else first');
   need(!db.prepare("SELECT 1 FROM equipment WHERE person_id = ? AND state != 'lost'").get(idParam(req)),
     'This person still has equipment — give it to someone else first');
-  need(!db.prepare('SELECT 1 FROM vouchers WHERE person_id = ?').get(idParam(req)),
-    'This person won vouchers — mark them inactive instead, so that history is kept');
   need(!db.prepare('SELECT 1 FROM stock_purchases WHERE person_id = ?').get(idParam(req)),
     'This person bought stock — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_tasks WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
-  need(!db.prepare('SELECT 1 FROM event_discounts WHERE person_id = ?').get(idParam(req)),
-    'This person received discounts at events — mark them inactive instead, so that history is kept');
-  need(!db.prepare('SELECT 1 FROM event_attendees WHERE person_id = ?').get(idParam(req)),
-    'This person is on an event’s attendee list — mark them inactive instead, so that history is kept');
+  // Their vouchers, attendances and discounts stay, under their name.
   db.prepare('DELETE FROM people WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });

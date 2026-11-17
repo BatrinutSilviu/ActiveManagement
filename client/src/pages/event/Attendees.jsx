@@ -4,27 +4,25 @@ import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { money } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
+import NameInput from '../../components/NameInput.jsx';
+import { fold } from '../../util.js';
 
 /** Optional list of who came, with a tick for who has paid. */
 export default function Attendees({ e, reload }) {
-  const { data: people, reload: reloadPeople } = useApi('/people');
+  const { data: people } = useApi('/people');
   const [name, setName] = useState('');
   const [error, run] = useAction(reload);
   const { canEdit } = usePermissions();
 
-  const listed = new Set(e.attendees.map((a) => a.person_id));
-  const discountOf = new Map(e.discountList.map((d) => [d.person_id, d.amount]));
-  const owes = (a) => Math.max(e.participation_fee - (discountOf.get(a.person_id) || 0), 0);
+  const listed = new Set(e.attendees.map((a) => fold(a.name)));
+  const discountOf = new Map(e.discountList.map((d) => [fold(d.person_name), d.amount]));
+  const owes = (a) => Math.max(e.participation_fee - (discountOf.get(fold(a.name)) || 0), 0);
   const paid = e.attendees.filter((a) => a.paid);
   const toCollect = e.attendees.filter((a) => !a.paid).reduce((s, a) => s + owes(a), 0);
 
   const add = async (ev) => {
     ev.preventDefault();
-    const p = people?.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
-    if (await run(() => api.post(`/events/${e.id}/attendees`, p ? { person_id: p.id } : { name }))) {
-      setName('');
-      if (!p) reloadPeople();
-    }
+    if (await run(() => api.post(`/events/${e.id}/attendees`, { name }))) setName('');
   };
 
   return (
@@ -64,11 +62,10 @@ export default function Attendees({ e, reload }) {
         </p>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
-        <input className="select-sm" style={{ flex: '1 1 200px' }} list={`attendee-names-${e.id}`} placeholder="Name (existing or new person)"
-          value={name} onChange={(ev) => setName(ev.target.value)} required aria-label="Attendee name" />
-        <datalist id={`attendee-names-${e.id}`}>
-          {people?.filter((p) => p.active && !listed.has(p.id)).map((p) => <option key={p.id} value={p.name} />)}
-        </datalist>
+        <div style={{ flex: '1 1 200px' }}>
+          <NameInput people={people} value={name} onChange={setName} exclude={(p) => listed.has(fold(p.name))}
+            className="select-sm" placeholder="Name" required ariaLabel="Attendee name" />
+        </div>
         <button className="btn btn-sm">Add</button>
       </form>}
     </div>

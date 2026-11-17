@@ -6,6 +6,7 @@
 import { db, columns, tx } from './connection.js';
 import { IS_MEMBER_SQL } from '../domain/pricing.js';
 import { purchaseFund } from '../domain/stock.js';
+import { log } from '../log.js';
 
 // Event "types" are the sports. Older databases had generic Sport/Tournament tags.
 export const SPORTS = ['Football', 'Volleyball', 'Basketball', 'Handball', 'Padel', 'Running', 'Hiking', 'Biking',
@@ -642,4 +643,80 @@ db.exec(`CREATE TABLE IF NOT EXISTS login_failures (
   at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS login_failures_key ON login_failures (key, at);`);
+
+// People is only the team: founders and the organisers we add. Voucher winners, attendees and people given a
+// discount are kept by name (and linked to a person only when they are one of us), so naming them no longer
+// adds anyone to People. Once: the three tables get a name and an optional person, and everyone in People
+// who is neither a founder, premium nor has done any work for the community (organised, bought or holds
+// stock, has equipment, points or payouts…) is dropped — their vouchers, attendances and discounts keep the name.
+if (!columns('vouchers').includes('name')) {
+  db.exec(`CREATE TABLE vouchers_new (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,      -- where it was won (optional)
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,     -- the winner, when they're in People
+  name TEXT NOT NULL,                                             -- who won it
+  sport_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL, -- whose fund pays when it's used
+  value INTEGER NOT NULL DEFAULT 0,                               -- bani, what it's worth
+  code TEXT,
+  note TEXT,
+  issued_date TEXT NOT NULL,
+  expires TEXT,
+  used_date TEXT,
+  transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  percent REAL,                                                   -- NULL = fixed value
+  used_event_id INTEGER REFERENCES events(id) ON DELETE SET NULL  -- the training it was used at
+);
+INSERT INTO vouchers_new (id, event_id, person_id, name, sport_id, value, code, note, issued_date, expires, used_date, transaction_id,
+  created_by, created_at, percent, used_event_id)
+  SELECT v.id, v.event_id, v.person_id, p.name, v.sport_id, v.value, v.code, v.note, v.issued_date, v.expires, v.used_date, v.transaction_id,
+  v.created_by, v.created_at, v.percent, v.used_event_id FROM vouchers v JOIN people p ON p.id = v.person_id;
+DROP TABLE vouchers;
+ALTER TABLE vouchers_new RENAME TO vouchers;
+
+CREATE TABLE event_attendees_new (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,     -- when they're in People
+  name TEXT NOT NULL COLLATE NOCASE,
+  paid INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (event_id, name)
+);
+INSERT INTO event_attendees_new (id, event_id, person_id, name, paid)
+  SELECT a.id, a.event_id, a.person_id, p.name, a.paid FROM event_attendees a JOIN people p ON p.id = a.person_id;
+DROP TABLE event_attendees;
+ALTER TABLE event_attendees_new RENAME TO event_attendees;
+
+CREATE TABLE event_discounts_new (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,     -- when they're in People
+  name TEXT NOT NULL COLLATE NOCASE,
+  discount_id INTEGER REFERENCES discounts(id) ON DELETE SET NULL, -- NULL = one-off amount
+  kind TEXT NOT NULL CHECK (kind IN ('percent', 'fixed')),
+  value REAL NOT NULL,
+  amount INTEGER NOT NULL,                 -- in bani
+  note TEXT,
+  member INTEGER NOT NULL DEFAULT 0,
+  free TEXT CHECK (free IN ('skip', 'paid')),
+  UNIQUE (event_id, name)
+);
+INSERT INTO event_discounts_new (id, event_id, person_id, name, discount_id, kind, value, amount, note, member, free)
+  SELECT d.id, d.event_id, d.person_id, p.name, d.discount_id, d.kind, d.value, d.amount, d.note, d.member, d.free
+  FROM event_discounts d JOIN people p ON p.id = d.person_id;
+DROP TABLE event_discounts;
+ALTER TABLE event_discounts_new RENAME TO event_discounts;`);
+
+  const keep = `p.is_founder = 1 OR p.is_premium = 1
+    OR EXISTS (SELECT 1 FROM event_tasks x WHERE x.person_id = p.id) OR EXISTS (SELECT 1 FROM event_people x WHERE x.person_id = p.id)
+    OR EXISTS (SELECT 1 FROM contributions x WHERE x.person_id = p.id) OR EXISTS (SELECT 1 FROM stock_holdings x WHERE x.person_id = p.id)
+    OR EXISTS (SELECT 1 FROM stock_purchases x WHERE p.id IN (x.person_id, x.holder_id)) OR EXISTS (SELECT 1 FROM event_stock x WHERE x.person_id = p.id)
+    OR EXISTS (SELECT 1 FROM equipment x WHERE x.person_id = p.id) OR EXISTS (SELECT 1 FROM payouts x WHERE x.person_id = p.id)
+    OR EXISTS (SELECT 1 FROM person_discounts x WHERE x.person_id = p.id) OR EXISTS (SELECT 1 FROM partner_prizes x WHERE x.person_id = p.id)`;
+  const dropped = db.prepare(`SELECT p.id, p.name FROM people p WHERE NOT (${keep})`).all();
+  // ON DELETE SET NULL unlinks their vouchers, attendances and discounts; the names stay on them.
+  for (const p of dropped) db.prepare('DELETE FROM people WHERE id = ?').run(p.id);
+  if (dropped.length) log('info', 'People: removed everyone who is not part of the team', { count: dropped.length, names: dropped.map((p) => p.name) });
+}
 }
