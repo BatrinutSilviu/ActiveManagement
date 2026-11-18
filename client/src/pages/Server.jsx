@@ -12,7 +12,7 @@ const APPS = [
   { key: 'padel', name: 'Padel' },
   { key: 'hikes', name: 'Hikes & events' },
   { key: 'management', name: 'Management' },
-  { key: 'kidokinetiq', name: 'Kido Kinetiq' },
+  { key: 'kidokinetiq', name: 'Kidokinetiq' },
   { key: 'padelacademy', name: 'Padel Academy' },
   { key: 'proxy', name: 'Proxy (Traefik)' },
   { key: 'other', name: 'Other' },
@@ -22,7 +22,7 @@ const SITES = [
   { key: 'padel', name: 'Padel', url: 'https://padel.activetimisoara.ro' },
   { key: 'hikes', name: 'Hikes & events', url: 'https://hikes.activetimisoara.ro' },
   { key: 'management', name: 'Management', url: 'https://management.activetimisoara.ro' },
-  { key: 'kidokinetiq', name: 'Kido Kinetiq', url: 'https://admin.kidokinetiq.ro' },
+  { key: 'kidokinetiq', name: 'Kidokinetiq', url: 'https://admin.kidokinetiq.ro' },
   { key: 'website', name: 'Website', url: 'https://activetimisoara.ro' },
   { key: 'padelacademy', name: 'Padel Academy', url: 'https://padelacademy.activetimisoara.ro' },
 ];

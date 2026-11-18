@@ -224,7 +224,7 @@ on that copy's volume); add the copy to the server's off-site backup job too.
 
 Every push to `main` runs `.github/workflows/deploy.yml`: build check, then SSH to the server, which runs
 `/root/deploy-activemanagement.sh`. On Active's server that is a short wrapper that deploys every copy there, one
-after the other: Active (`/root/Projects/ActiveManagement`) and Kido Kinetiq (`/root/Projects/kidokinetiq`,
+after the other: Active (`/root/Projects/ActiveManagement`) and Kidokinetiq (`/root/Projects/kidokinetiq`,
 admin.kidokinetiq.ro). For each it runs `/root/deploy-app.sh` (a copy of `deploy/server-deploy.sh`) with that
 copy's `APP_DIR` and `CONTAINER`, which backs up the database (last 10 kept in `/data/backups` inside the
 container), pulls, rebuilds, and fails the run if the app isn't healthy. To add a copy, add a line to the wrapper,
