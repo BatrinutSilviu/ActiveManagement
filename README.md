@@ -223,8 +223,12 @@ on that copy's volume); add the copy to the server's off-site backup job too.
 ## Automatic deployment (GitHub Actions)
 
 Every push to `main` runs `.github/workflows/deploy.yml`: build check, then SSH to the server, which runs
-`/root/deploy-activemanagement.sh` (a copy is in `deploy/server-deploy.sh`). That script backs up the database
-(last 10 kept in `/data/backups` inside the container), pulls, rebuilds, and fails the run if the app isn't healthy.
+`/root/deploy-activemanagement.sh`. On Active's server that is a short wrapper that deploys every copy there, one
+after the other: Active (`/root/Projects/ActiveManagement`) and Kido Kinetiq (`/root/Projects/kidokinetiq`,
+admin.kidokinetiq.ro). For each it runs `/root/deploy-app.sh` (a copy of `deploy/server-deploy.sh`) with that
+copy's `APP_DIR` and `CONTAINER`, which backs up the database (last 10 kept in `/data/backups` inside the
+container), pulls, rebuilds, and fails the run if the app isn't healthy. To add a copy, add a line to the wrapper,
+and add it to the ops jobs (nightly + off-site backup, watchdog, error scan, metrics) in the padel backend repo's `ops/`.
 
 One-time setup:
 1. Create a key for GitHub: `ssh-keygen -t ed25519 -N "" -C github-actions-deploy-activemanagement -f ~/.ssh/github_actions_activemanagement`

@@ -12,6 +12,7 @@ const APPS = [
   { key: 'padel', name: 'Padel' },
   { key: 'hikes', name: 'Hikes & events' },
   { key: 'management', name: 'Management' },
+  { key: 'kidokinetiq', name: 'Kido Kinetiq' },
   { key: 'padelacademy', name: 'Padel Academy' },
   { key: 'proxy', name: 'Proxy (Traefik)' },
   { key: 'other', name: 'Other' },
@@ -21,6 +22,7 @@ const SITES = [
   { key: 'padel', name: 'Padel', url: 'https://padel.activetimisoara.ro' },
   { key: 'hikes', name: 'Hikes & events', url: 'https://hikes.activetimisoara.ro' },
   { key: 'management', name: 'Management', url: 'https://management.activetimisoara.ro' },
+  { key: 'kidokinetiq', name: 'Kido Kinetiq', url: 'https://admin.kidokinetiq.ro' },
   { key: 'website', name: 'Website', url: 'https://activetimisoara.ro' },
   { key: 'padelacademy', name: 'Padel Academy', url: 'https://padelacademy.activetimisoara.ro' },
 ];
@@ -162,7 +164,7 @@ export default function Server() {
             <div className="kpi-value">{bytes(host.traffic.in + host.traffic.out)}</div><div className="kpi-sub">{bytes(host.traffic.out)} sent · {bytes(host.traffic.in)} received</div></div>
           <div className="card kpi"><div className="kpi-label">Backups</div>
             <div className="kpi-value" style={{ fontSize: 20 }}>
-              {['padel', 'hikes', 'management'].some((a) => backupOld(backups[a], 26)) || backupOld(backups.offsite, 26)
+              {['padel', 'hikes', 'management', 'kidokinetiq'].some((a) => backupOld(backups[a], 26)) || backupOld(backups.offsite, 26)
                 ? <span className="badge server-bad"><span className="dot" />⚠ overdue</span>
                 : <span className="badge status-completed"><span className="dot" />✓ up to date</span>}
             </div>
