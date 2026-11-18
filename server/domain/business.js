@@ -6,6 +6,8 @@ import { db } from '../db/connection.js';
 
 /** The parts of the app that can be switched on or off, with the name shown in Settings. */
 export const FEATURES = {
+  events: 'Community events (attendees, discounts, costs) and the monthly report',
+  practice: 'Patients, sessions, packages, invoices and receipts',
   payouts: 'Payouts, points and the profit split',
   funds: 'Sport funds page',
   vouchers: 'Vouchers',
@@ -16,18 +18,18 @@ export const FEATURES = {
   sync: 'Events pushed from other apps (padel, hikes)',
   calendar: 'Public calendar for the website',
 };
-const all = (on) => Object.fromEntries(Object.keys(FEATURES).map((k) => [k, on]));
+const all = (on, except = {}) => ({ ...Object.fromEntries(Object.keys(FEATURES).map((k) => [k, on])), ...except });
 
 /** What things are called, per business type (lowercase; the UI capitalises where needed). */
 export const TYPES = {
   community: {
     label: 'Community (events, sport funds, profit split)',
-    features: all(true),
+    features: all(true, { practice: false }),
     terms: { event: 'event', events: 'events', sport: 'sport', sports: 'sports', person: 'person', people: 'people' },
   },
   practice: {
     label: 'Practice (sessions with clients or patients)',
-    features: all(false),
+    features: all(false, { practice: true }),
     terms: { event: 'session', events: 'sessions', sport: 'service', sports: 'services', person: 'patient', people: 'patients' },
   },
 };

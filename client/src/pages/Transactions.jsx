@@ -8,16 +8,19 @@ import Kpi from '../components/Kpi.jsx';
 import { confirmDelete } from '../components/Modal.jsx';
 import { IconDownload, IconPlus } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
+import { useBusiness } from '../business.js';
 
 export default function Transactions() {
   const { canEdit } = usePermissions();
+  const { on } = useBusiness();
+  const simple = !on('events'); // a practice: every line is money in or out, there are no events or funds
   const [filters, setFilters] = usePersistentState('am-tx-filters',
     { year: String(new Date().getFullYear()), month: '', kind: '', event_id: '', category: '', q: '' });
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
   const { data: rows, loading, reload } = useApi(`/transactions${qs(filters)}`);
   const { data: years } = useApi('/stats/years');
   // Only the period is filtered: the overall result (with event fees) applies.
-  const periodOnly = !filters.kind && !filters.category && !filters.q && !filters.event_id;
+  const periodOnly = !simple && !filters.kind && !filters.category && !filters.q && !filters.event_id;
   const { data: period } = useApi(periodOnly ? `/stats/period${qs({ year: filters.year, month: filters.year ? filters.month : '' })}` : null);
   const { data: categories } = useApi('/categories');
   const [form, setForm] = useState(null);
@@ -28,7 +31,7 @@ export default function Transactions() {
 
   const del = async (t) => {
     if (!confirmDelete('this transaction')) return;
-    await api.del(`/transactions/${t.id}`);
+    try { await api.del(`/transactions/${t.id}`); } catch (e) { window.alert(e.message); }
     reload();
   };
 
@@ -37,7 +40,8 @@ export default function Transactions() {
       <div className="page-head">
         <div>
           <h1>Transactions</h1>
-          <p>Every cost and income line: event costs, plus reinvestments and donations moving money out of or into a fund.</p>
+          <p>{simple ? 'All money in and out. Payments of invoices and receipts appear here when they’re ticked paid.'
+            : 'Every cost and income line: event costs, plus reinvestments and donations moving money out of or into a fund.'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <a className="btn" href={`/api/export/transactions.csv${qs({ year: filters.year })}`}><IconDownload width="15" />Export CSV</a>
@@ -60,10 +64,10 @@ export default function Transactions() {
           <option value="income">Income only</option>
           <option value="expense">Expenses only</option>
         </Select>
-        <Select value={filters.event_id} onChange={set('event_id')} aria-label="Scope">
+        {!simple && <Select value={filters.event_id} onChange={set('event_id')} aria-label="Scope">
           <option value="">Events & funds</option>
           <option value="general">Fund movements only</option>
-        </Select>
+        </Select>}
         <Select value={filters.category} onChange={set('category')} aria-label="Category">
           <option value="">All categories</option>
           {categories?.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
@@ -79,14 +83,14 @@ export default function Transactions() {
               sub={`${period.events} finalized events — not listed below${period.live ? ` · ${period.live} live events not counted yet` : ''}`} />
           </>
         ) : null}
-        <Kpi label="Listed lines" value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
+        <Kpi label={simple ? 'Result' : 'Listed lines'} hero={simple} value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
           sub={`${money0(income)} in · ${money0(expenses)} out · ${list.length} transactions`} />
       </div>
-      <p className="muted" style={{ marginTop: -6 }}>The list holds costs and other money in/out; participation fees (people × price) live on the events,
-        so “Listed lines” alone is mostly costs.{periodOnly ? ' “Overall result” adds the events’ fees.' : ' Clear the other filters to see the overall result.'}</p>
+      {!simple && <p className="muted" style={{ marginTop: -6 }}>The list holds costs and other money in/out; participation fees (people × price) live on the events,
+        so “Listed lines” alone is mostly costs.{periodOnly ? ' “Overall result” adds the events’ fees.' : ' Clear the other filters to see the overall result.'}</p>}
 
       <div className="card table-wrap">
-        <TxTable rows={list} onEdit={(t) => setForm({ tx: t })} onDelete={del}
+        <TxTable rows={list} showEvent={!simple} onEdit={(t) => setForm({ tx: t })} onDelete={del}
           empty={loading ? 'Loading…' : 'No transactions match these filters.'} />
       </div>
 

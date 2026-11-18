@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { money0 } from './format.js';
 import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
 import { applyBusiness, BusinessContext } from './business.js';
-import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
+import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReceipt, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconUsers, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Events from './pages/Events.jsx';
@@ -19,14 +19,22 @@ import Partners from './pages/Partners.jsx';
 import Settings from './pages/Settings.jsx';
 import Server from './pages/Server.jsx';
 import Import from './pages/Import.jsx';
+import PracticeOverview from './pages/practice/Overview.jsx';
+import PracticeSessions from './pages/practice/Sessions.jsx';
+import Patients from './pages/practice/Patients.jsx';
+import Patient from './pages/practice/Patient.jsx';
+import Invoices from './pages/practice/Invoices.jsx';
 
 // `term`: the label is what the business calls it (Events / Sessions…); `feature`: shown only when that part is on.
 // `overview`: in the top group of the menu.
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconDashboard, end: true, overview: true },
-  { to: '/events', term: 'events', icon: IconCalendar, overview: true },
+  { to: '/events', term: 'events', icon: IconCalendar, feature: 'events', overview: true },
+  { to: '/sessions', term: 'events', icon: IconCalendar, feature: 'practice', overview: true },
+  { to: '/patients', term: 'people', icon: IconUsers, feature: 'practice', overview: true },
+  { to: '/invoices', label: 'Invoices', icon: IconReceipt, feature: 'practice', overview: true },
   { to: '/payouts', label: 'Payouts', icon: IconCoins, feature: 'payouts', overview: true },
-  { to: '/monthly', label: 'Monthly', icon: IconReport, overview: true },
+  { to: '/monthly', label: 'Monthly', icon: IconReport, feature: 'events', overview: true },
   { to: '/sports', term: 'sports', icon: IconTrophy, feature: 'funds', overview: true },
   { to: '/stock', label: 'Stock', icon: IconBox, feature: 'stock' },
   { to: '/vouchers', label: 'Vouchers', icon: IconTicket, feature: 'vouchers' },
@@ -139,12 +147,16 @@ export default function App() {
       </aside>
       <main className="main">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/events/:id" element={<EventDetail />} />
+          <Route path="/" element={on('practice') && !on('events') ? <PracticeOverview /> : <Dashboard />} />
+          {on('events') && <Route path="/events" element={<Events />} />}
+          {on('events') && <Route path="/events/:id" element={<EventDetail />} />}
+          {on('practice') && <Route path="/sessions" element={<PracticeSessions />} />}
+          {on('practice') && <Route path="/patients" element={<Patients />} />}
+          {on('practice') && <Route path="/patients/:id" element={<Patient />} />}
+          {on('practice') && <Route path="/invoices" element={<Invoices />} />}
           <Route path="/transactions" element={<Transactions />} />
           {on('payouts') && <Route path="/payouts" element={<Payouts />} />}
-          <Route path="/monthly" element={<Monthly />} />
+          {on('events') && <Route path="/monthly" element={<Monthly />} />}
           {on('funds') && <Route path="/sports" element={<SportsList />} />}
           {on('funds') && <Route path="/sports/general" element={<GeneralFundDetail />} />}
           {on('funds') && <Route path="/sports/:id" element={<SportDetail />} />}

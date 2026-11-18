@@ -6,6 +6,7 @@ import { confirmDelete } from '../../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
 import Select from '../../components/Select.jsx';
 import { rename } from './rename.js';
+import { useBusiness } from '../../business.js';
 
 export function Sports() {
   const { data, reload } = useApi('/event-types');
@@ -69,14 +70,20 @@ export function Categories() {
   const { data, reload } = useApi('/categories');
   const [error, run] = useAction(reload);
   const [f, setF] = useState({ name: '', kind: 'expense', cost_group: 'organizing' });
-  const lists = [
+  // Without community events (a practice) costs aren't split into organizing costs and benefits offered.
+  const { on } = useBusiness();
+  const simple = !on('events');
+  const lists = simple ? [
+    { title: 'Income', filter: (c) => c.kind === 'income', cls: 'kind-income' },
+    { title: 'Expenses', filter: (c) => c.kind === 'expense', cls: 'kind-expense' },
+  ] : [
     { title: 'Income', filter: (c) => c.kind === 'income', cls: 'kind-income' },
     { title: 'Organizing costs', hint: 'venues, trainers, referees…', filter: (c) => c.kind === 'expense' && c.cost_group !== 'benefit', cls: 'kind-expense' },
     { title: 'Benefits offered', hint: 'drinks, food, prizes…', filter: (c) => c.kind === 'expense' && c.cost_group === 'benefit', cls: 'kind-expense' },
   ];
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Categories</h2><p>Cost categories are either organizing costs or benefits offered to participants</p></div></div>
+      <div className="card-head"><div><h2>Categories</h2><p>{simple ? 'What money comes in for and goes out on' : 'Cost categories are either organizing costs or benefits offered to participants'}</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 24 }}>
         {lists.map((l) => (
@@ -89,7 +96,7 @@ export function Categories() {
                     <td>{c.name}</td>
                     <td className="r muted">{c.uses}</td>
                     <td className="r">
-                      {c.kind === 'expense' && (
+                      {c.kind === 'expense' && !simple && (
                         <button className="btn btn-sm btn-ghost" title="Move to the other group"
                           onClick={() => run(() => api.put(`/categories/${c.id}`, { cost_group: c.cost_group === 'benefit' ? 'organizing' : 'benefit' }))}>
                           {c.cost_group === 'benefit' ? '→ Organizing' : '→ Benefit'}
@@ -111,8 +118,8 @@ export function Categories() {
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="New category" required style={{ flex: 1 }} />
         <Select value={f.kind === 'income' ? 'income' : f.cost_group} onChange={(e) => setF(e.target.value === 'income'
           ? { ...f, kind: 'income', cost_group: 'organizing' } : { ...f, kind: 'expense', cost_group: e.target.value })}>
-          <option value="organizing">Organizing cost</option>
-          <option value="benefit">Benefit offered</option>
+          <option value="organizing">{simple ? 'Expense' : 'Organizing cost'}</option>
+          {!simple && <option value="benefit">Benefit offered</option>}
           <option value="income">Income</option>
         </Select>
         <button className="btn">Add</button>

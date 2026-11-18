@@ -33,7 +33,8 @@ router.get('/transactions', (req, res) => {
   if (req.query.category) { where.push('t.category_id = ?'); params.push(Number(req.query.category)); }
   if (req.query.q) { where.push('(t.description LIKE ? OR e.name LIKE ?)'); params.push(`%${req.query.q}%`, `%${req.query.q}%`); }
   const rows = db.prepare(`
-    SELECT t.*, c.name AS category_name, c.cost_group, e.name AS event_name, f.name AS fund_name, fp.name AS part_name, u.name AS created_by_name
+    SELECT t.*, c.name AS category_name, c.cost_group, e.name AS event_name, f.name AS fund_name, fp.name AS part_name, u.name AS created_by_name,
+      (SELECT i.id FROM invoices i WHERE i.transaction_id = t.id) AS invoice_id
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
     LEFT JOIN events e ON e.id = t.event_id
@@ -52,7 +53,12 @@ router.post('/transactions', (req, res) => {
   res.json({ id: Number(lastInsertRowid) });
 });
 
+// The payment of an invoice or receipt (practice) follows its paid tick: it's changed there, not here.
+const fromInvoice = (id) => need(!db.prepare('SELECT 1 FROM invoices WHERE transaction_id = ?').get(id),
+  'This is the payment of an invoice or receipt: change it there (or untick “paid”)');
+
 router.put('/transactions/:id', (req, res) => {
+  fromInvoice(idParam(req));
   tx(() => {
     checkVersion('transactions', idParam(req), req.body, 'transaction');
     db.prepare(`
@@ -84,6 +90,7 @@ router.delete('/fund-parts/:id', (req, res) => {
 });
 
 router.delete('/transactions/:id', (req, res) => {
+  fromInvoice(idParam(req));
   // A voucher whose cost this was becomes unused again.
   tx(() => {
     db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE transaction_id = ?').run(idParam(req));

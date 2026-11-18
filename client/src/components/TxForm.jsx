@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { useApi } from '../hooks.js';
 import { CURRENCY, today } from '../format.js';
 import Select from './Select.jsx';
+import { useBusiness } from '../business.js';
 
 export const PAYMENT_METHODS = ['Cash', 'Card', 'Bank transfer', 'Other'];
 const GROUP_LABELS = { organizing: 'Organizing costs', benefit: 'Benefits offered' };
@@ -11,10 +12,13 @@ const GROUP_LABELS = { organizing: 'Organizing costs', benefit: 'Benefits offere
 // Add / edit an income or expense. Pass `eventId` to lock it to an event, or `fund`
 // ('general' | sport id) to record money spent from / added to a fund.
 export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind = 'income', onClose, onSaved }) {
+  // Without community events (e.g. a practice) there are no events or funds to choose: just money in and out.
+  const { on } = useBusiness();
+  const simple = !on('events');
   const { data: categories } = useApi('/categories');
-  const { data: events } = useApi(eventId || fund != null ? null : '/events');
-  const { data: sports } = useApi(eventId ? null : '/event-types');
-  const { data: parts } = useApi(eventId ? null : '/fund-parts');
+  const { data: events } = useApi(eventId || fund != null || simple ? null : '/events');
+  const { data: sports } = useApi(eventId || simple ? null : '/event-types');
+  const { data: parts } = useApi(eventId || simple ? null : '/fund-parts');
   const [f, setF] = useState(() => ({
     kind: defaultKind, amount: '', category_id: '', date: eventDate || today(), description: '',
     payment_method: 'Bank transfer', event_id: eventId || '',
@@ -24,8 +28,8 @@ export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const cats = categories?.filter((c) => c.kind === f.kind) || [];
-  const isFund = !f.event_id;
-  const groups = f.kind === 'expense' && !isFund ? ['organizing', 'benefit'] : [null];
+  const isFund = !f.event_id && !simple;
+  const groups = f.kind === 'expense' && !isFund && !simple ? ['organizing', 'benefit'] : [null];
   const fundParts = isFund && f.fund_sport_id ? (parts || []).filter((p) => String(p.sport_id) === String(f.fund_sport_id)) : [];
   const fundName = sports?.find((s) => String(s.id) === String(f.fund_sport_id))?.name;
 
@@ -42,7 +46,7 @@ export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind
     }
   };
 
-  const title = tx ? 'Edit transaction'
+  const title = tx ? 'Edit transaction' : simple ? (f.kind === 'expense' ? 'Add a cost' : 'Add income')
     : isFund ? (f.kind === 'expense' ? 'Record reinvestment' : 'Add money to a fund')
     : f.kind === 'income' ? 'Add income' : 'Add cost';
 
@@ -82,7 +86,7 @@ export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind
             {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
           </Select>
         </label>
-        {!eventId && fund == null && (
+        {!eventId && fund == null && !simple && (
           <label className="field full">Event
             <Select value={f.event_id || ''} onChange={set('event_id')}>
               <option value="">— Not an event: money from / to a fund —</option>
@@ -109,7 +113,7 @@ export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind
           </label>
         )}
         <label className="field full">Description
-          <input value={f.description || ''} onChange={set('description')} placeholder={isFund ? 'e.g. 4 new padel rackets' : 'e.g. Court rental 2h'} />
+          <input value={f.description || ''} onChange={set('description')} placeholder={simple ? 'e.g. Fuel, massage oil' : isFund ? 'e.g. 4 new padel rackets' : 'e.g. Court rental 2h'} />
         </label>
       </div>
     </Modal>

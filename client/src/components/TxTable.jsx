@@ -40,12 +40,15 @@ export default function TxTable({ rows, showEvent = true, showGroup = false, com
             {!compact && <td className="secondary hide-sm">{t.payment_method || '—'}</td>}
             <td className={`r kind-${t.kind}`}>{t.kind === 'income' ? '+' : '−'}{money(t.amount)}</td>
             {!compact && <td className="muted hide-sm">{t.created_by_name || '—'}</td>}
-            {canEdit && (
+            {canEdit && (t.invoice_id ? (
+              // The payment of an invoice or receipt: it follows the invoice's paid tick.
+              <td className="r actions"><Link to="/invoices" className="link-btn" title="Change it on the invoice">Invoice</Link></td>
+            ) : (
               <td className="r actions">
                 <button className="icon-btn" onClick={() => onEdit(t)} aria-label="Edit"><IconEdit /></button>
                 <button className="icon-btn" onClick={() => onDelete(t)} aria-label="Delete"><IconTrash /></button>
               </td>
-            )}
+            ))}
           </tr>
         ))}
       </tbody>

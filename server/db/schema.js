@@ -760,4 +760,76 @@ ALTER TABLE event_discounts_new RENAME TO event_discounts;`);
   for (const p of dropped) db.prepare('DELETE FROM people WHERE id = ?').run(p.id);
   if (dropped.length) log('info', 'People: removed everyone who is not part of the team', { count: dropped.length, names: dropped.map((p) => p.name) });
 }
+
+/* ------------------------------------------------- practice (business type "practice", routes/practice.js) */
+
+// A practice's patients (called clients in the code: the name shown comes from the business's terms), notes about
+// them, the sessions booked with them (appointments: "sessions" is the sign-in table), packages of sessions paid
+// for together, and the invoices and receipts issued. Money is counted when it's paid: ticking an invoice paid
+// adds its income transaction (transaction_id), unticking removes it. All amounts in bani.
+db.exec(`
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL COLLATE NOCASE,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  birth_date TEXT,
+  about TEXT,                              -- the general note: what to keep in mind about them
+  archived INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS client_notes (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS client_notes_client ON client_notes (client_id, date);
+CREATE TABLE IF NOT EXISTS invoices (
+  id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('invoice', 'receipt')),
+  number TEXT,                             -- as issued; optional (e.g. paid in cash without a document)
+  date TEXT NOT NULL,
+  client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  description TEXT,
+  paid INTEGER NOT NULL DEFAULT 0,
+  paid_date TEXT,
+  payment_method TEXT,
+  transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS invoices_client ON invoices (client_id);
+CREATE TABLE IF NOT EXISTS packages (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sessions INTEGER NOT NULL CHECK (sessions > 0),
+  price INTEGER NOT NULL DEFAULT 0 CHECK (price >= 0),
+  date TEXT NOT NULL,                      -- sold on
+  expires TEXT,
+  note TEXT,
+  invoice_id INTEGER REFERENCES invoices(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS packages_client ON packages (client_id);
+CREATE TABLE IF NOT EXISTS appointments (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  type_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,   -- the service
+  date TEXT NOT NULL,
+  start_time TEXT,
+  end_time TEXT,
+  address TEXT,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'done', 'cancelled')),
+  price INTEGER NOT NULL DEFAULT 0 CHECK (price >= 0),           -- not billed on its own when in a package
+  package_id INTEGER REFERENCES packages(id) ON DELETE SET NULL,  -- a package with sessions can only go with its patient
+  invoice_id INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS appointments_date ON appointments (date, start_time);
+CREATE INDEX IF NOT EXISTS appointments_client ON appointments (client_id);
+`);
 }

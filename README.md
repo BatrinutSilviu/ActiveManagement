@@ -185,6 +185,20 @@ another one. Nothing is shared between copies, and every copy runs the same code
   routes answer 404.
 - Active's database (made before this existed) is set up as Active automatically: a community with every part on.
 
+**A practice** (e.g. a physiotherapist doing home visits) gets, instead of community events:
+- **Patients**: contact details, address (with a map link), a general "about" note, and dated notes. Notes are
+  stored like the other data (not encrypted); only accounts of that copy can read them.
+- **Sessions**: patient, service, date and time, address (the patient's by default), price, and status
+  scheduled / done / cancelled, shown as a weekly schedule. A session can be paid with a **package**
+  (e.g. 10 sessions for a price): it then has no price of its own, and the package shows sessions done / booked / left.
+- **Invoices & receipts**: only recorded (number, date, amount, patient, which sessions or packages they cover),
+  never sent anywhere. The next number is suggested from the last one. The **paid** tick adds an income
+  transaction on the day it was paid; unticking removes it. That transaction can only be changed through its invoice.
+- **Money is counted when it's paid**: the dashboard shows each month's money received, costs (from Transactions),
+  profit and sessions done; what's **not billed yet** (sessions done outside a package, and packages, with no
+  invoice or receipt) and **billed but not paid**; past sessions still marked scheduled; and packages nearly used up.
+- Settings → Services sets each service's default price; Transactions holds the other income and costs.
+
 **Setting up a new copy** (with Docker + Traefik, as for Active):
 
 ```bash

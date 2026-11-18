@@ -8,10 +8,11 @@ import { ProfitSplit, StartingBalance } from './settings/Money.jsx';
 import { People } from './settings/People.jsx';
 import { Activities, PointsRates, TaskShares } from './settings/Points.jsx';
 import { Categories, Sports } from './settings/Sports.jsx';
+import { Services } from './practice/Services.jsx';
 
 export default function Settings({ user }) {
   const { canEdit, isAdmin } = usePermissions();
-  const { on } = useBusiness();
+  const { on, term } = useBusiness();
   // Viewers only get their own password; the rest of the page is for changing things.
   if (!canEdit) {
     return (
@@ -23,11 +24,11 @@ export default function Settings({ user }) {
   }
   return (
     <div>
-      <div className="page-head"><div><h1>Settings</h1><p>{isAdmin ? 'Business, ' : ''}people, discounts, {on('payouts') ? 'points table, default split, ' : ''}sports, starting balance, categories{isAdmin ? ', accounts and backups' : ''}.</p></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p>{isAdmin ? 'Business, ' : ''}{on('events') ? 'people, discounts, ' : ''}{on('payouts') ? 'points table, default split, ' : ''}{term('sports')}, starting balance, categories{isAdmin ? ', accounts and backups' : ''}.</p></div></div>
       <div className="stack">
         {isAdmin && <Business />}
-        <People />
-        <Discounts />
+        {on('events') && <People />}
+        {on('events') && <Discounts />}
         {on('payouts') && <>
           <div className="grid grid-2">
             <PointsRates />
@@ -35,10 +36,12 @@ export default function Settings({ user }) {
           </div>
           <Activities />
         </>}
-        <div className="grid grid-2">
-          {on('payouts') && <ProfitSplit />}
-          <Sports />
-        </div>
+        {on('events') ? (
+          <div className="grid grid-2">
+            {on('payouts') && <ProfitSplit />}
+            <Sports />
+          </div>
+        ) : <Services />}
         <StartingBalance />
         <Categories />
         {isAdmin && <Accounts user={user} />}

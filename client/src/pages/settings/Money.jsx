@@ -5,6 +5,7 @@ import { useApi } from '../../hooks.js';
 import { CURRENCY, money } from '../../format.js';
 import { IconPlus } from '../../components/Icons.jsx';
 import { r2 } from '../../util.js';
+import { useBusiness } from '../../business.js';
 
 /** What the community had when it started: into the general fund, and optionally sport funds. */
 export function StartingBalance() {
@@ -13,6 +14,8 @@ export function StartingBalance() {
   const [f, setF] = useState(null);
   const [msg, setMsg] = useState(null);
   const [showSports, setShowSports] = useState(false);
+  const { on } = useBusiness();
+  const simple = !on('events'); // a practice: one account, no funds
   if (!data || !types) return null;
   const v = f || data;
   const sports = types.filter((t) => t.is_sport);
@@ -26,14 +29,15 @@ export function StartingBalance() {
   const anySport = Object.values(v.sports).some((x) => Number(x));
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Starting balance</h2><p>What the community had when it started. It’s counted in the funds and money in hand, not in any month’s profit or payouts.</p></div></div>
+      <div className="card-head"><div><h2>Starting balance</h2><p>{simple ? 'What was in the account on the day you started using the app. It counts in “In the account”, not in any month’s income.'
+        : 'What the community had when it started. It’s counted in the funds and money in hand, not in any month’s profit or payouts.'}</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 14 }}>
         <div className="form-grid">
           <label className="field">Date<input type="date" value={v.date || ''} onChange={(e) => setF({ ...v, date: e.target.value })} /></label>
-          <label className="field">General fund ({CURRENCY})<input type="number" step="0.01" value={v.general || ''} placeholder="0" onChange={(e) => setF({ ...v, general: e.target.value })} /></label>
+          <label className="field">{simple ? 'In the account' : 'General fund'} ({CURRENCY})<input type="number" step="0.01" value={v.general || ''} placeholder="0" onChange={(e) => setF({ ...v, general: e.target.value })} /></label>
         </div>
-        {showSports || anySport ? (
+        {simple ? null : showSports || anySport ? (
           <div className="form-grid">
             {sports.map((t) => (
               <label key={t.id} className="field">{t.name} fund ({CURRENCY})

@@ -344,6 +344,7 @@ label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; col
   display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px;
 }
 .filters .select, .filters input { width: auto; min-width: 150px; }
+.filters input[type='checkbox'] { min-width: 0; }
 .filters input[type='search'] {
   min-width: 260px; padding-left: 36px;
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23858b97' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px center / 17px;
@@ -737,3 +738,30 @@ tr.row-picked td { background: var(--accent-soft); }
   .storage-table th:nth-child(4), .storage-table td:nth-child(4) { display: none; }
   .storage-table td:first-child { white-space: normal; }
 }
+
+/* ---------------------------------------------------------------- practice: schedule, notes, side lists */
+.badge-warn { background: color-mix(in srgb, var(--warning) 18%, transparent); color: color-mix(in srgb, var(--warning) 55%, var(--text)); }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; align-items: start; }
+@media (max-width: 1150px) { .week { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .week { grid-template-columns: 1fr; } }
+.week-day { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.week-day.today { box-shadow: inset 0 0 0 2px var(--accent); }
+.week-day header { display: flex; justify-content: space-between; align-items: center; gap: 4px; font-size: 13px; color: var(--text-2); }
+.week-day header span { display: flex; flex-direction: column; line-height: 1.3; }
+@media (max-width: 560px) { .week-day header span { flex-direction: row; gap: 5px; } }
+.week-day header strong { color: var(--text); }
+.week-empty { margin: 0; font-size: 13px; }
+.session-card { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 9px; padding: 8px 10px;
+  background: var(--surface); display: flex; flex-direction: column; gap: 3px; cursor: pointer; font-size: 13px; }
+.session-card:hover { background: var(--surface-2); }
+.session-card.status-done { border-left-color: var(--good); background: var(--surface); color: inherit; }
+.session-card.status-cancelled { border-left-color: var(--muted); opacity: .6; background: var(--surface); color: inherit; }
+.session-top, .session-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.session-who { font-weight: 600; }
+.side-item { padding: 10px 0; border-top: 1px solid var(--border); }
+.side-item:first-of-type { border-top: 0; padding-top: 0; }
+.note-list { display: flex; flex-direction: column; gap: 14px; }
+.note { border-left: 3px solid var(--border); padding-left: 12px; }
+.note-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.note-actions { display: flex; gap: 2px; }
+.note p { margin: 4px 0 0; white-space: pre-wrap; }

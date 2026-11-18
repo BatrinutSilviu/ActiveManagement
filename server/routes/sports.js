@@ -18,7 +18,8 @@ router.get('/event-types', (req, res) => {
 router.post('/event-types', (req, res) => {
   need(req.body.name?.trim(), 'Name is required');
   try {
-    db.prepare('INSERT INTO event_types (name) VALUES (?)').run(req.body.name.trim());
+    // A practice's services aren't sports: they're added without a fund (is_sport: false).
+    db.prepare('INSERT INTO event_types (name, is_sport) VALUES (?, ?)').run(req.body.name.trim(), req.body.is_sport === false ? 0 : 1);
   } catch {
     throw httpError(400, 'This sport already exists');
   }
