@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi } from '../../hooks.js';
-import { discountLabel } from '../../format.js';
+import { CURRENCY, discountLabel } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
 import Select from '../../components/Select.jsx';
@@ -54,10 +54,10 @@ export function Discounts() {
         <input className="select-sm" value={f.name} onChange={set('name')} placeholder="e.g. Founders – Hyrox free" required style={{ flex: '2 1 200px' }} />
         <Select className="select-sm" value={f.kind} onChange={set('kind')} style={{ flex: '0 1 130px' }}>
           <option value="percent">% off</option>
-          <option value="fixed">RON off</option>
+          <option value="fixed">{CURRENCY} off</option>
         </Select>
         <input className="select-sm num-input" type="number" min="0.01" step="0.01" max={f.kind === 'percent' ? 100 : undefined}
-          placeholder={f.kind === 'percent' ? '%' : 'RON'} value={f.value} onChange={set('value')} required />
+          placeholder={f.kind === 'percent' ? '%' : CURRENCY} value={f.value} onChange={set('value')} required />
         <Select className="select-sm" value={f.sport_id} onChange={set('sport_id')} style={{ flex: '1 1 140px' }}>
           <option value="">Any sport</option>
           {sports?.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}

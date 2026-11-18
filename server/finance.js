@@ -4,6 +4,7 @@ import { db, getPointsRates, getSplit, getStartingBalance, getTaskShares, splitR
 import { eventTaskShares, manualTaskPoints, TASKS } from './domain/tasks.js';
 import { openVouchers } from './domain/vouchers.js';
 import { r2, sumBy, toBani, toRon } from './domain/money.js';
+import { currency } from './domain/business.js';
 import { httpError } from './http.js';
 import { errorFields, log } from './log.js';
 
@@ -452,7 +453,7 @@ export function computeFounders(ym) {
       WHERE strftime('%Y-%m', c.date) = ?`).all(ym),
     ...purchaseLines("strftime('%Y-%m', sp.date) = ?", [ym]).filter((l) => l.points).map((l) => ({
       source: 'purchase', id: l.id, person_id: l.person_id, person_name: l.person_name, task: null, kind: l.kind, points: l.points,
-      event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} RON`, date: l.date, activity_name: null })),
+      event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} ${currency()}`, date: l.date, activity_name: null })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const pendingPoints = sumBy(linesOf(live), (l) => l.points);
   // Tasks nobody was on: their points count in the month's total, but their money goes to the funds.

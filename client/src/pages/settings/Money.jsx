@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useApi } from '../../hooks.js';
-import { money } from '../../format.js';
+import { CURRENCY, money } from '../../format.js';
 import { IconPlus } from '../../components/Icons.jsx';
 import { r2 } from '../../util.js';
 
@@ -31,12 +31,12 @@ export function StartingBalance() {
       <form onSubmit={save} className="stack" style={{ gap: 14 }}>
         <div className="form-grid">
           <label className="field">Date<input type="date" value={v.date || ''} onChange={(e) => setF({ ...v, date: e.target.value })} /></label>
-          <label className="field">General fund (RON)<input type="number" step="0.01" value={v.general || ''} placeholder="0" onChange={(e) => setF({ ...v, general: e.target.value })} /></label>
+          <label className="field">General fund ({CURRENCY})<input type="number" step="0.01" value={v.general || ''} placeholder="0" onChange={(e) => setF({ ...v, general: e.target.value })} /></label>
         </div>
         {showSports || anySport ? (
           <div className="form-grid">
             {sports.map((t) => (
-              <label key={t.id} className="field">{t.name} fund (RON)
+              <label key={t.id} className="field">{t.name} fund ({CURRENCY})
                 <input type="number" step="0.01" value={v.sports[t.id] || ''} placeholder="0" onChange={(e) => setSport(t.id, e.target.value)} />
               </label>
             ))}

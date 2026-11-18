@@ -1,6 +1,7 @@
 // Fills the database with realistic demo data so the dashboards have something to show.
 // Run with `npm run seed` (add --reset to wipe events, money, people and stock first).
-import { db, SPORTS, toBani, tx } from './db.js';
+import { db, seedBusiness, SPORTS, toBani, tx } from './db.js';
+import { ACTIVE, getBusiness, setBusiness } from './domain/business.js';
 import { TASKS } from './domain/tasks.js';
 import { hashPassword } from './auth.js';
 
@@ -29,6 +30,9 @@ const PROFILE = {
   'Foot tennis': [[8, 14], [25], [120, 200], 'Baza Sportivă Gheorgheni'],
   Hyrox: [[10, 20], [50, 70], [250, 450], 'Hyrox Box'],
 };
+
+// The demo is Active's kind of business: a new database is set up as Active, with the community starting data.
+if (!getBusiness()) tx(() => { setBusiness(ACTIVE); seedBusiness('community'); });
 
 tx(() => {
   if (reset) {

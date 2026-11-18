@@ -1,14 +1,16 @@
 #!/bin/bash
-# Server-side deploy for Active Management, run by GitHub Actions over SSH.
+# Server-side deploy, run by GitHub Actions over SSH (or by hand).
 # Installed on the server as /root/deploy-activemanagement.sh; the GitHub key in
 # ~/.ssh/authorized_keys may run only this script (command="..." restriction).
+# For another business's copy on the same or another server, install a second copy of this script with its own
+# APP_DIR and CONTAINER (= APP_NAME in that copy's .env), e.g. /root/deploy-kineto.sh.
 set -euo pipefail
-APP_DIR=/root/Projects/ActiveManagement
-CONTAINER=active-management
+APP_DIR=${APP_DIR:-/root/Projects/ActiveManagement}
+CONTAINER=${CONTAINER:-active-management}
 cd "$APP_DIR"
 
 # One deploy at a time: a second push waits for the first to finish.
-exec 9>/tmp/deploy-activemanagement.lock
+exec 9>"/tmp/deploy-$CONTAINER.lock"
 flock 9
 
 echo "==> Backing up the database"

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
-import { today } from '../format.js';
+import { CURRENCY, today } from '../format.js';
 import Select from './Select.jsx';
 
 export const PAYMENT_METHODS = ['Cash', 'Card', 'Bank transfer', 'Other'];
@@ -62,7 +62,7 @@ export default function TxForm({ tx, eventId, eventDate, fund, part, defaultKind
         ))}
       </div>
       <div className="form-grid">
-        <label className="field">Amount (RON)
+        <label className="field">Amount ({CURRENCY})
           <input type="number" min="0.01" step="0.01" value={f.amount} onChange={set('amount')} autoFocus required />
         </label>
         <label className="field">Category

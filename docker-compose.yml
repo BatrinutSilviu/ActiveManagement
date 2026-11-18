@@ -1,4 +1,6 @@
-# Runs the app behind an existing Traefik on the same Docker host.
+# Runs the app behind an existing Traefik on the same Docker host. One copy per business: each copy has its own
+# folder with its own .env (see .env.example and README → "Setting up a copy for another business").
+# The defaults below are Active's (management.activetimisoara.ro).
 # Check these three values against your Traefik setup (see README → "Deploying with Traefik"):
 #   - the external network Traefik uses        (TRAEFIK_NETWORK, default: traefik)
 #   - the HTTPS entrypoint name                 (TRAEFIK_ENTRYPOINT, default: websecure)
@@ -6,8 +8,8 @@
 services:
   app:
     build: .
-    image: active-management:latest
-    container_name: active-management
+    image: ${APP_NAME:-active-management}:latest
+    container_name: ${APP_NAME:-active-management}
     restart: unless-stopped
     # At most 5 × 20 MB of logs in Docker; the server archives them daily and deletes them after 30 days.
     logging:
@@ -18,7 +20,7 @@ services:
     volumes:
       - active-data:/data
       # The server's usage snapshots (written by the ops job active-metrics), for the Server page.
-      - /var/lib/active-ops/metrics:/metrics:ro
+      - ${METRICS_HOST_DIR:-/var/lib/active-ops/metrics}:/metrics:ro
     environment:
       # Shared secret the padel and hikes apps use to push their events here (empty = disabled).
       - INTEGRATION_TOKEN=${INTEGRATION_TOKEN:-}
@@ -27,12 +29,15 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
-      - traefik.http.routers.active-management.rule=Host(`management.activetimisoara.ro`)
-      - traefik.http.routers.active-management.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
-      - traefik.http.routers.active-management.tls=true
-      - traefik.http.routers.active-management.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
-      - traefik.http.services.active-management.loadbalancer.server.port=3001
+      - traefik.http.routers.${APP_NAME:-active-management}.rule=Host(`${APP_DOMAIN:-management.activetimisoara.ro}`)
+      - traefik.http.routers.${APP_NAME:-active-management}.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.${APP_NAME:-active-management}.tls=true
+      - traefik.http.routers.${APP_NAME:-active-management}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.routers.${APP_NAME:-active-management}.service=${APP_NAME:-active-management}
+      - traefik.http.services.${APP_NAME:-active-management}.loadbalancer.server.port=3001
 
+# Compose names the volume after the folder (project), e.g. activemanagement_active-data, so copies in different
+# folders never share a database. Set COMPOSE_PROJECT_NAME in .env if two copies' folders have the same name.
 volumes:
   active-data:
 

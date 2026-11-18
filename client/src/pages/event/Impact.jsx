@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi, usePermissions } from '../../hooks.js';
+import { useBusiness } from '../../business.js';
 import { number } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../../components/Icons.jsx';
@@ -11,7 +12,8 @@ const HIGHLIGHT_LABELS = { collab: 'Collaboration', guest: 'Special guest', spec
 /** What made the event special: each line adds impact points to the event (times the impact weight). */
 export default function Impact({ e, reload }) {
   const { data: rates } = useApi('/settings/points-rates');
-  const { data: partners } = useApi('/partners');
+  const { on } = useBusiness();
+  const { data: partners } = useApi(on('partners') ? '/partners' : null);
   const { canEdit } = usePermissions();
   const blank = { kind: 'collab', title: '', partner_id: '', points: '' };
   const [f, setF] = useState(null);

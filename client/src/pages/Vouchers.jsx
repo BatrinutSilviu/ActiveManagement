@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAction, useApi, usePermissions, usePersistentState } from '../hooks.js';
-import { date, money, money0, number, today } from '../format.js';
+import { CURRENCY, date, money, money0, number, today } from '../format.js';
 import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
@@ -62,7 +62,7 @@ export function VoucherForm({ voucher, event, onClose, onSaved }) {
             <span className="hint">When it’s used, you enter what it actually cost us</span>
           </label>
         ) : (
-          <label className="field">Value (RON)
+          <label className="field">Value ({CURRENCY})
             <input type="number" min="0" step="0.01" value={f.value} onChange={set('value')} placeholder="e.g. 100" required />
             <span className="hint">What we expect to pay when it’s used</span>
           </label>
@@ -114,7 +114,7 @@ function UseValueForm({ voucher, onClose, onSaved }) {
         What we paid is recorded as money spent from the {voucher.is_sport ? `${voucher.sport_name} fund` : 'general fund'} on that day, and shows in Transactions.</p>
       <div className="form-grid">
         <label className="field">Used on<input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} required /></label>
-        <label className="field">We paid (RON)<input type="number" min="0" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} required autoFocus={isPct(voucher)} placeholder="e.g. 45" /></label>
+        <label className="field">We paid ({CURRENCY})<input type="number" min="0" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} required autoFocus={isPct(voucher)} placeholder="e.g. 45" /></label>
       </div>
     </Modal>
   );

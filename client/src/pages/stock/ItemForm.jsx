@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
-import { number } from '../../format.js';
+import { CURRENCY, number } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import { IconPlus } from '../../components/Icons.jsx';
 import Select from '../../components/Select.jsx';
@@ -37,7 +37,7 @@ export function ItemForm({ item, category, cats, people, founders, onClose, onSa
         <label className="field full">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Water 0.5L" autoFocus required /></label>
         <label className="field">Category<CategorySelect cats={cats} value={f.category_id} onChange={set('category_id')} /></label>
         <label className="field">Unit<input value={f.unit} onChange={set('unit')} placeholder="pcs, bottles, kg…" /></label>
-        <label className="field">Price per unit (RON)<input type="number" min="0" step="0.01" value={f.unit_price} onChange={set('unit_price')} required /></label>
+        <label className="field">Price per unit ({CURRENCY})<input type="number" min="0" step="0.01" value={f.unit_price} onChange={set('unit_price')} required /></label>
         <label className="field full check-field">
           <input type="checkbox" checked={!!f.prepaid} onChange={(e) => setF({ ...f, prepaid: e.target.checked ? 1 : 0 })} />
           <span>Already paid for <span className="hint">— bought earlier (e.g. from a fund): events that use it aren’t charged for it, including past ones</span></span>

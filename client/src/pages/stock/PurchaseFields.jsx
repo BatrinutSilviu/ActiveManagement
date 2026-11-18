@@ -1,5 +1,5 @@
 import { useApi } from '../../hooks.js';
-import { number, today } from '../../format.js';
+import { CURRENCY, number, today } from '../../format.js';
 import Select from '../../components/Select.jsx';
 
 export const PURCHASE_KINDS = { items: 'Usual items / prizes', merch: 'Partnership merchandise' };
@@ -37,7 +37,7 @@ export function PurchaseFields({ p, setP, people, holder, qty, price }) {
               {Object.entries(PURCHASE_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
           </label>
-          <label className="field">Paid (RON)
+          <label className="field">Paid ({CURRENCY})
             <input type="number" min="0" step="0.01" value={p.amount} onChange={set('amount')} placeholder={String(auto)} />
             <span className="hint">{p.amount === '' ? 'Quantity × price; type the real amount if different' : ' '}</span>
           </label>
@@ -46,7 +46,7 @@ export function PurchaseFields({ p, setP, people, holder, qty, price }) {
             <input type="checkbox" checked={!!p.paid_before} onChange={(e) => setP({ ...p, paid_before: e.target.checked })} />
             Paid earlier, already counted in the budget: don’t take it out of the fund again
           </label>
-          <p className="hint full" style={{ margin: 0 }}>{number(points)} points{rates && step > 0 ? ` (${number(pts)} per ${number(step)} RON for ${PURCHASE_KINDS[p.kind].toLowerCase()})` : ''}</p>
+          <p className="hint full" style={{ margin: 0 }}>{number(points)} points{rates && step > 0 ? ` (${number(pts)} per ${number(step)} ${CURRENCY} for ${PURCHASE_KINDS[p.kind].toLowerCase()})` : ''}</p>
         </>
       )}
     </>

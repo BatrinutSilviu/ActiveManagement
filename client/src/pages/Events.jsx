@@ -7,6 +7,7 @@ import EventForm from '../components/EventForm.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import { IconEdit, IconPlus } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
+import { useBusiness } from '../business.js';
 
 export default function Events() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function Events() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null); // the full event being edited from the list
   const { canEdit } = usePermissions();
+  const { term, Term } = useBusiness();
 
   const list = events || [];
   const sum = (k) => list.reduce((s, e) => s + e[k], 0);
@@ -30,10 +32,10 @@ export default function Events() {
     <div className={loading ? 'loading' : ''}>
       <div className="page-head">
         <div>
-          <h1>Events</h1>
-          <p>Every event with its fees, costs and profit. Live events don’t count towards the funds until finalized.</p>
+          <h1>{Term('events')}</h1>
+          <p>Every {term('event')} with its fees, costs and profit. Live {term('events')} don’t count in the money until finalized.</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New {term('event')}</button>}
       </div>
 
       <div className="filters">

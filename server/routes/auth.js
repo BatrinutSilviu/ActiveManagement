@@ -1,7 +1,8 @@
 // Signing in and out, and creating the first account.
 import express from 'express';
 import { createSession, currentUser, destroySession, hashPassword, verifyPassword } from '../auth.js';
-import { db } from '../db.js';
+import { db, seedBusiness, tx } from '../db.js';
+import { getBusiness, readBusiness, setBusiness } from '../domain/business.js';
 import { httpError, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -11,13 +12,24 @@ router.get('/auth/me', (req, res) => {
   res.json({ user: currentUser(req), needsSetup });
 });
 
+// First run: the first admin account, and (on a new database) which business this copy is for, with the
+// starting data for its type (categories, services or sports…).
 router.post('/auth/setup', (req, res) => {
   if (db.prepare('SELECT 1 FROM users LIMIT 1').get()) throw httpError(403, 'Setup already completed');
   const { name, email, password } = req.body;
   need(name && email && password?.length >= 8, 'Name, email and a password of at least 8 characters are required');
-  const { lastInsertRowid } = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
-    .run(name.trim(), email.trim().toLowerCase(), hashPassword(password));
-  createSession(res, Number(lastInsertRowid));
+  let business = null;
+  if (!getBusiness()) {
+    const { value, error } = readBusiness({ type: 'practice', ...req.body.business });
+    need(!error, error);
+    business = value;
+  }
+  const userId = tx(() => {
+    if (business) { setBusiness(business); seedBusiness(business.type); }
+    return Number(db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
+      .run(name.trim(), email.trim().toLowerCase(), hashPassword(password)).lastInsertRowid);
+  });
+  createSession(res, userId);
   res.json({ ok: true });
 });
 

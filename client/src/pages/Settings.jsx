@@ -1,4 +1,6 @@
+import { useBusiness } from '../business.js';
 import { usePermissions } from '../hooks.js';
+import { Business } from './settings/Business.jsx';
 import { Accounts, Password } from './settings/Accounts.jsx';
 import { Backups } from './settings/Backups.jsx';
 import { Discounts } from './settings/Discounts.jsx';
@@ -9,6 +11,7 @@ import { Categories, Sports } from './settings/Sports.jsx';
 
 export default function Settings({ user }) {
   const { canEdit, isAdmin } = usePermissions();
+  const { on } = useBusiness();
   // Viewers only get their own password; the rest of the page is for changing things.
   if (!canEdit) {
     return (
@@ -20,17 +23,20 @@ export default function Settings({ user }) {
   }
   return (
     <div>
-      <div className="page-head"><div><h1>Settings</h1><p>People, discounts, points table, default split, sports, starting balance, categories{isAdmin ? ', accounts and backups' : ''}.</p></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p>{isAdmin ? 'Business, ' : ''}people, discounts, {on('payouts') ? 'points table, default split, ' : ''}sports, starting balance, categories{isAdmin ? ', accounts and backups' : ''}.</p></div></div>
       <div className="stack">
+        {isAdmin && <Business />}
         <People />
         <Discounts />
+        {on('payouts') && <>
+          <div className="grid grid-2">
+            <PointsRates />
+            <TaskShares />
+          </div>
+          <Activities />
+        </>}
         <div className="grid grid-2">
-          <PointsRates />
-          <TaskShares />
-        </div>
-        <Activities />
-        <div className="grid grid-2">
-          <ProfitSplit />
+          {on('payouts') && <ProfitSplit />}
           <Sports />
         </div>
         <StartingBalance />

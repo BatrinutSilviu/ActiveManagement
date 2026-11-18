@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
-import { date, money, money0, number, today } from '../format.js';
+import { CURRENCY, date, money, money0, number, today } from '../format.js';
 import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconBox, IconEdit, IconTrash, IconUsers } from '../components/Icons.jsx';
@@ -50,7 +50,7 @@ export function EquipmentForm({ item, people, sports, onClose, onSaved }) {
           </Select>
         </label>
         <label className="field">Pieces<input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} required /></label>
-        <label className="field">Cost per piece (RON)<input type="number" min="0" step="0.01" value={f.unit_cost} onChange={set('unit_cost')} /></label>
+        <label className="field">Cost per piece ({CURRENCY})<input type="number" min="0" step="0.01" value={f.unit_cost} onChange={set('unit_cost')} /></label>
         <label className="field">Bought on<input type="date" value={f.bought_on} onChange={set('bought_on')} /></label>
         <label className="field">Who has it
           <Select value={f.person_id} onChange={set('person_id')}>

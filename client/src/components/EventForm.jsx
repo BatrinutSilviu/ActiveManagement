@@ -3,7 +3,8 @@ import { useState } from 'react';
 import Modal from './Modal.jsx';
 import { api } from '../api.js';
 import { useApi } from '../hooks.js';
-import { money, number, today } from '../format.js';
+import { useBusiness } from '../business.js';
+import { CURRENCY, money, number, today } from '../format.js';
 import Select from './Select.jsx';
 
 export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
@@ -36,7 +37,8 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const { data: types } = useApi('/event-types');
   const { data: allPeople } = useApi('/people');
   const { data: rates } = useApi('/settings/points-rates');
-  const { data: activities } = useApi('/activities');
+  const { on } = useBusiness();
+  const { data: activities } = useApi(on('payouts') ? '/activities' : null);
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
     start_time: '', end_time: '', participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
@@ -133,7 +135,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
           <span className="hint">{fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant'}</span>
         </label>
         {fixedVenue ? (
-          <label className="field">Venue total (RON)
+          <label className="field">Venue total ({CURRENCY})
             <input type="number" min="0" step="0.01" value={f.venue_total} onChange={set('venue_total')} placeholder="0" />
             <span className="hint">Or leave 0 and add the venue as a cost on the event page</span>
           </label>
@@ -144,7 +146,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
         <div className="full price-parts">
           <span className="form-section" style={{ margin: 0 }}>Price per person <span className="hint">— fill in the two parts, or the total</span></span>
           <div className="price-grid">
-            <label className="field">{fixedVenue ? 'Venue part' : 'Venue part'} (RON)
+            <label className="field">{fixedVenue ? 'Venue part' : 'Venue part'} ({CURRENCY})
               <input type="number" min="0" step="0.01" value={f.venue_fee} onChange={set('venue_fee')} placeholder="0" />
               <span className="hint">{fixedVenue
                 ? (shareTouched
@@ -153,12 +155,12 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
                 : 'Paid on to the venue · members pay only this'}</span>
             </label>
             <span className="price-op" aria-hidden="true">+</span>
-            <label className="field">Community part (RON)
+            <label className="field">Community part ({CURRENCY})
               <input type="number" step="0.01" value={f.community} onChange={set('community')} placeholder="0" />
               <span className={`hint ${Number(f.community) < 0 ? 'neg' : ''}`}>{Number(f.community) < 0 ? 'Less than the venue part — the price doesn’t cover it' : 'What the community keeps'}</span>
             </label>
             <span className="price-op" aria-hidden="true">=</span>
-            <label className="field">Total price (RON)
+            <label className="field">Total price ({CURRENCY})
               <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
               <span className="hint">{from === 'parts'
                 ? (fixedVenue ? 'Venue part + community part · the profit counts the community part × people exactly' : 'Venue part + community part')
@@ -198,6 +200,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
             <input type="date" value={f.end_date || ''} min={f.date} onChange={set('end_date')} />
           </label>
         )}
+        {on('payouts') && <>
         <div className="full form-section">Points <span className="hint">— shared between the event’s tasks</span></div>
         <label className="field full">Kind of event
           <Select value={f.activity_id || ''} onChange={set('activity_id')}>
@@ -207,7 +210,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
           <span className="hint">Its points (from the points table in Settings) are what the time it takes is worth</span>
         </label>
         {rates && <p className="hint full" style={{ margin: 0 }}>{number(Math.round(timePoints * 100) / 100)} points for the time
-          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints * factor)} per ${number(rates.moneyStep)} RON of profit` : ''}{factor !== 1 ? ` (× ${number(factor)} for this kind of event)` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
+          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints * factor)} per ${number(rates.moneyStep)} ${CURRENCY} of profit` : ''}{factor !== 1 ? ` (× ${number(factor)} for this kind of event)` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
         {!event && (
           <label className="field">Organiser
             <Select value={lead} onChange={(e) => setLead(e.target.value)}>
@@ -218,6 +221,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
           </label>
         )}
         {!event && allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
+        </>}
         <label className="field full">Notes
           <textarea value={f.notes || ''} onChange={set('notes')} placeholder="Logistics, contacts, reminders…" />
         </label>

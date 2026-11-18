@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { api } from './api.js';
 import { money0 } from './format.js';
 import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
+import { applyBusiness, BusinessContext } from './business.js';
 import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -19,18 +20,20 @@ import Settings from './pages/Settings.jsx';
 import Server from './pages/Server.jsx';
 import Import from './pages/Import.jsx';
 
+// `term`: the label is what the business calls it (Events / Sessions…); `feature`: shown only when that part is on.
+// `overview`: in the top group of the menu.
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
-  { to: '/events', label: 'Events', icon: IconCalendar },
-  { to: '/payouts', label: 'Payouts', icon: IconCoins },
-  { to: '/monthly', label: 'Monthly', icon: IconReport },
-  { to: '/sports', label: 'Sports', icon: IconTrophy },
-  { to: '/stock', label: 'Stock', icon: IconBox },
-  { to: '/vouchers', label: 'Vouchers', icon: IconTicket },
-  { to: '/partners', label: 'Partners', icon: IconGift },
+  { to: '/', label: 'Dashboard', icon: IconDashboard, end: true, overview: true },
+  { to: '/events', term: 'events', icon: IconCalendar, overview: true },
+  { to: '/payouts', label: 'Payouts', icon: IconCoins, feature: 'payouts', overview: true },
+  { to: '/monthly', label: 'Monthly', icon: IconReport, overview: true },
+  { to: '/sports', term: 'sports', icon: IconTrophy, feature: 'funds', overview: true },
+  { to: '/stock', label: 'Stock', icon: IconBox, feature: 'stock' },
+  { to: '/vouchers', label: 'Vouchers', icon: IconTicket, feature: 'vouchers' },
+  { to: '/partners', label: 'Partners', icon: IconGift, feature: 'partners' },
   { to: '/transactions', label: 'Transactions', icon: IconWallet },
-  { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true },
-  { to: '/server', label: 'Server', icon: IconActivity, adminOnly: true },
+  { to: '/import', label: 'Import', icon: IconUpload, adminOnly: true, feature: 'import' },
+  { to: '/server', label: 'Server', icon: IconActivity, adminOnly: true, feature: 'server' },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -70,6 +73,13 @@ function ThemeToggle() {
 
 export default function App() {
   const [auth, setAuth] = useState(null);
+  const [info, setInfo] = useState(null); // { business, types, features } from /business
+  const loadBusiness = useCallback(() => api.get('/business').then((d) => { applyBusiness(d.business); setInfo(d); }), []);
+  useEffect(() => {
+    loadBusiness().catch(() => setInfo({ business: null }));
+    window.addEventListener('am:business', loadBusiness);
+    return () => window.removeEventListener('am:business', loadBusiness);
+  }, [loadBusiness]);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -82,33 +92,37 @@ export default function App() {
   }, []);
   useEffect(() => setMenuOpen(false), [location.pathname]);
 
-  if (!auth) return null;
-  if (!auth.user) return <Login needsSetup={auth.needsSetup} onDone={refresh} />;
+  if (!auth || !info) return null;
+  if (!auth.user) return <Login needsSetup={auth.needsSetup} info={info} onDone={() => { refresh(); loadBusiness(); }} />;
 
+  const b = info.business;
+  const on = (f) => !f || !!b?.features?.[f];
   const logout = async () => { await api.post('/auth/logout'); refresh(); };
   const isAdmin = auth.user.role === 'admin';
-  const nav = NAV.filter((n) => !n.adminOnly || isAdmin);
+  const nav = NAV.filter((n) => (!n.adminOnly || isAdmin) && on(n.feature))
+    .map((n) => ({ ...n, label: n.label || (b?.terms?.[n.term] ?? n.term).replace(/^./, (c) => c.toUpperCase()) }));
 
   return (
+    <BusinessContext.Provider value={b}>
     <UserContext.Provider value={auth.user}>
     <div className="shell">
       <div className="mobile-bar">
         <button className="icon-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu"><IconMenu /></button>
-        Active Management
+        {b?.name} Management
       </div>
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
           <span className="brand-mark"><IconActivity width="19" height="19" color="#fff" /></span>
-          <div>Active<small>Community admin</small></div>
+          <div>{b?.name}{b?.tagline && <small>{b.tagline}</small>}</div>
         </div>
         <AccountBalance path={location.pathname} />
         <div className="nav-section">Overview</div>
-        {nav.slice(0, 5).map(({ to, label, icon: Icon, end }) => (
+        {nav.filter((n) => n.overview).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
         <div className="nav-section">Manage</div>
-        {nav.slice(5).map(({ to, label, icon: Icon, end }) => (
+        {nav.filter((n) => !n.overview).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
         <div className="sidebar-foot">
@@ -129,21 +143,22 @@ export default function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventDetail />} />
           <Route path="/transactions" element={<Transactions />} />
-          <Route path="/payouts" element={<Payouts />} />
+          {on('payouts') && <Route path="/payouts" element={<Payouts />} />}
           <Route path="/monthly" element={<Monthly />} />
-          <Route path="/sports" element={<SportsList />} />
-          <Route path="/sports/general" element={<GeneralFundDetail />} />
-          <Route path="/sports/:id" element={<SportDetail />} />
-          <Route path="/stock" element={<Stock />} />
-          <Route path="/vouchers" element={<Vouchers />} />
-          <Route path="/partners" element={<Partners />} />
-          {isAdmin && <Route path="/import" element={<Import />} />}
-          {isAdmin && <Route path="/server" element={<Server />} />}
+          {on('funds') && <Route path="/sports" element={<SportsList />} />}
+          {on('funds') && <Route path="/sports/general" element={<GeneralFundDetail />} />}
+          {on('funds') && <Route path="/sports/:id" element={<SportDetail />} />}
+          {on('stock') && <Route path="/stock" element={<Stock />} />}
+          {on('vouchers') && <Route path="/vouchers" element={<Vouchers />} />}
+          {on('partners') && <Route path="/partners" element={<Partners />} />}
+          {isAdmin && on('import') && <Route path="/import" element={<Import />} />}
+          {isAdmin && on('server') && <Route path="/server" element={<Server />} />}
           <Route path="/settings" element={<Settings user={auth.user} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
     </div>
     </UserContext.Provider>
+    </BusinessContext.Provider>
   );
 }

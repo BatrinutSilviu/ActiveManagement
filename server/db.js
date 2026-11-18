@@ -6,7 +6,7 @@ import { migrate } from './db/schema.js';
 import { log } from './log.js';
 
 export { DB_PATH, db, integrity, tx } from './db/connection.js';
-export { applyHyroxPricing, SPORTS } from './db/schema.js';
+export { applyHyroxPricing, seedBusiness, SPORTS } from './db/schema.js';
 export {
   getPointsRates, getSplit, getStartingBalance, getTaskShares, POINTS_RATE_KEYS, setMonthSplit, setPointsRates, setSplit,
   setStartingBalance, setTaskShares, splitResolver,

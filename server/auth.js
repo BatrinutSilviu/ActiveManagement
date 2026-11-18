@@ -80,7 +80,7 @@ export function checkRole(req, res, next) {
   if (req.method === 'PUT' && req.path === '/users/me/password') return next();
   // Routes match case-sensitively (every router is created with caseSensitive), and this check is
   // case-insensitive too, so /api/Users can't slip past it.
-  const adminOnly = /^\/(users|imports?|backups|server)(\/|$)/i.test(req.path);
+  const adminOnly = /^\/(users|imports?|backups|server|business)(\/|$)/i.test(req.path);
   if (adminOnly && role !== 'admin') return res.status(403).json({ error: 'Only admins can do this' });
   if (!['GET', 'HEAD'].includes(req.method) && role === 'viewer') return res.status(403).json({ error: 'Your account can only view data' });
   next();

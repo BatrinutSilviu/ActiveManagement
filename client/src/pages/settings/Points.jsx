@@ -7,6 +7,7 @@ import { IconEdit, IconTrash } from '../../components/Icons.jsx';
 import { TASK_LABELS, TASKS } from '../../points.js';
 import Select from '../../components/Select.jsx';
 import { rename } from './rename.js';
+import { CURRENCY } from '../../format.js';
 
 /** How an event's points are made (four weighted parts), and points for buying stock. */
 export function PointsRates() {
@@ -36,12 +37,12 @@ export function PointsRates() {
         </div>
         <div className="form-section" style={{ marginTop: 6 }}>Rates</div>
         <div className="rate-line">Time: the kind of event’s points (points table below)</div>
-        <div className="rate-line">{input('peoplePoints')} points per {input('peopleStep', 1)} participants — in full when the event made at least {input('peopleProfit', 1)} RON profit per person, less below that, none without profit</div>
-        <div className="rate-line">{input('moneyPoints')} points per {input('moneyStep', 10)} RON of profit</div>
+        <div className="rate-line">{input('peoplePoints')} points per {input('peopleStep', 1)} participants — in full when the event made at least {input('peopleProfit', 1)} {CURRENCY} profit per person, less below that, none without profit</div>
+        <div className="rate-line">{input('moneyPoints')} points per {input('moneyStep', 10)} {CURRENCY} of profit</div>
         <div className="rate-line">Impact, usual points: collaboration {input('collabPoints')} · special guest {input('guestPoints')} · special event {input('specialPoints')}</div>
         <div className="form-section" style={{ marginTop: 6 }}>Stock purchases <span className="hint">— points for whoever bought it</span></div>
-        <div className="rate-line">{input('itemsPoints')} points per {input('itemsStep', 10)} RON of usual items / prizes</div>
-        <div className="rate-line">{input('merchPoints')} points per {input('merchStep', 10)} RON of partnership merchandise</div>
+        <div className="rate-line">{input('itemsPoints')} points per {input('itemsStep', 10)} {CURRENCY} of usual items / prizes</div>
+        <div className="rate-line">{input('merchPoints')} points per {input('merchStep', 10)} {CURRENCY} of partnership merchandise</div>
         <div><button className="btn" disabled={!f}>Save rates</button></div>
       </form>
     </div>

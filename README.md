@@ -3,6 +3,9 @@
 Financial & logistics admin app for the Active community: events (sport sessions, tournaments, …), their income
 and expenses, general overhead costs, and dashboards with profit per event, month and year. Amounts are in RON.
 
+The same code can run for other businesses: each runs its **own copy** (own container, domain and database), set up
+as described in [Setting up a copy for another business](#setting-up-a-copy-for-another-business).
+
 ## Stack
 
 - **Backend:** Node.js ≥ 22.13 + Express 5, SQLite via the built-in `node:sqlite` (no native build needed)
@@ -165,6 +168,43 @@ Settings → Backups, can back up now and download any of them — keep a copy o
 Change the schedule with the `BACKUP_EVERY_DAYS` / `BACKUP_KEEP` environment variables.
 
 Updating later: automatic — see "Automatic deployment" below. Manually: `git pull && docker compose up -d --build`.
+
+## Setting up a copy for another business
+
+Every business gets its own copy of the app: its own container, domain and database file, on this server or
+another one. Nothing is shared between copies, and every copy runs the same code.
+
+**What a business is** (stored in its database, set at first-run setup):
+- **Kind of business**: *Community* (like Active: events, sport funds, profit split, points…) or *Practice*
+  (e.g. a therapist doing home visits: sessions with patients and the money). It decides the starting data
+  (sports or services, categories), what things are called (Events / Sessions, Sports / Services…), and which
+  parts of the app are on to begin with. It's chosen once and stays.
+- **Settings → Business** (admins): name, subtitle, colour, currency, number format, website, and which parts of
+  the app are on: payouts & points, sport funds page, vouchers, partners, stock, spreadsheet import, server status
+  page, events pushed from other apps, public calendar. A part that's off disappears from the menu and its API
+  routes answer 404.
+- Active's database (made before this existed) is set up as Active automatically: a community with every part on.
+
+**Setting up a new copy** (with Docker + Traefik, as for Active):
+
+```bash
+# 0. DNS: an A record for the new domain pointing at the server.
+# 1. Get the code into its own folder
+sudo git clone https://github.com/BatrinutSilviu/ActiveManagement.git /root/Projects/kineto-management
+cd /root/Projects/kineto-management
+# 2. Its settings: copy the example and set APP_NAME, APP_DOMAIN and COMPOSE_PROJECT_NAME (all different from
+#    the other copies on this server), plus the Traefik values if they differ.
+cp .env.example .env && nano .env
+# 3. Build and start
+sudo docker compose up -d --build
+sudo docker compose ps                     # should become "healthy"
+# 4. Open https://<APP_DOMAIN>: it asks for the business (name, kind, currency) and the first admin account.
+```
+
+Updating it: `git pull && docker compose up -d --build` in its folder, or install a copy of
+`deploy/server-deploy.sh` with its own `APP_DIR` and `CONTAINER` (= `APP_NAME`) set at the top or in the
+environment, and call that from a deploy job. Backups work the same as for Active (every 2 days into `/data/backups`
+on that copy's volume); add the copy to the server's off-site backup job too.
 
 ## Automatic deployment (GitHub Actions)
 

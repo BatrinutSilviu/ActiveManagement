@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
-import { date, money, money0, number, today } from '../format.js';
+import { CURRENCY, date, money, money0, number, today } from '../format.js';
 import Modal from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconEdit, IconPlus, IconTrash } from '../components/Icons.jsx';
@@ -67,7 +67,7 @@ export function PrizeForm({ prize, event, onClose, onSaved }) {
         <label className="field">How many
           <input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} />
         </label>
-        <label className="field">Estimated value (RON, optional)
+        <label className="field">Estimated value ({CURRENCY}, optional)
           <input type="number" min="0" step="0.01" value={f.value} onChange={set('value')} placeholder="All of it together" />
           <span className="hint">Only for the record — not counted anywhere</span>
         </label>

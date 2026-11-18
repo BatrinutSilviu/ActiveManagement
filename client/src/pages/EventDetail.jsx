@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useApi, usePermissions } from '../hooks.js';
+import { useBusiness } from '../business.js';
 import { date, money0 } from '../format.js';
 import EventForm from '../components/EventForm.jsx';
 import TxForm from '../components/TxForm.jsx';
@@ -34,6 +35,7 @@ function EventDetail() {
   const [copying, setCopying] = useState(false);
   const [txForm, setTxForm] = useState(null); // { kind } | { tx }
   const { canEdit } = usePermissions();
+  const { on, Term } = useBusiness();
 
   if (error) return <div className="error-box">{error}</div>;
   if (!e || !txs || !split) return null;
@@ -53,7 +55,7 @@ function EventDetail() {
 
   return (
     <div>
-      <Link to="/events" className="back-link"><IconChevronLeft width="16" height="16" />Events</Link>
+      <Link to="/events" className="back-link"><IconChevronLeft width="16" height="16" />{Term('events')}</Link>
       <div className="page-head">
         <div>
           <h1>{e.name}</h1>
@@ -99,12 +101,12 @@ function EventDetail() {
           </div>
           <Attendees e={e} reload={reload} />
           <Discounts e={e} reload={reload} />
-          <StockUsage e={e} reload={reload} />
-          <Impact e={e} reload={reload} />
-          <Tasks e={e} reload={reload} />
-          <EventVouchers e={e} />
+          {on('stock') && <StockUsage e={e} reload={reload} />}
+          {on('payouts') && <Impact e={e} reload={reload} />}
+          {on('payouts') && <Tasks e={e} reload={reload} />}
+          {on('vouchers') && <EventVouchers e={e} />}
           <OurPrizes e={e} />
-          <PartnerPrizes e={e} />
+          {on('partners') && <PartnerPrizes e={e} />}
         </div>
         <div className="stack">
           <Statement e={e} split={split} />

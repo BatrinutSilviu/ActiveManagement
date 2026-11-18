@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi, usePermissions } from '../../hooks.js';
-import { discountLabel, money } from '../../format.js';
+import { CURRENCY, discountLabel, money } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
 import Select from '../../components/Select.jsx';
@@ -116,7 +116,7 @@ export default function Discounts({ e, reload }) {
           <option value="custom">One-off amount…</option>
         </Select>
         {f.discount_id === 'custom' && (
-          <input className="select-sm num-input" type="number" min="0.01" step="0.01" placeholder="RON" value={f.amount}
+          <input className="select-sm num-input" type="number" min="0.01" step="0.01" placeholder={CURRENCY} value={f.amount}
             onChange={(ev) => setF({ ...f, amount: ev.target.value })} required aria-label="Discount amount" />
         )}
         <button className="btn btn-sm" disabled={!named}>Add{preview ? ` · −${money(preview)}` : ''}</button>

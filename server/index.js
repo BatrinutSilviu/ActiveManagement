@@ -36,6 +36,8 @@ import { router as backups } from './routes/backups.js';
 import { router as exportRoutes } from './routes/export.js';
 import { router as serverStatus } from './routes/server.js';
 import { router as publicCalendar } from './routes/publicCalendar.js';
+import { publicRouter as businessPublic, router as business } from './routes/business.js';
+import { featureOn, getBusiness } from './domain/business.js';
 
 const app = express();
 // Trust the reverse proxy in front (Nginx on loopback, or Traefik on the private Docker network).
@@ -50,14 +52,24 @@ app.use(express.json({ limit: '10mb' }));
 const api = express.Router({ caseSensitive: true });
 app.use('/api', api);
 
-// Open to anyone: the health check, signing in, the other apps' pushes (which bring their own token) and the
-// public calendar the presentation site reads.
-api.use(health, auth, integrations, publicCalendar);
+// Routes of a part of the app a business can switch off (Settings → Business): when it's off they don't exist (404).
+function part(feature, ...routers) {
+  const r = express.Router({ caseSensitive: true });
+  r.use((req, res, next) => next(featureOn(feature) ? undefined : 'router'));
+  r.use(...routers);
+  return r;
+}
+
+// Open to anyone: the health check, signing in, the business's name and look (for the sign-in page), the other
+// apps' pushes (which bring their own token) and the public calendar the presentation site reads.
+api.use(health, auth, businessPublic, part('sync', integrations), part('calendar', publicCalendar));
 
 // Everything else needs a signed-in account, with a role allowed to do it.
 api.use(requireAuth, checkRole);
-api.use(users, settings, sports, categories, people, discounts, stock, equipment, events, eventTasks, eventAttendees, eventStock,
-  transactions, activities, funds, payouts, stats, imports, vouchers, partners, backups, exportRoutes, serverStatus);
+api.use(users, business, settings, sports, categories, people, discounts, events, eventTasks, eventAttendees,
+  transactions, funds, stats, backups, exportRoutes,
+  part('stock', stock, equipment, eventStock), part('payouts', activities, payouts), part('import', imports),
+  part('vouchers', vouchers), part('partners', partners), part('server', serverStatus));
 api.use(apiNotFound);
 
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../client/dist');
@@ -71,7 +83,7 @@ app.use(errorHandler);
 
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse proxy
-const server = app.listen(port, host, () => log('info', `Active Management on http://${host}:${port}`, { db: process.env.DB_PATH || 'data/active.db' }));
+const server = app.listen(port, host, () => log('info', `${getBusiness()?.name || 'New business'} management on http://${host}:${port}`, { db: process.env.DB_PATH || 'data/active.db' }));
 startBackupSchedule();
 startPointsSchedule();
 

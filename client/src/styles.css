@@ -163,7 +163,7 @@ kbd {
 .brand small { display: block; font-size: 11px; font-weight: 500; color: var(--side-text); letter-spacing: 0; margin-top: -2px; }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
-  background: linear-gradient(135deg, #3d8ef0, #1c5cab); box-shadow: 0 4px 14px -4px rgba(42, 120, 214, 0.7), inset 0 1px 0 rgba(255,255,255,.25);
+  background: var(--brand, linear-gradient(135deg, #3d8ef0, #1c5cab)); box-shadow: 0 4px 14px -4px rgba(42, 120, 214, 0.7), inset 0 1px 0 rgba(255,255,255,.25);
 }
 .nav-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7180; padding: 14px 12px 6px; }
 .nav-link {
@@ -262,10 +262,11 @@ kbd {
 .btn:hover { background: var(--surface-2); text-decoration: none; }
 .btn:active { transform: translateY(1px); }
 .btn-primary {
-  background: linear-gradient(180deg, #3584e3, #2a78d6); color: var(--accent-ink); border-color: #2066be;
+  background: var(--brand, linear-gradient(180deg, #3584e3, #2a78d6)); color: var(--accent-ink); border-color: var(--brand, #2066be);
   box-shadow: 0 1px 2px rgba(16, 24, 40, .1), inset 0 1px 0 rgba(255,255,255,.15);
 }
-.btn-primary:hover { background: linear-gradient(180deg, #2f7bd8, #2169c2); }
+.btn-primary:hover { background: var(--brand, linear-gradient(180deg, #2f7bd8, #2169c2)); filter: var(--brand-hover, none); }
+:root[style*="--brand"] { --brand-hover: brightness(0.92); }
 .btn-danger { color: var(--bad-text); }
 .btn-danger:hover { background: color-mix(in srgb, var(--critical) 8%, var(--surface)); border-color: color-mix(in srgb, var(--critical) 35%, var(--border)); }
 .btn-ghost { border-color: transparent; background: transparent; box-shadow: none; }

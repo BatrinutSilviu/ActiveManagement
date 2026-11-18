@@ -8,6 +8,7 @@ import EventForm from '../components/EventForm.jsx';
 import { BarList, CumulativeChart, EventProfitList, IncomeExpenseChart, Legend, ProfitChart, SignedBarList } from '../components/Charts.jsx';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconPlus, IconTrend, IconUsers } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
+import { useBusiness } from '../business.js';
 
 export function PeriodFilters({ year, setYear, type, setType, allowAll = true }) {
   const { data: years } = useApi('/stats/years');
@@ -31,15 +32,16 @@ export function PeriodFilters({ year, setYear, type, setType, allowAll = true })
 /** The money the community has in its account, and what that money is (funds, payouts still to send…). */
 function AccountSection() {
   const { data: f } = useApi('/funds');
+  const { on } = useBusiness();
   if (!f) return null;
   const c = f.cash;
   const parts = [
-    { label: 'In the funds', value: c.funds, hint: 'general + sport funds, to reinvest', to: '/sports' },
+    { label: 'In the funds', value: c.funds, hint: 'general + sport funds, to reinvest', to: on('funds') ? '/sports' : null },
     c.owed >= 0
       ? { label: 'Still to pay out', value: c.owed, hint: 'founders’ and organisers’ payouts not sent yet', to: '/payouts' }
       : { label: 'Paid out beyond the calculated payouts', value: c.owed, hint: 'more was sent than the profit split gives', to: '/payouts' },
     { label: 'Organisers’ share with no points', value: c.unassigned, hint: 'nobody earned points in those months', to: '/payouts' },
-  ].filter((p) => Math.abs(p.value) >= 0.01);
+  ].filter((p) => Math.abs(p.value) >= 0.01).map((p) => (p.to === '/payouts' && !on('payouts') ? { ...p, to: null } : p));
   return (
     <section className="card card-pad account-card">
       <div className="account-main">
@@ -48,13 +50,11 @@ function AccountSection() {
         <span className="muted">Starting balance + finalized events’ profit + donations − reinvested − payouts sent. Compare it with the bank statement now and then.</span>
       </div>
       <div className="account-parts">
-        {parts.map((p) => (
-          <Link key={p.label} to={p.to} className="account-part">
-            <span>{p.label}<small>{p.hint}</small></span>
-            <strong className={p.value < 0 ? 'neg' : ''}>{money0(p.value)}</strong>
-          </Link>
-        ))}
-        {c.openVouchers.n > 0 && (
+        {parts.map((p) => {
+          const inner = <><span>{p.label}<small>{p.hint}</small></span><strong className={p.value < 0 ? 'neg' : ''}>{money0(p.value)}</strong></>;
+          return p.to ? <Link key={p.label} to={p.to} className="account-part">{inner}</Link> : <div key={p.label} className="account-part">{inner}</div>;
+        })}
+        {on('vouchers') && c.openVouchers.n > 0 && (
           <Link to="/vouchers" className="account-part note">
             <span>Unused vouchers<small>already in the funds above; paid when they’re used{c.openVouchers.pct ? ` · plus ${c.openVouchers.pct} % off, valued when used` : ''}</small></span>
             <strong>{money0(c.openVouchers.value)}</strong>
@@ -334,19 +334,20 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const { canEdit } = usePermissions();
+  const { on, term } = useBusiness();
   return (
     <div>
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>Funds, founders’ remuneration and how the community is doing.</p>
+          <p>{on('payouts') ? 'Funds, founders’ remuneration and how the community is doing.' : 'Money in the account and how the business is doing.'}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New event</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New {term('event')}</button>}
       </div>
       <div className="stack" style={{ gap: 40 }}>
         <AccountSection />
-        <FundsSection />
-        <FoundersSection />
+        {on('funds') && <FundsSection />}
+        {on('payouts') && <FoundersSection />}
         <YearOverview />
       </div>
       {creating && <EventForm onClose={() => setCreating(false)} onSaved={(id) => navigate(`/events/${id}`)} />}

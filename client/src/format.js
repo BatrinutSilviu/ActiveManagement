@@ -1,6 +1,14 @@
-const ron = new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON', maximumFractionDigits: 2 });
-const ron0 = new Intl.NumberFormat('ro-RO', { style: 'currency', currency: 'RON', maximumFractionDigits: 0 });
-const num = new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 1 });
+// Money and numbers in the business's currency and number format (Settings → Business), set once it's loaded.
+/** The currency code, for labels like "Amount (RON)". */
+export let CURRENCY = 'RON';
+let ron, ron0, num;
+export function setMoneyFormat(currency = 'RON', locale = 'ro-RO') {
+  CURRENCY = currency;
+  ron = new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 });
+  ron0 = new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 });
+  num = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+}
+setMoneyFormat();
 
 export const money = (v) => (v == null ? '—' : ron.format(v));
 export const money0 = (v) => (v == null ? '—' : ron0.format(v));
