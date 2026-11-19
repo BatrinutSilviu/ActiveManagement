@@ -2,6 +2,7 @@
 // it uses (features) and what things are called (terms: "event" or "session", "sport" or "service"…).
 import { createContext, useContext } from 'react';
 import { setMoneyFormat } from './format.js';
+import { setLanguage } from './i18n/index.js';
 
 export const BusinessContext = createContext(null);
 
@@ -19,6 +20,7 @@ const DEFAULT_COLOR = '#2a78d6';
 /** Applies the business to the page: money format, tab title and (when it isn't the default) the accent colour. */
 export function applyBusiness(b) {
   if (!b) return;
+  setLanguage(b.language);
   setMoneyFormat(b.currency, b.locale);
   document.title = `${b.name} · Management`;
   const root = document.documentElement.style;

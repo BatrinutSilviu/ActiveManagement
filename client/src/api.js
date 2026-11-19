@@ -1,3 +1,5 @@
+import { t } from './i18n/index.js';
+
 async function request(method, url, body) {
   const res = await fetch(`/api${url}`, {
     method,
@@ -7,7 +9,7 @@ async function request(method, url, body) {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && !url.startsWith('/auth')) window.dispatchEvent(new Event('am:signed-out'));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(t(data.error) || t('Request failed ({status})', { status: res.status }));
   return data;
 }
 

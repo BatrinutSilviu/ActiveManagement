@@ -34,7 +34,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', entities: [] };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', entities: [], language: 'en' };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -91,6 +91,10 @@ export function readBusiness(body, current = {}) {
     try { new Intl.NumberFormat(loc, { style: 'currency', currency: cur }); } catch { return { error: 'Unknown currency or number format' }; }
     if (!/^[A-Z]{3}$/.test(cur)) return { error: 'The currency must be a 3-letter code, e.g. RON or EUR' };
     v.currency = cur; v.locale = loc;
+  }
+  if (body.language !== undefined) {
+    if (!['en', 'ro'].includes(body.language)) return { error: 'Unknown language' };
+    v.language = body.language;
   }
   // The legal entities a practice's patients are treated through (each patient picks one), e.g. the practice's
   // own company and the therapist as a person. One per line in Settings.

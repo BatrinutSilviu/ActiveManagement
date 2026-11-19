@@ -2,6 +2,7 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { useApi, useChartColors, usePersistentState } from '../hooks.js';
+import { dateLocale } from '../i18n/index.js';
 import { Legend } from '../components/Charts.jsx';
 
 // The server's health and what each app uses (server/routes/server.js), from snapshots taken
@@ -47,12 +48,12 @@ const axis = (c) => ({ tick: { fill: c.muted, fontSize: 12 }, axisLine: false, t
 function timeLabel(t, range) {
   const d = new Date(t);
   return range === '1d'
-    ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    ? d.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' });
 }
 function tipLabel(t, range) {
   const d = new Date(t);
-  return d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
     + (range === '1d' ? '' : ' (period start)');
 }
 
@@ -115,7 +116,7 @@ export default function Server() {
       <div className="page-head">
         <div>
           <h1>Server</h1>
-          <p>Health and usage of the server and every app on it. Measured every 5 minutes; last at {new Date(latest.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.
+          <p>Health and usage of the server and every app on it. Measured every 5 minutes; last at {new Date(latest.at).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })}.
             {' '}A weekly summary is emailed on Mondays, and alerts as soon as something breaks.</p>
         </div>
         <div className="segmented" role="tablist" aria-label="Period">
@@ -336,7 +337,7 @@ function StorageCard({ storage, disk, colors }) {
   return (
     <div className="card card-pad">
       <div className="card-head">
-        <div><h2>Storage</h2><p>Share of the whole disk ({bytes(disk.total)}) · measured hourly, last at {new Date(storage.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p></div>
+        <div><h2>Storage</h2><p>Share of the whole disk ({bytes(disk.total)}) · measured hourly, last at {new Date(storage.at).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })}</p></div>
         <div className="kpi-value" style={{ fontSize: 20 }}>{pct(used, disk.total)} used</div>
       </div>
 

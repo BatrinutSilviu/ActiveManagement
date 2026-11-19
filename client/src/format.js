@@ -1,3 +1,4 @@
+import { dateLocale, onLanguage } from './i18n/index.js';
 // Money and numbers in the business's currency and number format (Settings → Business), set once it's loaded.
 /** The currency code, for labels like "Amount (RON)". */
 export let CURRENCY = 'RON';
@@ -26,16 +27,21 @@ export const compact = (v) => {
   return num.format(v);
 };
 
-export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
-  'October', 'November', 'December'];
+// Month names in the app's language (live bindings: they change when the language does).
+const monthNames = (month) => Array.from({ length: 12 }, (_, i) => {
+  const s = new Date(2000, i, 1).toLocaleDateString(dateLocale(), { month });
+  return (s[0].toUpperCase() + s.slice(1)).replace(/\.$/, '');
+});
+export let MONTHS = monthNames('short');
+export let MONTHS_LONG = monthNames('long');
+onLanguage(() => { MONTHS = monthNames('short'); MONTHS_LONG = monthNames('long'); });
 
 export const pctLabel = (v) => `${Math.round(v * 10) / 10}%`;
 export const monthName = (ym) => `${MONTHS_LONG[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 /** A saved or given discount: "−20%" or "−10,00 RON". */
 export const discountLabel = (d) => (d.kind === 'percent' ? `−${number(d.value)}%` : `−${money(d.value)}`);
 
-export const date = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+export const date = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 export const today = () => new Date().toISOString().slice(0, 10);
 
 // Change vs. a previous value, as a fraction; null when there's nothing to compare against.

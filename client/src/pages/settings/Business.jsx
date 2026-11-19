@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useApi } from '../../hooks.js';
+import { LANGUAGES } from '../../i18n/index.js';
+import Select from '../../components/Select.jsx';
 
 export function Business() {
   const { data, reload } = useApi('/business');
@@ -31,6 +33,11 @@ export function Business() {
           <label className="field">Colour<input type="color" value={v.color} onChange={set('color')} /></label>
           <label className="field">Website<input type="url" value={v.website} onChange={set('website')} placeholder="https://…" /></label>
           <label className="field">Currency<input value={v.currency} onChange={set('currency')} required maxLength={3} placeholder="RON" /></label>
+          <label className="field">Language
+            <Select value={v.language || 'en'} onChange={set('language')}>
+              {Object.entries(LANGUAGES).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </Select>
+          </label>
           <label className="field">Number format<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
           {v.features.practice && (
             <label className="field full">Legal entities <span className="hint">— one per line; each patient is treated through one of them</span>
