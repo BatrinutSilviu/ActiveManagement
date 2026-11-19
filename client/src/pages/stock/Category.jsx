@@ -4,6 +4,7 @@ import { money, money0, number } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
 import { IconChevronRight, IconEdit, IconPlus, IconTrash } from '../../components/Icons.jsx';
 import { InlineNumber } from './InlineNumber.jsx';
+import { t, tn } from '../../i18n/index.js';
 
 /** Products of one category: price, who holds how much, total and value. */
 function ItemsTable({ items, run, setForm, selected, setSelected }) {
@@ -13,18 +14,18 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr>{canEdit && <th className="pick-col"><input type="checkbox" checked={allOn} onChange={(e) => pick(items.map((i) => i.id), e.target.checked)} aria-label="Select all products here" /></th>}<th>Product</th><th className="r hide-sm">Price / unit</th><th className="hide-sm">Who has it</th><th className="r">Total</th><th className="r hide-sm">Value</th><th className="r hide-sm">Used at events</th>{canEdit && <th />}</tr></thead>
+        <thead><tr>{canEdit && <th className="pick-col"><input type="checkbox" checked={allOn} onChange={(e) => pick(items.map((i) => i.id), e.target.checked)} aria-label={t('Select all products here')} /></th>}<th>{t('Product')}</th><th className="r hide-sm">{t('Price / unit')}</th><th className="hide-sm">{t('Who has it')}</th><th className="r">{t('Total')}</th><th className="r hide-sm">{t('Value')}</th><th className="r hide-sm">{t('Used at events')}</th>{canEdit && <th />}</tr></thead>
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className={selected.has(i.id) ? 'row-picked' : ''}>
-              {canEdit && <td className="pick-col"><input type="checkbox" checked={selected.has(i.id)} onChange={(e) => pick([i.id], e.target.checked)} aria-label={`Select ${i.name}`} /></td>}
+              {canEdit && <td className="pick-col"><input type="checkbox" checked={selected.has(i.id)} onChange={(e) => pick([i.id], e.target.checked)} aria-label={t('Select {name}', { name: i.name })} /></td>}
               <td className="cell-wrap">
                 <div className="row-title">{i.name}</div>
-                <div className="row-sub">{i.unit}{i.prepaid ? ' · already paid' : ''}<span className="show-sm"> · {money(i.unit_price)} · worth {money0(i.value)}</span></div>
+                <div className="row-sub">{i.unit}{i.prepaid ? ` · ${t('already paid')}` : ''}<span className="show-sm"> · {money(i.unit_price)} · {t('worth {value}', { value: money0(i.value) })}</span></div>
                 <div className="row-sub show-sm">
-                  {i.holdings.map((h) => `${h.name} ${number(h.qty)}`).join(' · ') || 'Nobody holds it'}
-                  {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>Add</button></>}
-                  {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button></>}
+                  {i.holdings.map((h) => `${h.name} ${number(h.qty)}`).join(' · ') || t('Nobody holds it')}
+                  {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>{t('Add')}</button></>}
+                  {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>{t('Move')}</button></>}
                 </div>
               </td>
               <td className="r hide-sm">
@@ -40,11 +41,11 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
                         onSave={(v) => run(() => api.put('/stock/holdings', { item_id: i.id, person_id: h.person_id, qty: v }))} />
                     </div>
                   ))}
-                  {!i.holdings.length && <span className="muted">Nobody holds it</span>}
+                  {!i.holdings.length && <span className="muted">{t('Nobody holds it')}</span>}
                   {canEdit && (
                     <div className="holder-actions">
-                      <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>+ Add</button>
-                      {i.holdings.length > 0 && <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>Move</button>}
+                      <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>+ {t('Add')}</button>
+                      {i.holdings.length > 0 && <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>{t('Move')}</button>}
                     </div>
                   )}
                 </div>
@@ -54,8 +55,8 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
               <td className="r secondary hide-sm">{number(i.used)}</td>
               {canEdit && (
                 <td className="r actions">
-                  <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ item: i })}><IconEdit /></button>
-                  <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
+                  <button className="icon-btn" aria-label={t('Edit')} onClick={() => setForm({ item: i })}><IconEdit /></button>
+                  <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(i.name) && run(() => api.del(`/stock/items/${i.id}`))}><IconTrash /></button>
                 </td>
               )}
             </tr>
@@ -74,34 +75,34 @@ export function Category({ cat, cats, items, open, toggle, run, setForm, selecte
   const subs = cats.filter((c) => c.parent_id === cat.id);
   const own = items.filter((i) => i.category_id === cat.id);
   const all = items.filter((i) => i.category_id === cat.id || subs.some((sc) => sc.id === i.category_id));
-  const t = sumUp(all);
+  const sum = sumUp(all);
   const isOpen = open.includes(cat.id);
   const sub = !!cat.parent_id;
   const addSub = () => {
-    const name = window.prompt(`New subcategory of ${cat.name}`);
+    const name = window.prompt(t('New subcategory of {name}', { name: cat.name }));
     if (name?.trim()) run(() => api.post('/stock/categories', { name, parent_id: cat.id }));
   };
   const rename = () => {
-    const name = window.prompt('Rename subcategory', cat.name);
+    const name = window.prompt(t('Rename subcategory'), cat.name);
     if (name?.trim() && name !== cat.name) run(() => api.put(`/stock/categories/${cat.id}`, { name }));
   };
-  const remove = () => window.confirm(`Delete the subcategory ${cat.name}? Its products move to the category above.`)
+  const remove = () => window.confirm(t('Delete the subcategory {name}? Its products move to the category above.', { name: cat.name }))
     && run(() => api.del(`/stock/categories/${cat.id}`));
   return (
-    <div className={sub ? 'stock-sub' : `card stock-cat ${t.count ? '' : 'is-empty'}`}>
+    <div className={sub ? 'stock-sub' : `card stock-cat ${sum.count ? '' : 'is-empty'}`}>
       <div className="cat-head">
         <button className="cat-toggle" onClick={() => toggle(cat.id)} aria-expanded={isOpen}>
           <IconChevronRight width="16" className={`chev ${isOpen ? 'open' : ''}`} />
           <span className="cat-name">{cat.name}</span>
-          <span className="muted">{t.count ? `${t.count} product${t.count > 1 ? 's' : ''} · ${money0(t.value)}` : 'No products'}</span>
-          {t.low > 0 && <span className="badge low-badge">{t.low} running low</span>}
+          <span className="muted">{sum.count ? `${tn(sum.count, '{n} product', '{n} products')} · ${money0(sum.value)}` : t('No products')}</span>
+          {sum.low > 0 && <span className="badge low-badge">{t('{n} running low', { n: sum.low })}</span>}
         </button>
         {canEdit && isOpen && (
           <div className="cat-actions">
-            <button className="btn btn-sm btn-ghost" onClick={() => setForm({ category: cat.id })}><IconPlus width="13" />Product</button>
-            {!sub && <button className="btn btn-sm btn-ghost" onClick={addSub}><IconPlus width="13" />Subcategory</button>}
-            {sub && <button className="icon-btn" aria-label={`Rename ${cat.name}`} onClick={rename}><IconEdit /></button>}
-            {sub && <button className="icon-btn" aria-label={`Delete ${cat.name}`} onClick={remove}><IconTrash /></button>}
+            <button className="btn btn-sm btn-ghost" onClick={() => setForm({ category: cat.id })}><IconPlus width="13" />{t('Product')}</button>
+            {!sub && <button className="btn btn-sm btn-ghost" onClick={addSub}><IconPlus width="13" />{t('Subcategory')}</button>}
+            {sub && <button className="icon-btn" aria-label={t('Rename {name}', { name: cat.name })} onClick={rename}><IconEdit /></button>}
+            {sub && <button className="icon-btn" aria-label={t('Delete {name}', { name: cat.name })} onClick={remove}><IconTrash /></button>}
           </div>
         )}
       </div>
@@ -109,7 +110,7 @@ export function Category({ cat, cats, items, open, toggle, run, setForm, selecte
         <div className="cat-body">
           {own.length > 0 && <ItemsTable items={own} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />}
           {subs.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
-          {!own.length && !subs.length && <div className="empty">No products here yet.</div>}
+          {!own.length && !subs.length && <div className="empty">{t('No products here yet.')}</div>}
         </div>
       )}
     </div>

@@ -6,7 +6,9 @@ import Modal, { confirmDelete } from '../components/Modal.jsx';
 import Kpi from '../components/Kpi.jsx';
 import { IconBox, IconEdit, IconTrash, IconUsers } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
+import { t } from '../i18n/index.js';
 
+// English labels; translated at render time.
 export const STATES = [
   { key: 'new', label: 'New' },
   { key: 'good', label: 'Good' },
@@ -14,7 +16,7 @@ export const STATES = [
   { key: 'broken', label: 'Broken' },
   { key: 'lost', label: 'Lost' },
 ];
-const stateLabel = (k) => STATES.find((s) => s.key === k)?.label || k;
+const stateLabel = (k) => t(STATES.find((s) => s.key === k)?.label || k);
 const stateClass = { new: 'status-completed', good: 'status-completed', worn: 'state-worn', broken: 'state-bad', lost: 'state-bad' };
 
 export function EquipmentForm({ item, people, sports, onClose, onSaved }) {
@@ -33,35 +35,35 @@ export function EquipmentForm({ item, people, sports, onClose, onSaved }) {
   };
   const total = (Number(f.qty) || 0) * (Number(f.unit_cost) || 0);
   return (
-    <Modal title={item ? `Edit ${item.name}` : 'New equipment'} onClose={onClose} onSubmit={save}
-      footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
+    <Modal title={item ? t('Edit {name}', { name: item.name }) : t('New equipment')} onClose={onClose} onSubmit={save}
+      footer={<><button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button><button className="btn btn-primary">{t('Save')}</button></>}>
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
-        <label className="field full">Name<input value={f.name} onChange={set('name')} placeholder="e.g. Padel racket Bullpadel" autoFocus required /></label>
-        <label className="field">Sport
+        <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} placeholder={t('e.g. Padel racket Bullpadel')} autoFocus required /></label>
+        <label className="field">{t('Sport')}
           <Select value={f.sport_id} onChange={set('sport_id')}>
-            <option value="">Any / general</option>
+            <option value="">{t('Any / general')}</option>
             {sports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </Select>
         </label>
-        <label className="field">State
+        <label className="field">{t('State')}
           <Select value={f.state} onChange={set('state')}>
-            {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            {STATES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}
           </Select>
         </label>
-        <label className="field">Pieces<input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} required /></label>
-        <label className="field">Cost per piece ({CURRENCY})<input type="number" min="0" step="0.01" value={f.unit_cost} onChange={set('unit_cost')} /></label>
-        <label className="field">Bought on<input type="date" value={f.bought_on} onChange={set('bought_on')} /></label>
-        <label className="field">Who has it
+        <label className="field">{t('Pieces')}<input type="number" min="1" step="1" value={f.qty} onChange={set('qty')} required /></label>
+        <label className="field">{t('Cost per piece ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.unit_cost} onChange={set('unit_cost')} /></label>
+        <label className="field">{t('Bought on')}<input type="date" value={f.bought_on} onChange={set('bought_on')} /></label>
+        <label className="field">{t('Who has it')}
           <Select value={f.person_id} onChange={set('person_id')}>
-            <option value="">— in storage / nobody —</option>
+            <option value="">— {t('in storage / nobody')} —</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
         </label>
-        <label className="field full">Notes<input value={f.notes} onChange={set('notes')} placeholder="Where it's kept, serial number, what's wrong with it…" /></label>
+        <label className="field full">{t('Notes')}<input value={f.notes} onChange={set('notes')} placeholder={t("Where it's kept, serial number, what's wrong with it…")} /></label>
       </div>
-      {total > 0 && Number(f.qty) > 1 && <p className="hint" style={{ margin: 0 }}>Total cost {money(total)}</p>}
-      <p className="hint" style={{ margin: 0 }}>Pieces that differ in state or holder go on separate lines, e.g. 8 balls Good with Ana and 2 Worn in storage.</p>
+      {total > 0 && Number(f.qty) > 1 && <p className="hint" style={{ margin: 0 }}>{t('Total cost {amount}', { amount: money(total) })}</p>}
+      <p className="hint" style={{ margin: 0 }}>{t('Pieces that differ in state or holder go on separate lines, e.g. 8 balls Good with Ana and 2 Worn in storage.')}</p>
     </Modal>
   );
 }
@@ -94,21 +96,21 @@ export default function Equipment({ form, setForm }) {
     <>
       {error && <div className="error-box">{error}</div>}
       <div className="grid grid-kpi">
-        <Kpi label="Equipment cost" icon={IconBox} tone="profit" value={money0(value)} sub={`${number(pieces)} pieces, lost ones not counted`} />
-        <Kpi label="People holding equipment" icon={IconUsers} value={holders.length} sub={holders.map((n) => n.split(' ')[0]).join(', ') || '—'} />
-        <Kpi label="Worn or broken" value={needsAttention.reduce((s, i) => s + i.qty, 0)} sub={needsAttention.map((i) => i.name).join(', ') || 'nothing'} />
+        <Kpi label={t('Equipment cost')} icon={IconBox} tone="profit" value={money0(value)} sub={t('{n} pieces, lost ones not counted', { n: number(pieces) })} />
+        <Kpi label={t('People holding equipment')} icon={IconUsers} value={holders.length} sub={holders.map((n) => n.split(' ')[0]).join(', ') || '—'} />
+        <Kpi label={t('Worn or broken')} value={needsAttention.reduce((s, i) => s + i.qty, 0)} sub={needsAttention.map((i) => i.name).join(', ') || t('nothing')} />
       </div>
 
       {items.length > 0 && (
         <div className="filters">
-          <input type="search" placeholder="Search name, sport or notes…" value={filters.q} onChange={setFilter('q')} />
-          <Select value={filters.state} onChange={setFilter('state')} aria-label="State">
-            <option value="">All states</option>
-            {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          <input type="search" placeholder={t('Search name, sport or notes…')} value={filters.q} onChange={setFilter('q')} />
+          <Select value={filters.state} onChange={setFilter('state')} aria-label={t('State')}>
+            <option value="">{t('All states')}</option>
+            {STATES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}
           </Select>
-          <Select value={filters.person} onChange={setFilter('person')} aria-label="Who has it">
-            <option value="">Anyone</option>
-            <option value="none">In storage / nobody</option>
+          <Select value={filters.person} onChange={setFilter('person')} aria-label={t('Who has it')}>
+            <option value="">{t('Anyone')}</option>
+            <option value="none">{t('In storage / nobody')}</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
         </div>
@@ -118,8 +120,8 @@ export default function Equipment({ form, setForm }) {
         {shown.length ? (
           <table>
             <thead><tr>
-              <th>Item</th><th className="r">Pieces</th><th>State</th><th className="hide-sm">Who has it</th>
-              <th className="r hide-sm">Cost / piece</th><th className="r hide-sm">Total cost</th><th className="hide-sm">Bought</th>{canEdit && <th />}
+              <th>{t('Item')}</th><th className="r">{t('Pieces')}</th><th>{t('State')}</th><th className="hide-sm">{t('Who has it')}</th>
+              <th className="r hide-sm">{t('Cost / piece')}</th><th className="r hide-sm">{t('Total cost')}</th><th className="hide-sm">{t('Bought')}</th>{canEdit && <th />}
             </tr></thead>
             <tbody>
               {shown.map((i) => (
@@ -127,41 +129,41 @@ export default function Equipment({ form, setForm }) {
                   <td className="cell-wrap">
                     <div className="row-title">{i.name}</div>
                     <div className="row-sub">{[i.sport_name, i.notes].filter(Boolean).join(' · ')}</div>
-                    <div className="row-sub show-sm">{i.person_name || 'In storage'} · {money(i.qty * i.unit_cost)}{i.bought_on ? ` · ${date(i.bought_on)}` : ''}</div>
+                    <div className="row-sub show-sm">{i.person_name || t('In storage')} · {money(i.qty * i.unit_cost)}{i.bought_on ? ` · ${date(i.bought_on)}` : ''}</div>
                   </td>
                   <td className="r">{number(i.qty)}</td>
                   <td>
                     {canEdit ? (
-                      <Select className={`select-sm badge ${stateClass[i.state]}`} value={i.state} aria-label={`State of ${i.name}`}
+                      <Select className={`select-sm badge ${stateClass[i.state]}`} value={i.state} aria-label={t('State of {name}', { name: i.name })}
                         onChange={(e) => run(() => api.put(`/equipment/${i.id}`, { ...i, state: e.target.value }))}>
-                        {STATES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                        {STATES.map((s) => <option key={s.key} value={s.key}>{t(s.label)}</option>)}
                       </Select>
                     ) : <span className={`badge ${stateClass[i.state]}`}>{stateLabel(i.state)}</span>}
                   </td>
                   <td className="hide-sm">
                     {canEdit ? (
-                      <Select className="select-sm" value={i.person_id ?? ''} aria-label={`Who has ${i.name}`}
+                      <Select className="select-sm" value={i.person_id ?? ''} aria-label={t('Who has {name}', { name: i.name })}
                         onChange={(e) => run(() => api.put(`/equipment/${i.id}`, { ...i, person_id: e.target.value }))}>
-                        <option value="">In storage</option>
+                        <option value="">{t('In storage')}</option>
                         {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         {i.person_id && !people.some((p) => p.id === i.person_id) && <option value={i.person_id}>{i.person_name}</option>}
                       </Select>
-                    ) : (i.person_name || <span className="muted">In storage</span>)}
+                    ) : (i.person_name || <span className="muted">{t('In storage')}</span>)}
                   </td>
                   <td className="r hide-sm">{money(i.unit_cost)}</td>
                   <td className="r hide-sm">{money(i.qty * i.unit_cost)}</td>
                   <td className="secondary hide-sm">{date(i.bought_on)}</td>
                   {canEdit && (
                     <td className="r actions">
-                      <button className="icon-btn" aria-label="Edit" onClick={() => setForm({ equipment: i })}><IconEdit /></button>
-                      <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(i.name) && run(() => api.del(`/equipment/${i.id}`))}><IconTrash /></button>
+                      <button className="icon-btn" aria-label={t('Edit')} onClick={() => setForm({ equipment: i })}><IconEdit /></button>
+                      <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(i.name) && run(() => api.del(`/equipment/${i.id}`))}><IconTrash /></button>
                     </td>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : <div className="empty">{items.length ? 'Nothing matches these filters.' : 'No equipment yet. Add balls, mats, rackets… with what they cost and who has them.'}</div>}
+        ) : <div className="empty">{items.length ? t('Nothing matches these filters.') : t('No equipment yet. Add balls, mats, rackets… with what they cost and who has them.')}</div>}
       </div>
 
       {form?.equipment !== undefined && (

@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import { number } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
+import { t } from '../../i18n/index.js';
 import { blankPurchase, purchaseBody, PurchaseFields } from './PurchaseFields.jsx';
 
 export function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
@@ -18,36 +19,36 @@ export function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
     } catch (e) { setError(e.message); }
   };
   return (
-    <Modal title={mode === 'add' ? `Add ${item.name}` : `Move ${item.name}`} onClose={onClose} onSubmit={save}
-      footer={<><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary">Save</button></>}>
+    <Modal title={mode === 'add' ? t('Add {name}', { name: item.name }) : t('Move {name}', { name: item.name })} onClose={onClose} onSubmit={save}
+      footer={<><button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button><button className="btn btn-primary">{t('Save')}</button></>}>
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
         {mode === 'add' ? (
-          <label className="field">Kept by
+          <label className="field">{t('Kept by')}
             <Select value={f.person_id} onChange={set('person_id')} required>
-              <option value="">Choose founder…</option>
+              <option value="">{t('Choose founder…')}</option>
               {founders.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Select>
           </label>
         ) : (
           <>
-            <label className="field">From
+            <label className="field">{t('From')}
               <Select value={f.from} onChange={set('from')} required>
                 {item.holdings.map((h) => <option key={h.person_id} value={h.person_id}>{h.name} ({number(h.qty)})</option>)}
               </Select>
             </label>
-            <label className="field">To
+            <label className="field">{t('Goes to')}
               <Select value={f.to} onChange={set('to')} required>
-                <option value="">Choose founder…</option>
+                <option value="">{t('Choose founder…')}</option>
                 {founders.filter((p) => String(p.id) !== String(f.from)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </Select>
             </label>
           </>
         )}
-        <label className="field">Quantity ({item.unit})<input type="number" min="0.01" step="any" value={f.qty} onChange={set('qty')} autoFocus required /></label>
+        <label className="field">{t('Quantity')} ({item.unit})<input type="number" min="0.01" step="any" value={f.qty} onChange={set('qty')} autoFocus required /></label>
         {mode === 'add' && <PurchaseFields p={purchase} setP={setPurchase} people={people} holder={f.person_id} qty={f.qty} price={item.unit_price} />}
       </div>
-      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>Adds to what this person already holds. Untick “Bought now” for stock that was given to us; to correct a count, edit the number in the table.</p>}
+      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>{t('Adds to what this person already holds. Untick “Bought now” for stock that was given to us; to correct a count, edit the number in the table.')}</p>}
     </Modal>
   );
 }

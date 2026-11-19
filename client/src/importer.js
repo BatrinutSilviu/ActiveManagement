@@ -1,4 +1,5 @@
 // Turns a pasted / uploaded spreadsheet into events + transactions ready for /api/import.
+import { t } from './i18n/index.js';
 
 /** Parse CSV / TSV text into a 2-D array. Detects the delimiter, honours quotes. */
 export function parseDelimited(text) {
@@ -122,8 +123,8 @@ const SPORT_WORDS = [
 export function guessEventType(name, types, fallbackId) {
   for (const [re, sport] of SPORT_WORDS) {
     if (!re.test(name)) continue;
-    const t = types.find((x) => x.name.toLowerCase() === sport);
-    if (t) return t.id;
+    const hit = types.find((x) => x.name.toLowerCase() === sport);
+    if (hit) return hit.id;
   }
   return fallbackId;
 }
@@ -146,14 +147,14 @@ export function buildImport(grid, opts) {
     const expense = parseAmount(cell(row, 'expense'));
     const rawDate = cell(row, 'date');
     let date = parseDate(rawDate);
-    if (row.some((c) => /^\s*total/i.test(c))) { skipped.push({ line, reason: 'Totals row' }); return; }
+    if (row.some((c) => /^\s*total/i.test(c))) { skipped.push({ line, reason: t('Totals row') }); return; }
     if (!income && !expense) {
       if (date) lastDate = date;
-      else if (i < 5 || rawDate) skipped.push({ line, reason: rawDate ? 'Header or no amounts' : 'Header / empty row' });
+      else if (i < 5 || rawDate) skipped.push({ line, reason: rawDate ? t('Header or no amounts') : t('Header / empty row') });
       return;
     }
     if (!date && !rawDate && opts.fillDates && lastDate) date = lastDate;
-    if (!date) { skipped.push({ line, reason: `Unreadable date “${rawDate || '(empty)'}”` }); return; }
+    if (!date) { skipped.push({ line, reason: t('Unreadable date “{raw}”', { raw: rawDate || t('(empty)') }) }); return; }
     lastDate = date;
     const eventName = cell(row, 'event');
     const desc = cell(row, 'description');

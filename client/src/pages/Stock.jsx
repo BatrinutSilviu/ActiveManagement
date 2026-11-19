@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { useApi, usePermissions, usePersistentState } from '../hooks.js';
 import { money, money0 } from '../format.js';
 import Kpi from '../components/Kpi.jsx';
+import { t, tn } from '../i18n/index.js';
 import Equipment from './Equipment.jsx';
 import { IconBox, IconPlus, IconUsers } from '../components/Icons.jsx';
 import { CategorySelect } from './stock/CategorySelect.jsx';
@@ -48,50 +49,50 @@ export default function Stock() {
     <div>
       <div className="page-head">
         <div>
-          <h1>Stock</h1>
+          <h1>{t('Stock')}</h1>
           <p>{view === 'equipment'
-            ? 'Things the community keeps and reuses: what they cost, what state they’re in and who has them.'
-            : 'Products the community owns, who holds them, and what they’re worth. Using them at an event charges their cost to the event.'}</p>
+            ? t('Things the community keeps and reuses: what they cost, what state they’re in and who has them.')
+            : t('Products the community owns, who holds them, and what they’re worth. Using them at an event charges their cost to the event.')}</p>
         </div>
         {canEdit && (view === 'equipment'
-          ? <button className="btn btn-primary" onClick={() => setForm({ equipment: null })}><IconPlus width="16" />New equipment</button>
-          : <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />New product</button>)}
+          ? <button className="btn btn-primary" onClick={() => setForm({ equipment: null })}><IconPlus width="16" />{t('New equipment')}</button>
+          : <button className="btn btn-primary" onClick={() => setForm({})}><IconPlus width="16" />{t('New product')}</button>)}
       </div>
 
       <div className="stack">
         <div className="segmented" style={{ alignSelf: 'flex-start' }}>
-          <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>By product</button>
-          <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>By person</button>
-          <button className={view === 'purchases' ? 'on' : ''} onClick={() => setView('purchases')}>Purchases</button>
-          <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>Equipment</button>
+          <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>{t('By product')}</button>
+          <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>{t('By person')}</button>
+          <button className={view === 'purchases' ? 'on' : ''} onClick={() => setView('purchases')}>{t('Purchases')}</button>
+          <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>{t('Equipment')}</button>
         </div>
         {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <>{error && <div className="error-box">{error}</div>}<Purchases run={run} /></> : <>
         {error && <div className="error-box">{error}</div>}
         <div className="grid grid-kpi">
-          <Kpi label="Stock value" icon={IconBox} tone="profit" value={money0(totalValue)} sub={`${items.length} products`} />
-          <Kpi label="People holding stock" icon={IconUsers} value={holders.length} sub={holders.map((h) => h.name.split(' ')[0]).join(', ') || '—'} />
-          <Kpi label="Running low" value={items.filter((i) => i.qty <= 5).length} sub={items.filter((i) => i.qty <= 5).map((i) => i.name).join(', ') || 'nothing'} />
+          <Kpi label={t('Stock value')} icon={IconBox} tone="profit" value={money0(totalValue)} sub={tn(items.length, '{n} product', '{n} products')} />
+          <Kpi label={t('People holding stock')} icon={IconUsers} value={holders.length} sub={holders.map((h) => h.name.split(' ')[0]).join(', ') || '—'} />
+          <Kpi label={t('Running low')} value={items.filter((i) => i.qty <= 5).length} sub={items.filter((i) => i.qty <= 5).map((i) => i.name).join(', ') || t('nothing')} />
         </div>
 
         {view === 'items' ? (
           <div className="stack" style={{ gap: 10 }}>
             {selected.size > 0 && (
-              <div className="move-bar" role="region" aria-label="Move selected products">
-                <strong>{selected.size} selected</strong>
-                <CategorySelect cats={cats} value="" placeholder="Move to category…" aria-label="Move to category"
+              <div className="move-bar" role="region" aria-label={t('Move selected products')}>
+                <strong>{t('{n} selected', { n: selected.size })}</strong>
+                <CategorySelect cats={cats} value="" placeholder={t('Move to category…')} aria-label={t('Move to category')}
                   onChange={(e) => e.target.value && moveTo(e.target.value)} />
-                <button className="btn btn-sm btn-ghost" onClick={() => setSelected(new Set())}>Clear</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => setSelected(new Set())}>{t('Clear')}</button>
               </div>
             )}
             {top.map((c) => <Category key={c.id} cat={c} cats={cats} items={items} open={open} toggle={toggle} run={run} setForm={setForm} selected={selected} setSelected={setSelected} />)}
-            {!items.length && <div className="card empty">No products yet. Add water, fruit, balls… with their price.</div>}
+            {!items.length && <div className="card empty">{t('No products yet. Add water, fruit, balls… with their price.')}</div>}
           </div>
         ) : (
           <div className="grid grid-2">
             {holders.map((p) => (
               <div className="card" key={p.id}>
                 <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-                  <div><h2>{p.name}</h2><p>{p.items.length} products · {money0(p.items.reduce((s, h) => s + h.qty * h.item.unit_price, 0))}</p></div>
+                  <div><h2>{p.name}</h2><p>{tn(p.items.length, '{n} product', '{n} products')} · {money0(p.items.reduce((s, h) => s + h.qty * h.item.unit_price, 0))}</p></div>
                 </div>
                 <div className="table-wrap">
                   <table>
@@ -112,11 +113,11 @@ export default function Stock() {
                 </div>
               </div>
             ))}
-            {!holders.length && <div className="card empty">Nobody holds stock yet.</div>}
+            {!holders.length && <div className="card empty">{t('Nobody holds stock yet.')}</div>}
           </div>
         )}
         </>}
-        {!people.length && <p className="hint">Add people in <Link to="/settings">Settings → People</Link> to assign stock to them.</p>}
+        {!people.length && <p className="hint">{t('Add people in')} <Link to="/settings">{t('Settings → People')}</Link> {t('to assign stock to them.')}</p>}
       </div>
 
       {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
