@@ -903,6 +903,8 @@ if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'package_items'").get(
 // theirs). It's billed with the session, also when a package pays for the session itself. In bani.
 if (!columns('clients').includes('travel_fee')) db.exec('ALTER TABLE clients ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
 if (!columns('appointments').includes('travel_fee')) db.exec('ALTER TABLE appointments ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
+// Other therapies a patient follows elsewhere: JSON [{ therapy, therapist, place }], optional.
+if (!columns('clients').includes('other_therapies')) db.exec('ALTER TABLE clients ADD COLUMN other_therapies TEXT');
 // Why a session was cancelled.
 if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).

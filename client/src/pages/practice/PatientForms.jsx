@@ -26,6 +26,26 @@ const footer = (onClose, saving) => <>
   <button className="btn btn-primary" disabled={saving}>{t('Save')}</button>
 </>;
 
+/** Other therapies the patient follows with other therapists: what, with whom, where. Optional. */
+function OtherTherapies({ rows, onChange }) {
+  const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+  return (
+    <div className="field full">{t('Other therapies')} <span className="hint">— {t('with other therapists (optional)')}</span>
+      <div className="stack" style={{ gap: 8 }}>
+        {rows.map((r, i) => (
+          <div key={i} className="other-therapy">
+            <input value={r.therapy || ''} onChange={change(i, 'therapy')} placeholder={t('Therapy, e.g. speech therapy')} required maxLength={120} />
+            <input value={r.therapist || ''} onChange={change(i, 'therapist')} placeholder={t('Therapist')} maxLength={120} />
+            <input value={r.place || ''} onChange={change(i, 'place')} placeholder={t('Where')} maxLength={200} />
+            <button type="button" className="icon-btn" aria-label={t('Remove')} onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
+          </div>
+        ))}
+        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { therapy: '', therapist: '', place: '' }])}>{t('Add therapy')}</button></div>
+      </div>
+    </div>
+  );
+}
+
 export function PatientForm({ patient, onClose, onSaved }) {
   const { term, business } = useBusiness();
   const entities = business?.entities || [];
@@ -33,7 +53,7 @@ export function PatientForm({ patient, onClose, onSaved }) {
   const { data: all } = useApi('/clients');
   const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const { f, setF, set, error, saving, save } = useForm(
-    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', conditions: [], ...(patient || {}), archived: !!patient?.archived },
+    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', conditions: [], other_therapies: [], ...(patient || {}), archived: !!patient?.archived },
     (v) => (patient ? api.put(`/clients/${patient.id}`, v) : api.post('/clients', v)), onSaved);
   return (
     <Modal title={patient ? t(`Edit ${term('person')}`) : t(`New ${term('person')}`)} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
@@ -77,6 +97,7 @@ export function PatientForm({ patient, onClose, onSaved }) {
         <label className="field">{t('Relation')}<input value={f.tutor_relation || ''} onChange={set('tutor_relation')} placeholder={t('Mother, father, grandparent…')} /></label>
         <label className="field">{t('Phone')}<input type="tel" value={f.tutor_phone || ''} onChange={set('tutor_phone')} /></label>
         <label className="field">{t('Email')}<input type="email" value={f.tutor_email || ''} onChange={set('tutor_email')} /></label>
+        <OtherTherapies rows={f.other_therapies || []} onChange={(other_therapies) => setF({ ...f, other_therapies })} />
         <label className="field full">{t('About')} <span className="hint">{t('— what to keep in mind: condition, history, what works…')}</span>
           <textarea value={f.about || ''} onChange={set('about')} rows={4} />
         </label>

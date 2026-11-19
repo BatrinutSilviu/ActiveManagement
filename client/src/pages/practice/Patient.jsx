@@ -77,6 +77,19 @@ function Patient({ id }) {
 
       <div className="grid grid-3-1" style={{ alignItems: 'start' }}>
         <div className="stack">
+          {c.other_therapies?.length > 0 && (
+            <div className="card card-pad">
+              <div className="card-head"><h2>{t('Other therapies')}</h2></div>
+              <div className="stack" style={{ gap: 0 }}>
+                {c.other_therapies.map((r, i) => (
+                  <div key={i} className="side-item">
+                    <div className="row-title">{r.therapy}</div>
+                    <div className="row-sub">{[r.therapist, r.place].filter(Boolean).join(' · ')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {c.about && (
             <div className="card card-pad">
               <div className="card-head"><h2>{t('About')}</h2></div>

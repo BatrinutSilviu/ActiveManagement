@@ -52,7 +52,7 @@ router.get('/clients', (req, res) => {
 // First name and surname apart; `name` is kept as the full "First Last" the lists and joins show. A bare `name`
 // (the quick add in the session form) is split: first word the first name, the rest the surname.
 const CLIENT_FIELDS = ['first_name', 'last_name', 'name', 'phone', 'email', 'address', 'birth_date', 'about', 'archived',
-  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date', 'travel_fee'];
+  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date', 'travel_fee', 'other_therapies'];
 // The legal entity they're treated through, one of the business's (Settings → Business). The patient form asks
 // for it; the quick add from a session doesn't, so it can be empty. One no longer listed is kept as it was.
 function readEntity(v) {
@@ -77,7 +77,15 @@ function saveConditions(id, list) {
   for (const c of list) add.run(id, c);
 }
 const CONDITIONS_SQL = "(SELECT json_group_array(name) FROM (SELECT name FROM client_conditions WHERE client_id = c.id ORDER BY name)) AS conditions";
-const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]'), travel_fee: toRon(c.travel_fee) });
+const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]'), travel_fee: toRon(c.travel_fee), other_therapies: JSON.parse(c.other_therapies || '[]') });
+// Other therapies they follow with other therapists: rows of what, with whom and where (empty rows dropped).
+function readOtherTherapies(v) {
+  const rows = (Array.isArray(v) ? v : []).slice(0, 30)
+    .map((r) => ({ therapy: text(r?.therapy, 120), therapist: text(r?.therapist, 120), place: text(r?.place, 200) }))
+    .filter((r) => r.therapy || r.therapist || r.place);
+  need(rows.every((r) => r.therapy), 'Each other therapy needs a name');
+  return rows.length ? JSON.stringify(rows) : null;
+}
 function readClient(body) {
   let first = text(body.first_name, 60), last = text(body.last_name, 60);
   if (!first && !last && text(body.name, 120)) [first, last] = (([f, ...r]) => [f, r.join(' ') || null])(text(body.name, 120).split(/\s+/));
@@ -87,7 +95,7 @@ function readClient(body) {
     optDate(body.birth_date, 'The birth date'), text(body.about, 10000), body.archived ? 1 : 0,
     text(body.tutor_name, 120), text(body.tutor_relation, 60), text(body.tutor_phone, 60), text(body.tutor_email, 120),
     text(body.association, 120), readEntity(body.entity),
-    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date'), money(body.travel_fee, 'The travel fee')];
+    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date'), money(body.travel_fee, 'The travel fee'), readOtherTherapies(body.other_therapies)];
 }
 
 router.post('/clients', (req, res) => {
@@ -127,7 +135,7 @@ router.get('/clients/:id', (req, res) => {
   const c = getClient(id);
   const owed = db.prepare(`SELECT ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid, ${CONDITIONS_SQL} FROM clients c WHERE c.id = ?`).get(id);
   res.json({
-    ...c, conditions: JSON.parse(owed.conditions), travel_fee: toRon(c.travel_fee), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
+    ...c, conditions: JSON.parse(owed.conditions), travel_fee: toRon(c.travel_fee), other_therapies: JSON.parse(c.other_therapies || '[]'), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
     notes: db.prepare('SELECT * FROM client_notes WHERE client_id = ? ORDER BY date DESC, id DESC').all(id),
     packages: loadPackages('WHERE p.client_id = ?', [id]),
     appointments: loadAppointments('WHERE a.client_id = ?', [id], 'ORDER BY a.date DESC, a.start_time DESC'),

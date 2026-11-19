@@ -185,4 +185,6 @@ export default {
   '{n} left after this one': 'Rămân {n} după aceasta', 'This patient has no package with sessions left.': 'Pacientul nu are niciun pachet cu ședințe rămase.',
   '{n} left for {services}': '{n} rămase pentru {services}',
   'The service was changed to {service}, which this package covers.': 'Serviciul a fost schimbat în {service}, pe care îl acoperă acest pachet.',
+  'Other therapies': 'Alte terapii', 'with other therapists (optional)': 'cu alți terapeuți (opțional)', 'Therapy, e.g. speech therapy': 'Terapia, ex. logopedie',
+  Therapist: 'Terapeut', 'Add therapy': 'Adaugă terapie', 'Each other therapy needs a name': 'Fiecare terapie trebuie să aibă un nume',
 };
