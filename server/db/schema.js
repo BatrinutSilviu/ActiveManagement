@@ -875,7 +875,26 @@ db.exec(`CREATE TABLE IF NOT EXISTS package_types (
   service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL
 )`);
 if (!columns('packages').includes('service_id'))
-  db.exec('ALTER TABLE packages ADD COLUMN service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL');
+  db.exec('ALTER TABLE packages ADD COLUMN service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL'); // superseded by package_items
+// What a package (and a package type) is made of: so many sessions of a service, or of any service (service_id empty,
+// the "general" ones). A session takes a place of its own service first, else a general one. sessions on the package
+// stays the total. Packages and types made before this get one part: their service (if they had one) or any.
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'package_items'").get()) {
+  db.exec(`CREATE TABLE package_items (
+      package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+      service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,
+      sessions INTEGER NOT NULL CHECK (sessions > 0)
+    );
+    CREATE INDEX package_items_package ON package_items (package_id);
+    CREATE TABLE package_type_items (
+      package_type_id INTEGER NOT NULL REFERENCES package_types(id) ON DELETE CASCADE,
+      service_id INTEGER REFERENCES event_types(id) ON DELETE CASCADE,
+      sessions INTEGER NOT NULL CHECK (sessions > 0)
+    );
+    INSERT INTO package_items (package_id, service_id, sessions) SELECT id, service_id, sessions FROM packages;
+    INSERT INTO package_type_items (package_type_id, service_id, sessions) SELECT id, service_id, sessions FROM package_types;
+    UPDATE packages SET service_id = NULL; UPDATE package_types SET service_id = NULL;`);
+}
 // Why a session was cancelled.
 if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).

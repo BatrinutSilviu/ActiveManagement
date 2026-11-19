@@ -89,12 +89,44 @@ export function PatientForm({ patient, onClose, onSaved }) {
   );
 }
 
+/** What a package is made of: rows of a service (or any service) and how many sessions, with the total. */
+export function PackageItems({ items, onChange, services }) {
+  const { term } = useBusiness();
+  const rows = items.length ? items : [{ service_id: '', sessions: '' }];
+  const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+  const sum = rows.reduce((a, r) => a + (Number(r.sessions) || 0), 0);
+  return (
+    <div className="field full">{t('What it includes')} <span className="hint">— {t(`${term('events')} of a service, or of any service`)}</span>
+      <div className="stack" style={{ gap: 6 }}>
+        {rows.map((r, i) => (
+          <div key={i} className="package-item">
+            <Select value={r.service_id ? String(r.service_id) : ''} onChange={change(i, 'service_id')} aria-label={t('Service')}>
+              <option value="">{t('Any service')}</option>
+              {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </Select>
+            <input type="number" min="1" step="1" value={r.sessions} onChange={change(i, 'sessions')} required aria-label={t(`Number of ${term('events')}`)} />
+            <button type="button" className="icon-btn" aria-label={t('Remove')} disabled={rows.length === 1}
+              onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { service_id: '', sessions: '' }])}>{t('Add service')}</button>
+          <span className="hint">{t(`Total: {n} ${term('events')}`, { n: sum })}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const itemsForForm = (items) => (items || []).map((it) => ({ service_id: it.service_id ? String(it.service_id) : '', sessions: it.sessions }));
+
 export function PackageForm({ pkg, clientId, onClose, onSaved }) {
   const { term, Term } = useBusiness();
   const { data: kinds } = useApi('/package-types');
   const { data: services } = useApi('/event-types');
   const { f, setF, set, error, saving, save } = useForm(
-    { name: t(`10 ${term('events')}`), sessions: 10, price: '', date: localToday(), expires: '', note: '', service_id: '', ...(pkg || {}) },
+    { name: t(`10 ${term('events')}`), price: '', date: localToday(), expires: '', note: '', ...(pkg || {}),
+      items: pkg ? itemsForForm(pkg.items) : [{ service_id: '', sessions: 10 }] },
     (v) => (pkg ? api.put(`/packages/${pkg.id}`, v) : api.post(`/clients/${clientId}/packages`, v)), onSaved);
   // A package type fills everything in; the expiry is its months from the day it's bought.
   const expiry = (date, months) => {
@@ -105,8 +137,7 @@ export function PackageForm({ pkg, clientId, onClose, onSaved }) {
   const pickKind = (e) => {
     const k = kinds?.find((x) => String(x.id) === e.target.value);
     if (!k) return setF({ ...f, kind: '' });
-    setF({ ...f, kind: e.target.value, name: k.name, sessions: k.sessions, price: k.price, service_id: k.service_id ? String(k.service_id) : '',
-      valid_months: k.valid_months, expires: expiry(f.date, k.valid_months) });
+    setF({ ...f, kind: e.target.value, name: k.name, price: k.price, items: itemsForForm(k.items), valid_months: k.valid_months, expires: expiry(f.date, k.valid_months) });
   };
   const pickDate = (e) => setF({ ...f, date: e.target.value, expires: f.valid_months ? expiry(e.target.value, f.valid_months) : f.expires });
   return (
@@ -123,14 +154,8 @@ export function PackageForm({ pkg, clientId, onClose, onSaved }) {
           </label>
         )}
         <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required /></label>
-        <label className="field half">{t(`Number of ${term('events')}`)}<input type="number" min="1" step="1" value={f.sessions} onChange={set('sessions')} required /></label>
-        <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
-        <label className="field full">{t('Only for the service')} <span className="hint">{t('(optional)')}</span>
-          <Select value={f.service_id ? String(f.service_id) : ''} onChange={set('service_id')}>
-            <option value="">{t('Any service')}</option>
-            {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </Select>
-        </label>
+        <PackageItems items={f.items} onChange={(items) => setF({ ...f, items })} services={services} />
+        <label className="field full">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
         <label className="field half">{t('Bought on')}<input type="date" value={f.date} onChange={pickDate} required /></label>
         <label className="field half">{t('Valid until')} <span className="hint">{t('(optional)')}</span><input type="date" value={f.expires || ''} onChange={set('expires')} /></label>
         <label className="field full">{t('Note')}<input value={f.note || ''} onChange={set('note')} /></label>
@@ -138,3 +163,6 @@ export function PackageForm({ pkg, clientId, onClose, onSaved }) {
     </Modal>
   );
 }
+
+/** "3 Terapie manuală · 4 any service": what a package or package type includes. */
+export const itemsLabel = (items, term) => (items || []).map((it) => `${it.sessions} ${it.service_name || t(`× any ${term('event')}`)}`).join(' · ');

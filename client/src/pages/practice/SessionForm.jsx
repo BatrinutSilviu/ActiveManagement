@@ -39,10 +39,11 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
 
   const client = clients?.find((c) => String(c.id) === String(f.client_id));
   // Packages it can use: with sessions left, or the one it's already in.
-  // A package tied to a service pays only for sessions of that service.
-  const fits = (p, typeId) => !p.service_id || String(p.service_id) === String(typeId);
-  const usable = (packages || []).filter((p) => (p.left > 0 || String(p.id) === String(session?.package_id)) && fits(p, f.type_id));
-  const openPackage = (typeId) => (packages || []).find((p) => p.left > 0 && (!p.expires || p.expires >= f.date) && fits(p, typeId));
+  // Places a package still has for a service: its own part plus the general ones (left_for, from the server).
+  const placesFor = (p, typeId) => (typeId && p.left_for?.[typeId] != null ? p.left_for[typeId] : p.left_for?.any ?? 0);
+  const fits = (p, typeId) => placesFor(p, typeId) > 0;
+  const usable = (packages || []).filter((p) => fits(p, f.type_id) || String(p.id) === String(session?.package_id));
+  const openPackage = (typeId) => (packages || []).find((p) => (!p.expires || p.expires >= f.date) && fits(p, typeId));
 
   // The end time follows the start and the service's duration.
   const endFor = (start, type) => {
@@ -57,7 +58,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
     const ty = typeOf(e.target.value);
     // The package follows: kept if it fits the new service, else the patient's open package that does (new sessions).
     const current = (packages || []).find((p) => String(p.id) === String(f.package_id));
-    const packageId = current && fits(current, e.target.value) ? f.package_id : !session && openPackage(e.target.value) ? String(openPackage(e.target.value).id) : '';
+    const packageId = current && (fits(current, e.target.value) || String(current.id) === String(session?.package_id)) ? f.package_id : !session && openPackage(e.target.value) ? String(openPackage(e.target.value).id) : '';
     setF({ ...f, type_id: e.target.value, price: ty?.default_fee ? String(ty.default_fee) : f.price, end_time: endFor(f.start_time, ty) ?? f.end_time, package_id: packageId });
   };
   const addClient = async (name) => {
@@ -128,7 +129,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           <label className="field">{t('Paid with')}
             <Select value={f.package_id ? String(f.package_id) : ''} onChange={set('package_id')}>
               <option value="">{t('Its own price')}</option>
-              {usable.map((p) => <option key={p.id} value={p.id}>{p.name} · {t('{n} left', { n: p.left })}</option>)}
+              {usable.map((p) => <option key={p.id} value={p.id}>{p.name} · {t('{n} left', { n: placesFor(p, f.type_id) })}</option>)}
             </Select>
           </label>
         )}

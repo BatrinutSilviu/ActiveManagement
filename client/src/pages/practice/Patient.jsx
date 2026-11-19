@@ -200,7 +200,10 @@ function Packages({ c, canEdit, run, onNew, onEdit, onBill }) {
           </div>
           <div className="progress" style={{ margin: '6px 0' }}><div style={{ width: `${Math.min(1, (p.used + p.booked) / p.sessions) * 100}%`, background: 'var(--series)' }} /></div>
           <div className="row-sub">{t(`{used} done · {booked} booked · {left} left of {total} ${term('events')}`, { used: p.used, booked: p.booked, left: p.left, total: p.sessions })}
-            {p.expires ? ` · ${t('until {date}', { date: date(p.expires) })}` : ''}{p.service_name ? ` · ${t('only {service}', { service: p.service_name })}` : ''}</div>
+            {p.expires ? ` · ${t('until {date}', { date: date(p.expires) })}` : ''}</div>
+          {(p.items?.length > 1 || p.items?.[0]?.service_id) && <div className="package-parts">{p.items.map((it, i) => (
+            <span key={i} className={it.left ? '' : 'muted'}>{it.service_name || t('Any service')}: {t('{left} of {total} left', { left: it.left, total: it.sessions })}</span>
+          ))}</div>}
           <div className="row-sub" style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             {p.invoice_id ? <span>{docLabel(p)} · {p.invoice_paid ? t('paid') : t('not paid')}</span>
               : p.price > 0 && <span className="badge badge-warn">{t('Not billed')}</span>}

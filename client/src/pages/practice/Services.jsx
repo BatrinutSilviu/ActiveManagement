@@ -7,9 +7,9 @@ import { useBusiness } from '../../business.js';
 import { CURRENCY, money0 } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
-import Select from '../../components/Select.jsx';
 import { t } from '../../i18n/index.js';
 import { rename } from '../settings/rename.js';
+import { itemsLabel, PackageItems } from './PatientForms.jsx';
 
 export function Services() {
   const { term, Term } = useBusiness();
@@ -180,20 +180,14 @@ export function PackageTypes() {
   return (
     <div className="card card-pad">
       <div className="card-head"><div><h2>{t('Package types')}</h2><p>{t(`Ready-made packages of ${term('events')}: picked when selling a package to a patient`)}</p></div>
-        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ name: '', sessions: 10, price: '', valid_months: '', service_id: '' })}>{t('Add package type')}</button>}</div>
+        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ name: '', price: '', valid_months: '', items: [{ service_id: '', sessions: 10 }] })}>{t('Add package type')}</button>}</div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       {f && (
         <form onSubmit={save} className="form-grid" style={{ marginBottom: 14 }}>
           <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required autoFocus placeholder={t("e.g. 10 sessions Kinetoterapie 50'")} /></label>
-          <label className="field half">{t(`Number of ${term('events')}`)}<input type="number" min="1" step="1" value={f.sessions} onChange={set('sessions')} required /></label>
+          <PackageItems items={f.items} onChange={(items) => setF({ ...f, items })} services={services} />
           <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
           <label className="field half">{t('Valid for (months)')}<input type="number" min="1" step="1" value={f.valid_months ?? ''} onChange={set('valid_months')} placeholder={t('no expiry')} /></label>
-          <label className="field half">{t('Only for the service')}
-            <Select value={f.service_id ? String(f.service_id) : ''} onChange={set('service_id')}>
-              <option value="">{t('Any service')}</option>
-              {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-            </Select>
-          </label>
           <div className="full" style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary btn-sm">{t('Save')}</button>
             <button type="button" className="btn btn-sm" onClick={() => setF(null)}>{t('Cancel')}</button>
@@ -206,10 +200,11 @@ export function PackageTypes() {
             <div key={k.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row-title">{k.name}</div>
-                <div className="row-sub">{t(`{n} ${term('events')}`, { n: k.sessions })} · {money0(k.price)} · {months(k.valid_months)}{k.service_name ? ` · ${t('only {service}', { service: k.service_name })}` : ''}</div>
+                <div className="row-sub">{itemsLabel(k.items, term)}</div>
+                <div className="row-sub">{t(`{n} ${term('events')}`, { n: k.sessions })} · {money0(k.price)} · {months(k.valid_months)}</div>
               </div>
               {canEdit && <span className="actions">
-                <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF({ ...k, service_id: k.service_id ? String(k.service_id) : '', valid_months: k.valid_months ?? '' })}><IconEdit /></button>
+                <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF({ ...k, items: k.items.map((it) => ({ service_id: it.service_id ? String(it.service_id) : '', sessions: it.sessions })), valid_months: k.valid_months ?? '' })}><IconEdit /></button>
                 <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(`“${k.name}”`) && run(() => api.del(`/package-types/${k.id}`))}><IconTrash /></button>
               </span>}
             </div>

@@ -173,4 +173,10 @@ export default {
   Day: 'Zi', Week: 'Săptămână', List: 'Listă', View: 'Vizualizare', Today: 'Azi', 'This month': 'Luna aceasta',
   'From today': 'De azi', Previous: 'Înapoi', 'Go to date': 'Mergi la data',
   'No sessions in these {n} days.': 'Nicio ședință în aceste {n} zile.',
+  'What it includes': 'Ce include', 'sessions of a service, or of any service': 'ședințe dintr-un serviciu sau din orice serviciu',
+  'Add service': 'Adaugă serviciu', 'Total: {n} sessions': 'Total: {n de} ședințe', '× any session': 'ședințe din orice serviciu',
+  '{left} of {total} left': '{left} rămase din {total}', Service: 'Serviciu',
+  'Add at least one service with a number of sessions': 'Adaugă cel puțin un serviciu cu un număr de ședințe',
+  'A package can have at most 500 sessions': 'Un pachet poate avea cel mult 500 de ședințe',
+  'The sessions already booked with this package wouldn’t fit in it any more': 'Ședințele deja programate cu acest pachet nu ar mai încăpea în el',
 };

@@ -163,55 +163,115 @@ router.delete('/client-notes/:id', (req, res) => {
 
 /* --------------------------------------------------------------------------------------------- packages */
 
+/**
+ * How a package's places are taken: a session takes a place of its own service first, else a general one (service_id
+ * empty). items: [{ service_id, sessions }]; counts: Map(service id or null -> sessions taking a place). Returns each
+ * part with how many are taken and left, and whether they all fit.
+ */
+function allocate(items, counts) {
+  let overflow = 0;
+  const parts = items.map((it) => ({ ...it, taken: 0 }));
+  const general = parts.filter((p) => p.service_id == null);
+  for (const [service, n] of counts) {
+    const own = service == null ? null : parts.find((p) => p.service_id === service);
+    const take = own ? Math.min(n, own.sessions) : 0;
+    if (own) own.taken = take;
+    overflow += n - take;
+  }
+  const generalSize = general.reduce((a, p) => a + p.sessions, 0);
+  let spill = overflow;
+  for (const g of general) { g.taken = Math.min(spill, g.sessions); spill -= g.taken; }
+  for (const p of parts) p.left = p.sessions - p.taken;
+  return { parts, fits: overflow <= generalSize, generalLeft: Math.max(0, generalSize - overflow) };
+}
+
+const itemsOf = (packageId) => db.prepare(`SELECT pi.service_id, pi.sessions, et.name AS service_name FROM package_items pi
+  LEFT JOIN event_types et ON et.id = pi.service_id WHERE pi.package_id = ? ORDER BY pi.service_id IS NULL, et.name`).all(packageId);
+// Sessions taking a place in a package (not cancelled), by service; one session can be left out (the one being changed).
+const countsOf = (packageId, exceptId = 0) => new Map(db.prepare(`SELECT type_id, COUNT(*) AS n FROM appointments
+  WHERE package_id = ? AND status != 'cancelled' AND id != ? GROUP BY type_id`).all(packageId, exceptId).map((r) => [r.type_id, r.n]));
+
 function loadPackages(where, params) {
   return db.prepare(`
     SELECT p.*, c.name AS client_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid,
-      (SELECT name FROM event_types WHERE id = p.service_id) AS service_name,
       (SELECT COUNT(*) FROM appointments a WHERE a.package_id = p.id AND a.status = 'done') AS used,
       (SELECT COUNT(*) FROM appointments a WHERE a.package_id = p.id AND a.status = 'scheduled') AS booked
     FROM packages p JOIN clients c ON c.id = p.client_id LEFT JOIN invoices i ON i.id = p.invoice_id
     ${where} ORDER BY p.date DESC, p.id DESC`).all(...params)
-    .map((p) => ({ ...p, price: toRon(p.price), left: p.sessions - p.used - p.booked }));
+    .map((p) => {
+      const { parts, generalLeft } = allocate(itemsOf(p.id), countsOf(p.id));
+      // left_for: places a session of each service could still take (its own part plus the general ones).
+      const leftFor = { any: generalLeft };
+      for (const it of parts) if (it.service_id != null) leftFor[it.service_id] = it.left + generalLeft;
+      return { ...p, price: toRon(p.price), items: parts, left: p.sessions - p.used - p.booked, left_for: leftFor };
+    });
+}
+
+/** The parts of a package (or type) from a form: [{ service_id, sessions }], one per service, merged when repeated. */
+function readItems(list) {
+  const merged = new Map();
+  for (const it of Array.isArray(list) ? list : []) {
+    const n = Number(it?.sessions);
+    if (!n) continue;
+    need(Number.isInteger(n) && n > 0 && n <= 500, 'The number of sessions must be a whole number above 0');
+    const service = it.service_id ? Number(it.service_id) : null;
+    need(service == null || db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(service), 'Unknown service');
+    merged.set(service, (merged.get(service) ?? 0) + n);
+  }
+  need(merged.size, 'Add at least one service with a number of sessions');
+  const items = [...merged].map(([service_id, sessions]) => ({ service_id, sessions }));
+  need(items.reduce((a, it) => a + it.sessions, 0) <= 500, 'A package can have at most 500 sessions');
+  return items;
+}
+const total = (items) => items.reduce((a, it) => a + it.sessions, 0);
+function saveItems(table, key, id, items) {
+  db.prepare(`DELETE FROM ${table} WHERE ${key} = ?`).run(id);
+  const add = db.prepare(`INSERT INTO ${table} (${key}, service_id, sessions) VALUES (?, ?, ?)`);
+  for (const it of items) add.run(id, it.service_id, it.sessions);
 }
 
 function readPackage(body) {
   const name = text(body.name, 120);
   need(name, 'Give the package a name, e.g. 10 sessions');
-  const sessions = Number(body.sessions);
-  need(Number.isInteger(sessions) && sessions > 0 && sessions <= 500, 'The number of sessions must be a whole number above 0');
   need(isDate(body.date), 'A valid date is required');
-  const serviceId = body.service_id ? Number(body.service_id) : null;
-  need(!serviceId || db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(serviceId), 'Unknown service');
-  return [name, sessions, money(body.price, 'The price'), body.date, optDate(body.expires, 'The expiry date'), text(body.note, 2000), serviceId];
+  const items = readItems(body.items);
+  return { values: [name, total(items), money(body.price, 'The price'), body.date, optDate(body.expires, 'The expiry date'), text(body.note, 2000)], items };
 }
 
 /* ---------------------------------------------------------------------------------------- package types */
 
-const loadPackageTypes = () => db.prepare(`SELECT pt.*, et.name AS service_name FROM package_types pt
-  LEFT JOIN event_types et ON et.id = pt.service_id ORDER BY pt.name`).all().map((x) => ({ ...x, price: toRon(x.price) }));
+const loadPackageTypes = () => db.prepare('SELECT * FROM package_types ORDER BY name').all().map((x) => ({
+  ...x, price: toRon(x.price),
+  items: db.prepare(`SELECT pti.service_id, pti.sessions, et.name AS service_name FROM package_type_items pti
+    LEFT JOIN event_types et ON et.id = pti.service_id WHERE pti.package_type_id = ? ORDER BY pti.service_id IS NULL, et.name`).all(x.id),
+}));
 
 function readPackageType(body) {
   const name = text(body.name, 120);
   need(name, 'Give the package a name, e.g. 10 sessions');
-  const sessions = Number(body.sessions);
-  need(Number.isInteger(sessions) && sessions > 0 && sessions <= 500, 'The number of sessions must be a whole number above 0');
   const months = body.valid_months === '' || body.valid_months == null ? null : Number(body.valid_months);
   need(months == null || (Number.isInteger(months) && months > 0 && months <= 120), 'Validity must be a whole number of months');
-  const serviceId = body.service_id ? Number(body.service_id) : null;
-  need(!serviceId || db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(serviceId), 'Unknown service');
-  return [name, sessions, money(body.price, 'The price'), months, serviceId];
+  const items = readItems(body.items);
+  return { values: [name, total(items), money(body.price, 'The price'), months], items };
 }
 
 router.get('/package-types', (req, res) => res.json(loadPackageTypes()));
 router.post('/package-types', (req, res) => {
-  const { lastInsertRowid } = db.prepare('INSERT INTO package_types (name, sessions, price, valid_months, service_id) VALUES (?, ?, ?, ?, ?)')
-    .run(...readPackageType(req.body));
-  res.json({ id: Number(lastInsertRowid) });
+  const { values, items } = readPackageType(req.body);
+  const id = tx(() => {
+    const { lastInsertRowid } = db.prepare('INSERT INTO package_types (name, sessions, price, valid_months) VALUES (?, ?, ?, ?)').run(...values);
+    saveItems('package_type_items', 'package_type_id', Number(lastInsertRowid), items);
+    return Number(lastInsertRowid);
+  });
+  res.json({ id });
 });
 router.put('/package-types/:id', (req, res) => {
-  const r = db.prepare('UPDATE package_types SET name = ?, sessions = ?, price = ?, valid_months = ?, service_id = ? WHERE id = ?')
-    .run(...readPackageType(req.body), idParam(req));
-  if (!r.changes) throw httpError(404, 'This package type no longer exists');
+  const { values, items } = readPackageType(req.body);
+  tx(() => {
+    const r = db.prepare('UPDATE package_types SET name = ?, sessions = ?, price = ?, valid_months = ? WHERE id = ?').run(...values, idParam(req));
+    if (!r.changes) throw httpError(404, 'This package type no longer exists');
+    saveItems('package_type_items', 'package_type_id', idParam(req), items);
+  });
   res.json({ ok: true });
 });
 // Packages already sold from it stay as they are (they keep their own copy).
@@ -226,19 +286,26 @@ router.get('/packages', (req, res) => {
 
 router.post('/clients/:id/packages', (req, res) => {
   getClient(idParam(req));
-  const { lastInsertRowid } = db.prepare('INSERT INTO packages (client_id, name, sessions, price, date, expires, note, service_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(idParam(req), ...readPackage(req.body));
-  res.json({ id: Number(lastInsertRowid) });
+  const { values, items } = readPackage(req.body);
+  const id = tx(() => {
+    const { lastInsertRowid } = db.prepare('INSERT INTO packages (client_id, name, sessions, price, date, expires, note) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(idParam(req), ...values);
+    saveItems('package_items', 'package_id', Number(lastInsertRowid), items);
+    return Number(lastInsertRowid);
+  });
+  res.json({ id });
 });
 
 router.put('/packages/:id', (req, res) => {
-  const v = readPackage(req.body);
-  const used = db.prepare("SELECT COUNT(*) AS n FROM appointments WHERE package_id = ? AND status != 'cancelled'").get(idParam(req)).n;
-  need(v[1] >= used, `${used} sessions already use this package: it can't have fewer`);
-  need(!v[6] || !db.prepare("SELECT 1 FROM appointments WHERE package_id = ? AND status != 'cancelled' AND (type_id IS NULL OR type_id != ?)").get(idParam(req), v[6]),
-    'Sessions of another service already use this package');
-  const r = db.prepare('UPDATE packages SET name = ?, sessions = ?, price = ?, date = ?, expires = ?, note = ?, service_id = ? WHERE id = ?').run(...v, idParam(req));
-  if (!r.changes) throw httpError(404, 'This package no longer exists');
+  const id = idParam(req);
+  const { values, items } = readPackage(req.body);
+  // The sessions already in it must still find a place.
+  need(allocate(items, countsOf(id)).fits, 'The sessions already booked with this package wouldn’t fit in it any more');
+  tx(() => {
+    const r = db.prepare('UPDATE packages SET name = ?, sessions = ?, price = ?, date = ?, expires = ?, note = ? WHERE id = ?').run(...values, id);
+    if (!r.changes) throw httpError(404, 'This package no longer exists');
+    saveItems('package_items', 'package_id', id, items);
+  });
   res.json({ ok: true });
 });
 
@@ -295,12 +362,14 @@ function readAppointment(body, id = null) {
   need(VENUES.includes(venue), 'Unknown venue');
   let packageId = body.package_id ? Number(body.package_id) : null;
   if (packageId) {
-    const p = loadPackages('WHERE p.id = ?', [packageId])[0];
+    const p = db.prepare('SELECT client_id, name FROM packages WHERE id = ?').get(packageId);
     need(p && p.client_id === clientId, 'That package belongs to someone else');
-    need(!p.service_id || p.service_id === typeId || status === 'cancelled', 'This package is for another service');
-    // Room in it: this session itself already counts when it's being edited and was in it.
-    const mine = id ? db.prepare("SELECT 1 FROM appointments WHERE id = ? AND package_id = ? AND status != 'cancelled'").get(id, packageId) : null;
-    need(status === 'cancelled' || mine || p.left > 0, `The package “${p.name}” has no sessions left`);
+    // Room in it for a session of this service: its own part, else a general place (this session itself left out).
+    if (status !== 'cancelled') {
+      const counts = countsOf(packageId, id ?? 0);
+      counts.set(typeId, (counts.get(typeId) ?? 0) + 1);
+      need(allocate(itemsOf(packageId), counts).fits, `The package “${p.name}” has no place left for this service`);
+    }
   }
   if (status === 'cancelled' && packageId) packageId = null; // a cancelled session gives its place in the package back
   // In a package: paid with the package, so it has no price of its own.
