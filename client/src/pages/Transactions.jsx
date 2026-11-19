@@ -9,6 +9,7 @@ import { confirmDelete } from '../components/Modal.jsx';
 import { IconDownload, IconPlus } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
 import { useBusiness } from '../business.js';
+import { t, tn } from '../i18n/index.js';
 
 export default function Transactions() {
   const { canEdit } = usePermissions();
@@ -26,12 +27,12 @@ export default function Transactions() {
   const [form, setForm] = useState(null);
 
   const list = rows || [];
-  const income = list.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
-  const expenses = list.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
+  const income = list.filter((x) => x.kind === 'income').reduce((s, x) => s + x.amount, 0);
+  const expenses = list.filter((x) => x.kind === 'expense').reduce((s, x) => s + x.amount, 0);
 
-  const del = async (t) => {
-    if (!confirmDelete('this transaction')) return;
-    try { await api.del(`/transactions/${t.id}`); } catch (e) { window.alert(e.message); }
+  const del = async (x) => {
+    if (!confirmDelete(t('this transaction'))) return;
+    try { await api.del(`/transactions/${x.id}`); } catch (e) { window.alert(e.message); }
     reload();
   };
 
@@ -39,59 +40,61 @@ export default function Transactions() {
     <div className={loading ? 'loading' : ''}>
       <div className="page-head">
         <div>
-          <h1>Transactions</h1>
-          <p>{simple ? 'All money in and out. Payments of invoices and receipts appear here when they’re ticked paid.'
-            : 'Every cost and income line: event costs, plus reinvestments and donations moving money out of or into a fund.'}</p>
+          <h1>{t('Transactions')}</h1>
+          <p>{simple ? t('All money in and out. Payments of invoices and receipts appear here when they’re ticked paid.')
+            : t('Every cost and income line: event costs, plus reinvestments and donations moving money out of or into a fund.')}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a className="btn" href={`/api/export/transactions.csv${qs({ year: filters.year })}`}><IconDownload width="15" />Export CSV</a>
-          {canEdit && <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Add transaction</button>}
+          <a className="btn" href={`/api/export/transactions.csv${qs({ year: filters.year })}`}><IconDownload width="15" />{t('Export CSV')}</a>
+          {canEdit && <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />{t('Add transaction')}</button>}
         </div>
       </div>
 
       <div className="filters">
-        <input type="search" placeholder="Search description or event…" value={filters.q} onChange={set('q')} />
-        <Select value={filters.year} onChange={set('year')} aria-label="Year">
-          <option value="">All years</option>
+        <input type="search" placeholder={simple ? t('Search description…') : t('Search description or event…')} value={filters.q} onChange={set('q')} />
+        <Select value={filters.year} onChange={set('year')} aria-label={t('Year')}>
+          <option value="">{t('All years')}</option>
           {years?.map((y) => <option key={y}>{y}</option>)}
         </Select>
-        <Select value={filters.month} onChange={set('month')} aria-label="Month">
-          <option value="">All months</option>
+        <Select value={filters.month} onChange={set('month')} aria-label={t('Month')}>
+          <option value="">{t('All months')}</option>
           {MONTHS_LONG.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </Select>
-        <Select value={filters.kind} onChange={set('kind')} aria-label="Kind">
-          <option value="">Income & expenses</option>
-          <option value="income">Income only</option>
-          <option value="expense">Expenses only</option>
+        <Select value={filters.kind} onChange={set('kind')} aria-label={t('Kind')}>
+          <option value="">{t('Income & expenses')}</option>
+          <option value="income">{t('Income only')}</option>
+          <option value="expense">{t('Expenses only')}</option>
         </Select>
-        {!simple && <Select value={filters.event_id} onChange={set('event_id')} aria-label="Scope">
-          <option value="">Events & funds</option>
-          <option value="general">Fund movements only</option>
+        {!simple && <Select value={filters.event_id} onChange={set('event_id')} aria-label={t('Scope')}>
+          <option value="">{t('Events & funds')}</option>
+          <option value="general">{t('Fund movements only')}</option>
         </Select>}
-        <Select value={filters.category} onChange={set('category')} aria-label="Category">
-          <option value="">All categories</option>
-          {categories?.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
+        <Select value={filters.category} onChange={set('category')} aria-label={t('Category')}>
+          <option value="">{t('All categories')}</option>
+          {categories?.map((c) => <option key={c.id} value={c.id}>{c.name} ({t(c.kind)})</option>)}
         </Select>
       </div>
 
       <div className="grid grid-kpi" style={{ marginBottom: 16 }}>
         {periodOnly && period ? (
           <>
-            <Kpi label="Overall result" hero value={<span className={period.overall < 0 ? 'neg' : ''}>{signedMoney(period.overall)}</span>}
-              sub={`What the account gained: events’ profit ${signedMoney(period.eventProfit)} · fund money in/out ${signedMoney(period.fundNet)}${period.paid ? ` · payouts sent −${money0(period.paid)}` : ''}`} />
-            <Kpi label="Participation fees" value={money0(period.fees)}
-              sub={`${period.events} finalized events — not listed below${period.live ? ` · ${period.live} live events not counted yet` : ''}`} />
+            <Kpi label={t('Overall result')} hero value={<span className={period.overall < 0 ? 'neg' : ''}>{signedMoney(period.overall)}</span>}
+              sub={t('What the account gained: events’ profit {profit} · fund money in/out {fund}', { profit: signedMoney(period.eventProfit), fund: signedMoney(period.fundNet) })
+                + (period.paid ? ` · ${t('payouts sent −{amount}', { amount: money0(period.paid) })}` : '')} />
+            <Kpi label={t('Participation fees')} value={money0(period.fees)}
+              sub={tn(period.events, '{n} finalized event — not listed below', '{n} finalized events — not listed below')
+                + (period.live ? ` · ${tn(period.live, '{n} live event not counted yet', '{n} live events not counted yet')}` : '')} />
           </>
         ) : null}
-        <Kpi label={simple ? 'Result' : 'Listed lines'} hero={simple} value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
-          sub={`${money0(income)} in · ${money0(expenses)} out · ${list.length} transactions`} />
+        <Kpi label={simple ? t('Result') : t('Listed lines')} hero={simple} value={<span className={income - expenses < 0 ? 'neg' : ''}>{signedMoney(income - expenses)}</span>}
+          sub={`${t('{amount} in', { amount: money0(income) })} · ${t('{amount} out', { amount: money0(expenses) })} · ${tn(list.length, '{n} transaction', '{n} transactions')}`} />
       </div>
-      {!simple && <p className="muted" style={{ marginTop: -6 }}>The list holds costs and other money in/out; participation fees (people × price) live on the events,
-        so “Listed lines” alone is mostly costs.{periodOnly ? ' “Overall result” adds the events’ fees.' : ' Clear the other filters to see the overall result.'}</p>}
+      {!simple && <p className="muted" style={{ marginTop: -6 }}>{t('The list holds costs and other money in/out; participation fees (people × price) live on the events, so “Listed lines” alone is mostly costs.')}
+        {' '}{periodOnly ? t('“Overall result” adds the events’ fees.') : t('Clear the other filters to see the overall result.')}</p>}
 
       <div className="card table-wrap">
-        <TxTable rows={list} showEvent={!simple} onEdit={(t) => setForm({ tx: t })} onDelete={del}
-          empty={loading ? 'Loading…' : 'No transactions match these filters.'} />
+        <TxTable rows={list} showEvent={!simple} onEdit={(x) => setForm({ tx: x })} onDelete={del}
+          empty={loading ? t('Loading…') : t('No transactions match these filters.')} />
       </div>
 
       {form && <TxForm tx={form.tx} defaultKind={form.kind} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}

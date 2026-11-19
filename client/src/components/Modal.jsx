@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { IconX } from './Icons.jsx';
+import { t } from '../i18n/index.js';
 
 export default function Modal({ title, onClose, children, footer, onSubmit }) {
   useEffect(() => {
@@ -15,7 +16,7 @@ export default function Modal({ title, onClose, children, footer, onSubmit }) {
         onSubmit={onSubmit ? (e) => { e.preventDefault(); onSubmit(); } : undefined}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><IconX /></button>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('Close')}><IconX /></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
@@ -25,5 +26,5 @@ export default function Modal({ title, onClose, children, footer, onSubmit }) {
 }
 
 export function confirmDelete(what) {
-  return window.confirm(`Delete ${what}? This cannot be undone.`);
+  return window.confirm(t('Delete {what}? This cannot be undone.', { what }));
 }

@@ -1,6 +1,7 @@
 import { Children, Fragment, isValidElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fold } from '../util.js';
+import { t } from '../i18n/index.js';
 
 // A drop-in replacement for <select>: same children (<option>, <optgroup>), same value / onChange(e)
 // with e.target.value, but its list looks the same in every browser. Long lists get a search box.
@@ -47,7 +48,7 @@ function usePlacement(open, anchor, pop) {
   return pos;
 }
 
-export default function Select({ value, onChange, children, className = '', style, disabled, required, autoFocus, searchable, onCreate, createLabel = 'New', ...rest }) {
+export default function Select({ value, onChange, children, className = '', style, disabled, required, autoFocus, searchable, onCreate, createLabel, ...rest }) {
   const items = useMemo(() => flatten(children), [children]);
   const current = String(value ?? '');
   const selected = items.find((o) => o.value === current);
@@ -133,7 +134,7 @@ export default function Select({ value, onChange, children, className = '', styl
       {open && pos && createPortal(
         <div ref={pop} className="select-pop" style={pos} tabIndex={-1} onKeyDown={onKey} role="presentation">
           {withSearch && (
-            <input className="select-search" autoFocus={!touch} placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the list" />
+            <input className="select-search" autoFocus={!touch} placeholder={t('Search…')} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t('Search the list')} />
           )}
           <div ref={list} className="select-list" role="listbox">
             {shown.map((o, i) => {
@@ -151,11 +152,11 @@ export default function Select({ value, onChange, children, className = '', styl
                 </Fragment>
               );
             })}
-            {!shown.length && <div className="select-none">Nothing matches “{query}”</div>}
+            {!shown.length && <div className="select-none">{t('Nothing matches “{query}”', { query })}</div>}
           </div>
           {onCreate && !(typed && items.some((o) => fold(o.label) === fold(typed))) && (
             <div role="button" className="select-option select-create" onMouseDown={(e) => e.preventDefault()} onClick={create}>
-              <span>+ {typed ? <>Add “{typed}”</> : `${createLabel}…`}</span>
+              <span>+ {typed ? t('Add “{name}”', { name: typed }) : `${createLabel ?? t('New')}…`}</span>
             </div>
           )}
         </div>,

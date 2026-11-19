@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useApi } from '../../hooks.js';
-import { LANGUAGES } from '../../i18n/index.js';
+import { LANGUAGES, t } from '../../i18n/index.js';
 import Select from '../../components/Select.jsx';
 
 export function Business() {
@@ -17,44 +17,44 @@ export function Business() {
     e.preventDefault();
     try {
       await api.put('/business', v);
-      setMsg({ ok: true, text: 'Saved.' }); setF(null); reload();
+      setMsg({ ok: true, text: t('Saved.') }); setF(null); reload();
       window.dispatchEvent(new Event('am:business')); // the menu, colours and money format follow
     } catch (err) { setMsg({ ok: false, text: err.message }); }
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>Business</h2>
-        <p>{data.types[v.type]} · its name and look, the currency, and which parts of the app it uses.</p></div></div>
+      <div className="card-head"><div><h2>{t('Business')}</h2>
+        <p>{t(data.types[v.type])} · {t('its name and look, the currency, and which parts of the app it uses.')}</p></div></div>
       {msg && <div className={msg.ok ? 'pos' : 'error-box'} style={{ marginBottom: 10 }}>{msg.text}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 14 }}>
         <div className="form-grid">
-          <label className="field">Name<input value={v.name} onChange={set('name')} required maxLength={60} /></label>
-          <label className="field">Subtitle<input value={v.tagline} onChange={set('tagline')} maxLength={60} placeholder="under the name in the menu" /></label>
-          <label className="field">Colour<input type="color" value={v.color} onChange={set('color')} /></label>
-          <label className="field">Website<input type="url" value={v.website} onChange={set('website')} placeholder="https://…" /></label>
-          <label className="field">Currency<input value={v.currency} onChange={set('currency')} required maxLength={3} placeholder="RON" /></label>
-          <label className="field">Language
+          <label className="field">{t('Name')}<input value={v.name} onChange={set('name')} required maxLength={60} /></label>
+          <label className="field">{t('Subtitle')}<input value={v.tagline} onChange={set('tagline')} maxLength={60} placeholder={t('under the name in the menu')} /></label>
+          <label className="field">{t('Colour')}<input type="color" value={v.color} onChange={set('color')} /></label>
+          <label className="field">{t('Website')}<input type="url" value={v.website} onChange={set('website')} placeholder="https://…" /></label>
+          <label className="field">{t('Currency')}<input value={v.currency} onChange={set('currency')} required maxLength={3} placeholder="RON" /></label>
+          <label className="field">{t('Language')}
             <Select value={v.language || 'en'} onChange={set('language')}>
               {Object.entries(LANGUAGES).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </Select>
           </label>
-          <label className="field">Number format<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
+          <label className="field">{t('Number format')}<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
           {v.features.practice && (
-            <label className="field full">Legal entities <span className="hint">— one per line; each patient is treated through one of them</span>
+            <label className="field full">{t('Legal entities')} <span className="hint">— {t('one per line; each patient is treated through one of them')}</span>
               <textarea rows={3} value={Array.isArray(v.entities) ? v.entities.join('\n') : v.entities || ''}
                 onChange={(e) => setF({ ...v, entities: e.target.value })} />
             </label>
           )}
         </div>
         <div>
-          <div className="kpi-label" style={{ marginBottom: 6 }}>Parts of the app</div>
+          <div className="kpi-label" style={{ marginBottom: 6 }}>{t('Parts of the app')}</div>
           <div className="form-grid">
             {Object.entries(data.features).map(([k, label]) => (
-              <label key={k} className="check"><input type="checkbox" checked={!!v.features[k]} onChange={() => toggle(k)} /> {label}</label>
+              <label key={k} className="check"><input type="checkbox" checked={!!v.features[k]} onChange={() => toggle(k)} /> {t(label)}</label>
             ))}
           </div>
         </div>
-        <div><button className="btn btn-primary" disabled={!f}>Save</button></div>
+        <div><button className="btn btn-primary" disabled={!f}>{t('Save')}</button></div>
       </form>
     </div>
   );

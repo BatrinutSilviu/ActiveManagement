@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fold } from '../util.js';
+import { t } from '../i18n/index.js';
 
 /**
  * A name, typed: someone from People is suggested as you type, but any name can be kept — nobody is added
  * to People (it's only the team). The server links the name to a person when it matches one.
  */
-export default function NameInput({ people, value, onChange, exclude, required, placeholder = 'Name', className = '', autoFocus, ariaLabel }) {
+export default function NameInput({ people, value, onChange, exclude, required, placeholder, className = '', autoFocus, ariaLabel }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const box = useRef(null);
@@ -34,7 +35,7 @@ export default function NameInput({ people, value, onChange, exclude, required, 
 
   return (
     <div className="person-picker" ref={box}>
-      <input className={className} value={value} placeholder={placeholder} autoFocus={autoFocus} autoComplete="off" required={required}
+      <input className={className} value={value} placeholder={placeholder ?? t('Name')} autoFocus={autoFocus} autoComplete="off" required={required}
         aria-label={ariaLabel} role="combobox" aria-expanded={open && matches.length > 0} aria-autocomplete="list"
         onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(0); }} onFocus={() => setOpen(true)} onKeyDown={onKey} />
       {open && matches.length > 0 && (
@@ -43,7 +44,7 @@ export default function NameInput({ people, value, onChange, exclude, required, 
             {matches.map((p, i) => (
               <div key={p.id} role="option" aria-selected={i === active} data-active={i === active} className="select-option"
                 onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(p)}>
-                <span>{p.name}{p.is_founder ? <span className="muted"> · founder</span> : null}</span>
+                <span>{p.name}{p.is_founder ? <span className="muted"> · {t('founder')}</span> : null}</span>
               </div>
             ))}
           </div>

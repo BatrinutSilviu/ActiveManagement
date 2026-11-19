@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { fold } from '../util.js';
+import { t } from '../i18n/index.js';
 
 
 /**
  * Pick a person by typing: suggestions appear as you type (no long list), and a name that isn't in
  * People can be added on the spot. `value` is the person's id; onChange(id) also gets the new id.
  */
-export default function PersonPicker({ people, value, onChange, onCreated, required, placeholder = 'Type a name…', className = '', autoFocus, allowCreate = true }) {
+export default function PersonPicker({ people, value, onChange, onCreated, required, placeholder, className = '', autoFocus, allowCreate = true }) {
   const current = people?.find((p) => String(p.id) === String(value));
   const [text, setText] = useState(current?.name || '');
   const [open, setOpen] = useState(false);
@@ -61,7 +62,7 @@ export default function PersonPicker({ people, value, onChange, onCreated, requi
 
   return (
     <div className="person-picker" ref={box}>
-      <input className={className} value={text} placeholder={placeholder} autoFocus={autoFocus} disabled={busy} autoComplete="off"
+      <input className={className} value={text} placeholder={placeholder ?? t('Type a name…')} autoFocus={autoFocus} disabled={busy} autoComplete="off"
         role="combobox" aria-expanded={open && options.length > 0} aria-autocomplete="list"
         onChange={(e) => { setText(e.target.value); setOpen(true); setActive(0); if (value) onChange(''); }}
         onFocus={() => setOpen(true)} onKeyDown={onKey} />
@@ -73,8 +74,8 @@ export default function PersonPicker({ people, value, onChange, onCreated, requi
               <div key={o.person ? o.person.id : 'new'} role="option" aria-selected={i === active} data-active={i === active}
                 className={`select-option ${o.create ? 'is-create' : ''}`} onMouseEnter={() => setActive(i)}
                 onMouseDown={(e) => e.preventDefault()} onClick={() => choose(o)}>
-                {o.person ? <span>{o.person.name}{!o.person.active && <span className="muted"> · inactive</span>}</span>
-                  : <span>+ Add “{o.create}” as a new person</span>}
+                {o.person ? <span>{o.person.name}{!o.person.active && <span className="muted"> · {t('inactive')}</span>}</span>
+                  : <span>+ {t('Add “{name}” as a new person', { name: o.create })}</span>}
               </div>
             ))}
           </div>

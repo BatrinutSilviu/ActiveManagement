@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { money0 } from './format.js';
 import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
 import { applyBusiness, BusinessContext } from './business.js';
+import { t } from './i18n/index.js';
 import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReceipt, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconUsers, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -51,8 +52,8 @@ function AccountBalance({ path }) {
   useEffect(() => { reload(); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!data) return null;
   return (
-    <NavLink to="/" className="side-balance" title="Money in the account — see the Dashboard for what it is">
-      <span>In the account</span>
+    <NavLink to="/" className="side-balance" title={t('Money in the account — see the Dashboard for what it is')}>
+      <span>{t('In the account')}</span>
       <strong>{money0(data.cash.balance)}</strong>
     </NavLink>
   );
@@ -62,18 +63,18 @@ const initials = (name) => name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'system');
-  const change = (t) => {
-    setTheme(t);
+  const change = (th) => {
+    setTheme(th);
     try {
-      if (t === 'system') { delete document.documentElement.dataset.theme; localStorage.removeItem('am-theme'); }
-      else { document.documentElement.dataset.theme = t; localStorage.setItem('am-theme', t); }
+      if (th === 'system') { delete document.documentElement.dataset.theme; localStorage.removeItem('am-theme'); }
+      else { document.documentElement.dataset.theme = th; localStorage.setItem('am-theme', th); }
     } catch { /* storage unavailable */ }
     window.dispatchEvent(new Event('am:theme'));
   };
   return (
-    <div className="segmented" aria-label="Theme">
-      {['light', 'system', 'dark'].map((t) => (
-        <button key={t} className={theme === t ? 'on' : ''} onClick={() => change(t)}>{t[0].toUpperCase() + t.slice(1)}</button>
+    <div className="segmented" aria-label={t('Theme')}>
+      {['light', 'system', 'dark'].map((th) => (
+        <button key={th} className={theme === th ? 'on' : ''} onClick={() => change(th)}>{t(th[0].toUpperCase() + th.slice(1))}</button>
       ))}
     </div>
   );
@@ -108,15 +109,15 @@ export default function App() {
   const logout = async () => { await api.post('/auth/logout'); refresh(); };
   const isAdmin = auth.user.role === 'admin';
   const nav = NAV.filter((n) => (!n.adminOnly || isAdmin) && on(n.feature))
-    .map((n) => ({ ...n, label: n.label || (b?.terms?.[n.term] ?? n.term).replace(/^./, (c) => c.toUpperCase()) }));
+    .map((n) => ({ ...n, label: t(n.label || (b?.terms?.[n.term] ?? n.term).replace(/^./, (c) => c.toUpperCase())) }));
 
   return (
     <BusinessContext.Provider value={b}>
     <UserContext.Provider value={auth.user}>
     <div className="shell">
       <div className="mobile-bar">
-        <button className="icon-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu"><IconMenu /></button>
-        {b?.name} Management
+        <button className="icon-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label={t('Menu')}><IconMenu /></button>
+        {t('{name} Management', { name: b?.name ?? '' })}
       </div>
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
@@ -125,11 +126,11 @@ export default function App() {
           <div>{b?.name}{b?.tagline && <small>{b.tagline}</small>}</div>
         </div>
         <AccountBalance path={location.pathname} />
-        <div className="nav-section">Overview</div>
+        <div className="nav-section">{t('Overview')}</div>
         {nav.filter((n) => n.overview).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
-        <div className="nav-section">Manage</div>
+        <div className="nav-section">{t('Manage')}</div>
         {nav.filter((n) => !n.overview).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
         ))}
@@ -139,9 +140,9 @@ export default function App() {
             <span className="avatar">{initials(auth.user.name)}</span>
             <div className="who">
               <div>{auth.user.name}</div>
-              <span>{ROLE_LABELS[auth.user.role]} · {auth.user.email}</span>
+              <span>{t(ROLE_LABELS[auth.user.role])} · {auth.user.email}</span>
             </div>
-            <button className="icon-btn" onClick={logout} aria-label="Sign out" title="Sign out"><IconLogout /></button>
+            <button className="icon-btn" onClick={logout} aria-label={t('Sign out')} title={t('Sign out')}><IconLogout /></button>
           </div>
         </div>
       </aside>
