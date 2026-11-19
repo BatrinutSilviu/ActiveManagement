@@ -43,15 +43,15 @@ router.get('/clients', (req, res) => {
       (SELECT COUNT(*) FROM appointments a WHERE a.client_id = c.id AND a.status = 'done') AS sessions_done,
       (SELECT MAX(a.date) FROM appointments a WHERE a.client_id = c.id AND a.status = 'done') AS last_session,
       (SELECT MIN(a.date) FROM appointments a WHERE a.client_id = c.id AND a.status = 'scheduled' AND a.date >= ?) AS next_session,
-      ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid
-    FROM clients c ORDER BY c.archived, c.last_name, c.first_name`).all(day);
+      ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid, ${CONDITIONS_SQL}
+    FROM clients c ORDER BY c.archived, c.last_name, c.first_name`).all(day).map(withConditions);
   res.json(rows.map((c) => ({ ...c, unbilled: toRon(c.unbilled), unpaid: toRon(c.unpaid) })));
 });
 
 // First name and surname apart; `name` is kept as the full "First Last" the lists and joins show. A bare `name`
 // (the quick add in the session form) is split: first word the first name, the rest the surname.
 const CLIENT_FIELDS = ['first_name', 'last_name', 'name', 'phone', 'email', 'address', 'birth_date', 'about', 'archived',
-  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date', 'condition'];
+  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date'];
 // The legal entity they're treated through, one of the business's (Settings → Business). The patient form asks
 // for it; the quick add from a session doesn't, so it can be empty. One no longer listed is kept as it was.
 function readEntity(v) {
@@ -60,12 +60,23 @@ function readEntity(v) {
   need(!e || list.includes(e) || db.prepare('SELECT 1 FROM clients WHERE entity = ?').get(e), 'Unknown legal entity');
   return e;
 }
-// One of the business's illness categories; one no longer listed is kept as it was.
-function readCondition(v) {
-  const c = text(v, 80);
-  need(!c || (getBusiness()?.conditions || []).includes(c) || db.prepare('SELECT 1 FROM clients WHERE condition = ?').get(c), 'Unknown illness category');
-  return c;
+// Their illness categories, from the business's list (one no longer listed is kept if they had it). Undefined: unchanged.
+function readConditions(v, id) {
+  if (v === undefined) return undefined;
+  const list = [...new Set((Array.isArray(v) ? v : []).map((x) => text(x, 80)).filter(Boolean))];
+  const known = getBusiness()?.conditions || [];
+  const had = id ? db.prepare('SELECT name FROM client_conditions WHERE client_id = ?').all(id).map((r) => r.name) : [];
+  for (const c of list) need(known.includes(c) || had.includes(c), 'Unknown illness category');
+  return list;
 }
+function saveConditions(id, list) {
+  if (list === undefined) return;
+  db.prepare('DELETE FROM client_conditions WHERE client_id = ?').run(id);
+  const add = db.prepare('INSERT INTO client_conditions (client_id, name) VALUES (?, ?)');
+  for (const c of list) add.run(id, c);
+}
+const CONDITIONS_SQL = "(SELECT json_group_array(name) FROM (SELECT name FROM client_conditions WHERE client_id = c.id ORDER BY name)) AS conditions";
+const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]') });
 function readClient(body) {
   let first = text(body.first_name, 60), last = text(body.last_name, 60);
   if (!first && !last && text(body.name, 120)) [first, last] = (([f, ...r]) => [f, r.join(' ') || null])(text(body.name, 120).split(/\s+/));
@@ -75,19 +86,28 @@ function readClient(body) {
     optDate(body.birth_date, 'The birth date'), text(body.about, 10000), body.archived ? 1 : 0,
     text(body.tutor_name, 120), text(body.tutor_relation, 60), text(body.tutor_phone, 60), text(body.tutor_email, 120),
     text(body.association, 120), readEntity(body.entity),
-    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date'), readCondition(body.condition)];
+    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date')];
 }
 
 router.post('/clients', (req, res) => {
-  const { lastInsertRowid } = db.prepare(`INSERT INTO clients (${CLIENT_FIELDS.join(', ')})
-    VALUES (${CLIENT_FIELDS.map(() => '?').join(', ')})`).run(...readClient(req.body));
-  res.json({ id: Number(lastInsertRowid) });
+  const values = readClient(req.body), conditions = readConditions(req.body.conditions);
+  const id = tx(() => {
+    const { lastInsertRowid } = db.prepare(`INSERT INTO clients (${CLIENT_FIELDS.join(', ')})
+      VALUES (${CLIENT_FIELDS.map(() => '?').join(', ')})`).run(...values);
+    saveConditions(Number(lastInsertRowid), conditions);
+    return Number(lastInsertRowid);
+  });
+  res.json({ id });
 });
 
 router.put('/clients/:id', (req, res) => {
-  getClient(idParam(req));
-  db.prepare(`UPDATE clients SET ${CLIENT_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`)
-    .run(...readClient(req.body), idParam(req));
+  const id = idParam(req);
+  getClient(id);
+  const values = readClient(req.body), conditions = readConditions(req.body.conditions, id);
+  tx(() => {
+    db.prepare(`UPDATE clients SET ${CLIENT_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
+    saveConditions(id, conditions);
+  });
   res.json({ ok: true });
 });
 
@@ -104,9 +124,9 @@ router.delete('/clients/:id', (req, res) => {
 router.get('/clients/:id', (req, res) => {
   const id = idParam(req);
   const c = getClient(id);
-  const owed = db.prepare(`SELECT ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid FROM clients c WHERE c.id = ?`).get(id);
+  const owed = db.prepare(`SELECT ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid, ${CONDITIONS_SQL} FROM clients c WHERE c.id = ?`).get(id);
   res.json({
-    ...c, unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
+    ...c, conditions: JSON.parse(owed.conditions), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
     notes: db.prepare('SELECT * FROM client_notes WHERE client_id = ? ORDER BY date DESC, id DESC').all(id),
     packages: loadPackages('WHERE p.client_id = ?', [id]),
     appointments: loadAppointments('WHERE a.client_id = ?', [id], 'ORDER BY a.date DESC, a.start_time DESC'),

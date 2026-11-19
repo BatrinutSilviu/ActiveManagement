@@ -18,7 +18,7 @@ function useForm(initial, send, onSaved) {
     setSaving(true);
     try { const r = await send(f); onSaved(r?.id); } catch (e) { setError(e.message); setSaving(false); }
   };
-  return { f, set, error, saving, save };
+  return { f, setF, set, error, saving, save };
 }
 
 const footer = (onClose, saving) => <>
@@ -32,8 +32,8 @@ export function PatientForm({ patient, onClose, onSaved }) {
   const conditions = business?.conditions || [];
   const { data: all } = useApi('/clients');
   const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const { f, set, error, saving, save } = useForm(
-    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', ...(patient || {}), archived: !!patient?.archived },
+  const { f, setF, set, error, saving, save } = useForm(
+    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', conditions: [], ...(patient || {}), archived: !!patient?.archived },
     (v) => (patient ? api.put(`/clients/${patient.id}`, v) : api.post('/clients', v)), onSaved);
   return (
     <Modal title={patient ? t(`Edit ${term('person')}`) : t(`New ${term('person')}`)} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
@@ -53,13 +53,16 @@ export function PatientForm({ patient, onClose, onSaved }) {
             </Select>
           </label>
         )}
-        {(conditions.length > 0 || f.condition) && (
-          <label className="field full">{t('Illness category')}
-            <Select value={f.condition || ''} onChange={set('condition')}>
-              <option value="">—</option>
-              {[...new Set([...conditions, ...(f.condition ? [f.condition] : [])])].map((x) => <option key={x} value={x}>{x}</option>)}
-            </Select>
-          </label>
+        {(conditions.length > 0 || f.conditions?.length > 0) && (
+          <div className="field full">{t('Illness categories')} <span className="hint">— {t('tap all that apply')}</span>
+            <div className="chips" role="group" aria-label={t('Illness categories')}>
+              {[...new Set([...conditions, ...(f.conditions || [])])].map((x) => {
+                const on = (f.conditions || []).includes(x);
+                return <button type="button" key={x} className={`chip${on ? ' on' : ''}`} aria-pressed={on}
+                  onClick={() => setF({ ...f, conditions: on ? f.conditions.filter((y) => y !== x) : [...(f.conditions || []), x] })}>{on ? '✓ ' : ''}{x}</button>;
+              })}
+            </div>
+          </div>
         )}
         <label className="field half">{t('Contract number')}<input value={f.contract_number || ''} onChange={set('contract_number')} /></label>
         <label className="field half">{t('Contract date')}<input type="date" value={f.contract_date || ''} onChange={set('contract_date')} /></label>

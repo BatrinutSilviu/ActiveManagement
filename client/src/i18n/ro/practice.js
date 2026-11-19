@@ -159,4 +159,5 @@ export default {
   'Add category': 'Adaugă categorie', 'Unknown illness category': 'Categorie de afecțiune necunoscută',
   'Two illness categories have the same name': 'Două categorii de afecțiuni au același nume',
   'Born between': 'Născut între', and: 'și', 'Born from': 'Născut de la', 'Born until': 'Născut până la', 'Born {date}': 'Născut {date}',
+  'tap all that apply': 'alege toate care se potrivesc',
 };

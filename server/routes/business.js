@@ -24,7 +24,7 @@ router.put('/business', (req, res) => {
     const move = db.prepare('UPDATE appointments SET location = ? WHERE location = ?');
     for (const [from, to] of Object.entries(renames ?? {})) if (from !== to && value.locations?.some((l) => l.name === to)) move.run(to, from);
     // An illness category renamed: its patients follow it.
-    const recat = db.prepare('UPDATE clients SET condition = ? WHERE condition = ?');
+    const recat = db.prepare('UPDATE OR IGNORE client_conditions SET name = ? WHERE name = ?');
     for (const [from, to] of Object.entries(conditionRenames ?? {})) if (from !== to && value.conditions?.includes(to)) recat.run(to, from);
     return setBusiness(value);
   }));

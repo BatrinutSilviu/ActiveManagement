@@ -767,6 +767,10 @@ tr.row-picked td { background: var(--accent-soft); }
 .session-card.status-cancelled { border-left-color: var(--muted); opacity: .6; background: var(--surface); color: inherit; }
 .session-card.has-color { border-left-color: var(--svc); background: color-mix(in srgb, var(--svc) 9%, var(--surface)); }
 .born-filter input[type='date'] { width: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); border-radius: 999px; padding: 6px 12px;
+  font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; min-height: 34px; }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 @media (max-width: 560px) {
   label.check.born-filter { flex: 1 1 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px 8px; }
   .born-filter .born-label { grid-column: 1 / -1; }

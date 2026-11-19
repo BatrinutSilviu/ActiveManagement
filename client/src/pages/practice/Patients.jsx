@@ -24,12 +24,12 @@ export default function Patients() {
   const [condition, setCondition] = useState('');
   const [bornFrom, setBornFrom] = useState('');
   const [bornTo, setBornTo] = useState('');
-  const conditions = [...new Set((data || []).map((c) => c.condition).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const conditions = [...new Set((data || []).flatMap((c) => c.conditions || []))].sort((a, b) => a.localeCompare(b));
   const entities = [...new Set((data || []).map((c) => c.entity).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const associations = [...new Set((data || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const [creating, setCreating] = useState(false);
   const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc) && (!entity || c.entity === entity)
-    && (!condition || c.condition === condition)
+    && (!condition || c.conditions?.includes(condition))
     && (!bornFrom || (c.birth_date && c.birth_date >= bornFrom)) && (!bornTo || (c.birth_date && c.birth_date <= bornTo))
     && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
@@ -78,7 +78,7 @@ export default function Patients() {
               {list.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/patients/${c.id}`)}>
                   <td className="cell-wrap">
-                    <div className="row-title">{c.name}{c.condition && <> <span className="badge">{c.condition}</span></>}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">{t('archived')}</span></>}</div>
+                    <div className="row-title">{c.name}{c.conditions?.map((x) => <span key={x} className="badge" style={{ marginLeft: 4 }}>{x}</span>)}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">{t('archived')}</span></>}</div>
                     {c.tutor_name && <div className="row-sub">{t('Tutor')}: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
                     {c.entity && <div className="row-sub show-sm">{t('Legal entity')}: {c.entity}</div>}

@@ -850,7 +850,17 @@ if (!columns('appointments').includes('venue'))
 // Which of the practice's locations (Settings → Business), for a session at the practice.
 if (!columns('appointments').includes('location')) db.exec('ALTER TABLE appointments ADD COLUMN location TEXT');
 // The patient's illness category: one of the business's (Settings → Services).
-if (!columns('clients').includes('condition')) db.exec('ALTER TABLE clients ADD COLUMN condition TEXT');
+if (!columns('clients').includes('condition')) db.exec('ALTER TABLE clients ADD COLUMN condition TEXT'); // superseded by client_conditions
+// A patient's illness categories (several each), names from the business's list. The single one kept before moves here.
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'client_conditions'").get()) {
+  db.exec(`CREATE TABLE client_conditions (
+      client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      PRIMARY KEY (client_id, name)
+    );
+    INSERT INTO client_conditions (client_id, name) SELECT id, condition FROM clients WHERE condition IS NOT NULL;
+    UPDATE clients SET condition = NULL;`);
+}
 // The patient's contract: its number and the date it was signed.
 if (!columns('clients').includes('contract_number'))
   db.exec('ALTER TABLE clients ADD COLUMN contract_number TEXT; ALTER TABLE clients ADD COLUMN contract_date TEXT;');
