@@ -11,7 +11,7 @@ import { IconCheck, IconChevronLeft, IconEdit, IconPlus, IconTrash } from '../..
 import InvoiceForm from './InvoiceForm.jsx';
 import { PackageForm, PatientForm } from './PatientForms.jsx';
 import SessionForm from './SessionForm.jsx';
-import { Billing, docLabel, localToday, mapsUrl, sessionPrice, SessionStatus, timeLabel } from './common.jsx';
+import { Billing, docLabel, localToday, mapsUrl, sessionPrice, SessionStatus, timeLabel, VENUES } from './common.jsx';
 
 const age = (birth) => {
   if (!birth) return null;
@@ -167,7 +167,7 @@ function Sessions({ c, run, onEdit }) {
               {c.appointments.map((a) => (
                 <tr key={a.id}>
                   <td>{date(a.date)}<div className="row-sub">{timeLabel(a)}</div></td>
-                  <td className="hide-sm">{a.type_name || <span className="muted">—</span>}{a.note && <div className="row-sub cell-wrap">{a.note}</div>}</td>
+                  <td className="hide-sm">{a.type_name || <span className="muted">—</span>}<div className="row-sub">{t(VENUES[a.venue] || VENUES.home)}</div>{a.note && <div className="row-sub cell-wrap">{a.note}</div>}</td>
                   <td><SessionStatus status={a.status} /></td>
                   <td className="r">{sessionPrice(a)}</td>
                   <td className="hide-sm"><Billing a={a} /></td>

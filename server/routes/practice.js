@@ -186,7 +186,7 @@ router.delete('/packages/:id', (req, res) => {
 
 function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time') {
   return db.prepare(`
-    SELECT a.*, c.name AS client_name, c.phone AS client_phone, COALESCE(a.address, c.address) AS place,
+    SELECT a.*, c.name AS client_name, c.phone AS client_phone, CASE WHEN a.venue = 'practice' THEN NULL ELSE COALESCE(a.address, c.address) END AS place,
       et.name AS type_name, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid
     FROM appointments a JOIN clients c ON c.id = a.client_id
     LEFT JOIN event_types et ON et.id = a.type_id
@@ -196,6 +196,7 @@ function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time'
 }
 
 const STATUSES = ['scheduled', 'done', 'cancelled'];
+const VENUES = ['home', 'practice']; // at the patient's home, or at the practice
 
 function readAppointment(body, id = null) {
   const clientId = Number(body.client_id);
@@ -208,6 +209,9 @@ function readAppointment(body, id = null) {
   need(STATUSES.includes(status), 'Unknown status');
   const typeId = body.type_id ? Number(body.type_id) : null;
   need(!typeId || db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(typeId), 'Unknown service');
+  need(typeId || !db.prepare('SELECT 1 FROM event_types').get(), 'Choose the service');
+  const venue = body.venue || 'home';
+  need(VENUES.includes(venue), 'Unknown venue');
   let packageId = body.package_id ? Number(body.package_id) : null;
   if (packageId) {
     const p = loadPackages('WHERE p.id = ?', [packageId])[0];
@@ -219,7 +223,7 @@ function readAppointment(body, id = null) {
   if (status === 'cancelled' && packageId) packageId = null; // a cancelled session gives its place in the package back
   // In a package: paid with the package, so it has no price of its own.
   const price = packageId ? 0 : money(body.price, 'The price');
-  return [clientId, typeId, body.date, start, end, text(body.address, 300), status, price, packageId, text(body.note, 5000)];
+  return [clientId, typeId, body.date, start, end, venue, venue === 'home' ? text(body.address, 300) : null, status, price, packageId, text(body.note, 5000)];
 }
 
 router.get('/appointments', (req, res) => {
@@ -232,15 +236,15 @@ router.get('/appointments', (req, res) => {
 });
 
 router.post('/appointments', (req, res) => {
-  const { lastInsertRowid } = db.prepare(`INSERT INTO appointments (client_id, type_id, date, start_time, end_time, address, status, price,
-    package_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readAppointment(req.body));
+  const { lastInsertRowid } = db.prepare(`INSERT INTO appointments (client_id, type_id, date, start_time, end_time, venue, address, status, price,
+    package_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readAppointment(req.body));
   res.json({ id: Number(lastInsertRowid) });
 });
 
 router.put('/appointments/:id', (req, res) => {
   const id = idParam(req);
   need(db.prepare('SELECT 1 FROM appointments WHERE id = ?').get(id), 'This session no longer exists');
-  db.prepare(`UPDATE appointments SET client_id = ?, type_id = ?, date = ?, start_time = ?, end_time = ?, address = ?, status = ?, price = ?,
+  db.prepare(`UPDATE appointments SET client_id = ?, type_id = ?, date = ?, start_time = ?, end_time = ?, venue = ?, address = ?, status = ?, price = ?,
     package_id = ?, note = ? WHERE id = ?`).run(...readAppointment(req.body, id), id);
   res.json({ ok: true });
 });

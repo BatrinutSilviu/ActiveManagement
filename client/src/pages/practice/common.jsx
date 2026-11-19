@@ -37,3 +37,6 @@ export function Billing({ a }) {
 
 /** A link that opens the patient's address in maps. */
 export const mapsUrl = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+/** Where a session happens (appointments.venue). */
+export const VENUES = { home: "At the patient's home", practice: 'At the practice' };

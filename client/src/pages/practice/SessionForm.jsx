@@ -7,14 +7,14 @@ import { CURRENCY, money0 } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
 import { t } from '../../i18n/index.js';
-import { localToday, SESSION_STATUS } from './common.jsx';
+import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
 
 export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
   const { term, Term } = useBusiness();
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
-    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', address: '',
+    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '',
     status: 'scheduled', price: '', package_id: '', note: '',
     ...(session || {}),
   }));
@@ -81,17 +81,25 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           </Select>
         </label>
         <label className="field">{t(Term('sport'))}
-          <Select value={f.type_id ? String(f.type_id) : ''} onChange={pickType}>
-            <option value="">—</option>
+          <Select value={f.type_id ? String(f.type_id) : ''} onChange={pickType} required={!!types?.length}>
+            <option value="">{t('— choose —')}</option>
             {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}{ty.default_fee ? ` · ${money0(ty.default_fee)}` : ''}</option>)}
           </Select>
         </label>
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field">{t('From')}<input type="time" value={f.start_time || ''} onChange={set('start_time')} /></label>
         <label className="field">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
-        <label className="field full">{t('Address')}
+        <div className="field full">{t('Where')}
+          <div className="segmented" role="radiogroup" aria-label={t('Where')}>
+            {Object.entries(VENUES).map(([k, label]) => (
+              <button type="button" key={k} className={f.venue === k ? 'on' : ''} role="radio" aria-checked={f.venue === k}
+                onClick={() => setF({ ...f, venue: k })}>{t(label)}</button>
+            ))}
+          </div>
+        </div>
+        {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />
-        </label>
+        </label>}
         {f.client_id && (
           <label className="field">{t('Paid with')}
             <Select value={f.package_id ? String(f.package_id) : ''} onChange={set('package_id')}>

@@ -14,7 +14,7 @@ import { t, tn } from '../../i18n/index.js';
 import InvoiceForm from './InvoiceForm.jsx';
 import SessionForm from './SessionForm.jsx';
 import { SessionCard } from './Sessions.jsx';
-import { docLabel, localToday } from './common.jsx';
+import { docLabel, localToday, VENUES } from './common.jsx';
 
 export default function Overview() {
   const { canEdit } = usePermissions();
@@ -97,7 +97,7 @@ export default function Overview() {
                 {o.toConfirm.map((a) => (
                   <div key={a.id} className="side-item" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 160 }}><Link to={`/patients/${a.client_id}`}>{a.client_name}</Link>
-                      <div className="row-sub">{date(a.date)}{a.start_time ? ` · ${a.start_time}` : ''}{a.type_name ? ` · ${a.type_name}` : ''}</div></div>
+                      <div className="row-sub">{date(a.date)}{a.start_time ? ` · ${a.start_time}` : ''}{a.type_name ? ` · ${a.type_name}` : ''}{a.venue === 'practice' ? ` · ${t(VENUES.practice)}` : ''}</div></div>
                     {canEdit && <>
                       <button className="btn btn-sm" onClick={() => status(a, 'done')}>{t('Done')}</button>
                       <button className="btn btn-sm" onClick={() => status(a, 'cancelled')}>{t('Cancelled')}</button>

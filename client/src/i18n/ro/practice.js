@@ -135,4 +135,7 @@ export default {
   'A package on it belongs to another patient': 'Un pachet de pe ea aparține altui pacient',
   'A session on it is already on another invoice or receipt': 'O ședință de pe ea este deja pe altă factură sau chitanță',
   'A package on it is already on another invoice or receipt': 'Un pachet de pe ea este deja pe altă factură sau chitanță',
+  // where a session happens
+  Where: 'Unde', "At the patient's home": 'La domiciliul pacientului', 'At the practice': 'La cabinet',
+  'Choose the service': 'Alege serviciul', 'Unknown venue': 'Loc necunoscut',
 };
