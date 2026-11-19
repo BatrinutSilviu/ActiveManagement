@@ -3,6 +3,7 @@
 //
 //   t('Save')                                    -> "Salvează"
 //   t('{n} sessions left', { n: 3 })             -> "3 ședințe rămase"     ({name} fills in what changes)
+//   t('{n} sessions', { n: 20 })  with "{n de} ședințe" -> "20 de ședințe"
 //   t(`New ${term('person')}`)                    -> "Pacient nou"          (compose in English, then translate)
 //
 // Dictionaries: i18n/ro/*.js, one file per part of the app, merged in i18n/ro/index.js. Error messages from the
@@ -30,7 +31,9 @@ export const dateLocale = () => (lang === 'ro' ? 'ro-RO' : 'en-GB');
 export function t(s, vars) {
   if (s == null) return s;
   let out = dict?.[s] ?? s;
-  if (vars) out = out.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m));
+  // "{n de}": Romanian puts "de" between a number from 20 up and the noun ("3 ședințe", "20 de ședințe").
+  if (vars) out = out.replace(/\{(\w+)( de)?\}/g, (m, k, de) => (vars[k] == null ? m
+    : de && (Math.abs(vars[k]) % 100 >= 20 || (vars[k] && vars[k] % 100 === 0)) ? `${vars[k]} de` : vars[k]));
   return out;
 }
 

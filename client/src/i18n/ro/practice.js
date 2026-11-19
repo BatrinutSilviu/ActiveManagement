@@ -21,7 +21,7 @@ export default {
 
   // one patient
   '{name}, with their notes, sessions and packages': '{name}, cu notițele, ședințele și pachetele sale',
-  '{n} year old': '{n} an', '{n} years old': '{n} ani',
+  '{n} year old': '{n} an', '{n} years old': '{n de} ani',
   'New session': 'Ședință nouă', 'Edit session': 'Editează ședința',
   'Bill {amount}': 'Facturează {amount}', Bill: 'Facturează',
   About: 'Despre', 'Not billed yet': 'Nefacturat încă', 'Billed, not paid': 'Facturat, neîncasat',
@@ -50,7 +50,7 @@ export default {
   'Valid until': 'Valabil până la', '(optional)': '(opțional)',
 
   // schedule
-  '{n} session': '{n} ședință', '{n} sessions': '{n} ședințe',
+  '{n} session': '{n} ședință', '{n} sessions': '{n de} ședințe',
   'Previous week': 'Săptămâna trecută', 'This week': 'Săptămâna aceasta', 'Next week': 'Săptămâna viitoare',
   'Go to week': 'Mergi la săptămâna', 'Hide cancelled': 'Ascunde anulatele', 'New session on {date}': 'Ședință nouă pe {date}',
   'No time set': 'Fără oră', map: 'hartă',
@@ -72,7 +72,7 @@ export default {
     'Ce ai emis și dacă e încasat. Bifa „încasat” adaugă banii în ziua în care au fost încasați.',
   'New invoice or receipt': 'Factură sau chitanță nouă', Year: 'An', 'All years': 'Toți anii',
   'Paid and not paid': 'Încasate și neîncasate', 'Not paid': 'Neîncasat', Kind: 'Tip',
-  'Invoices and receipts': 'Facturi și chitanțe', Issued: 'Emise', '{n} document': '{n} document', '{n} documents': '{n} documente',
+  'Invoices and receipts': 'Facturi și chitanțe', Issued: 'Emise', '{n} document': '{n} document', '{n} documents': '{n de} documente',
   Document: 'Document', Covers: 'Acoperă', '{doc} paid': '{doc} încasată', 'None match these filters.': 'Nimic nu corespunde acestor filtre.',
 
   // invoice form
@@ -92,14 +92,14 @@ export default {
   'Invoices and receipts without the paid tick': 'Facturi și chitanțe fără bifa de încasat',
   'Tick when it’s paid (today)': 'Bifează când e încasat (azi)', 'Everything billed is paid.': 'Tot ce s-a facturat e încasat.',
   'Sessions done outside a package, and packages, with no invoice or receipt': 'Ședințe efectuate în afara unui pachet, și pachete, fără factură sau chitanță',
-  '{n} item': '{n} element', '{n} items': '{n} elemente', 'Nothing waiting to be billed.': 'Nimic de facturat.',
-  'Next 7 days': 'Următoarele 7 zile', '{n} session booked': '{n} ședință programată', '{n} sessions booked': '{n} ședințe programate',
+  '{n} item': '{n} element', '{n} items': '{n de} elemente', 'Nothing waiting to be billed.': 'Nimic de facturat.',
+  'Next 7 days': 'Următoarele 7 zile', '{n} session booked': '{n} ședință programată', '{n} sessions booked': '{n de} ședințe programate',
   Schedule: 'Program', 'Nothing booked.': 'Nimic programat.',
   'Did these happen?': 'Au avut loc?', 'Past sessions still marked scheduled: mark them done or cancelled': 'Ședințe trecute marcate încă drept programate: marchează-le efectuate sau anulate',
   'Packages nearly used up': 'Pachete aproape consumate', 'Time to offer a new one': 'E momentul să oferi unul nou',
   '{left} left to book · {n} not done': '{left} de programat · {n} neefectuate',
   '{year} month by month': '{year} lună cu lună',
-  'Received {income} · expenses {expenses} · profit {profit} · {n} sessions done': 'Încasat {income} · cheltuieli {expenses} · profit {profit} · {n} ședințe efectuate',
+  'Received {income} · expenses {expenses} · profit {profit} · {n} sessions done': 'Încasat {income} · cheltuieli {expenses} · profit {profit} · {n de} ședințe efectuate',
   Month: 'Lună', 'Nothing in {year} yet.': 'Nimic în {year} încă.',
 
   // server/routes/practice.js
