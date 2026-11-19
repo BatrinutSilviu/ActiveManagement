@@ -52,6 +52,7 @@ function Patient({ id }) {
             {c.email && <a href={`mailto:${c.email}`}>{c.email}</a>}
             {c.address && <a href={mapsUrl(c.address)} target="_blank" rel="noreferrer">{c.address} ↗</a>}
             {a != null && <span>{a} years old</span>}
+            {c.association && <span className="badge">{c.association}</span>}
           </p>
           {(c.tutor_name || c.tutor_phone || c.tutor_email) && (
             <p style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

@@ -1,5 +1,6 @@
 // Add / edit a patient, and a package of sessions they pay for together.
 import { useState } from 'react';
+import { useApi } from '../../hooks.js';
 import { api } from '../../api.js';
 import { useBusiness } from '../../business.js';
 import { CURRENCY } from '../../format.js';
@@ -25,6 +26,8 @@ const footer = (onClose, saving) => <>
 
 export function PatientForm({ patient, onClose, onSaved }) {
   const { term } = useBusiness();
+  const { data: all } = useApi('/clients');
+  const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const { f, set, error, saving, save } = useForm(
     { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', ...(patient || {}), archived: !!patient?.archived },
     (v) => (patient ? api.put(`/clients/${patient.id}`, v) : api.post('/clients', v)), onSaved);
@@ -38,6 +41,10 @@ export function PatientForm({ patient, onClose, onSaved }) {
         <label className="field">Email<input type="email" value={f.email || ''} onChange={set('email')} /></label>
         <label className="field full">Address<input value={f.address || ''} onChange={set('address')} placeholder="Where the home visits are" /></label>
         <label className="field">Birth date<input type="date" value={f.birth_date || ''} onChange={set('birth_date')} /></label>
+        <label className="field full">Association <span className="hint">— the sponsor they belong to, if any</span>
+          <input value={f.association || ''} onChange={set('association')} list="associations" />
+          <datalist id="associations">{associations.map((a) => <option key={a} value={a} />)}</datalist>
+        </label>
         <div className="field full"><strong>Tutor</strong> <span className="hint">— the parent or guardian</span></div>
         <label className="field">Name<input value={f.tutor_name || ''} onChange={set('tutor_name')} /></label>
         <label className="field">Relation<input value={f.tutor_relation || ''} onChange={set('tutor_relation')} placeholder="Mother, father, grandparent…" /></label>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { qs } from '../../api.js';
 import { useApi, usePermissions } from '../../hooks.js';
+import Select from '../../components/Select.jsx';
 import { useBusiness } from '../../business.js';
 import { date, money0 } from '../../format.js';
 import { IconPlus } from '../../components/Icons.jsx';
@@ -17,9 +18,11 @@ export default function Patients() {
   const { data, loading } = useApi(`/clients${qs({ today: localToday() })}`);
   const [q, setQ] = useState('');
   const [archived, setArchived] = useState(false);
+  const [assoc, setAssoc] = useState('');
+  const associations = [...new Set((data || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const [creating, setCreating] = useState(false);
-  const list = (data || []).filter((c) => (archived || !c.archived)
-    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''}`).includes(fold(q))));
+  const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc)
+    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
 
   return (
@@ -30,6 +33,12 @@ export default function Patients() {
       </div>
       <div className="filters">
         <input type="search" placeholder="Search name, tutor, phone, address…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {associations.length > 0 && (
+          <Select value={assoc} onChange={(e) => setAssoc(e.target.value)} aria-label="Association">
+            <option value="">All associations</option>
+            {associations.map((a) => <option key={a} value={a}>{a}</option>)}
+          </Select>
+        )}
         {nArchived > 0 && <label className="check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />Show archived ({nArchived})</label>}
       </div>
       <div className="card table-wrap">
@@ -43,7 +52,7 @@ export default function Patients() {
               {list.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/patients/${c.id}`)}>
                   <td className="cell-wrap">
-                    <div className="row-title">{c.name}{!!c.archived && <> <span className="badge">archived</span></>}</div>
+                    <div className="row-title">{c.name}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">archived</span></>}</div>
                     {c.tutor_name && <div className="row-sub">Tutor: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
                     <div className="row-sub show-sm">{c.phone}{c.next_session ? ` · next ${date(c.next_session)}` : ''}</div>
