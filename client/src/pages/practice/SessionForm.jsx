@@ -32,7 +32,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   }, [types]); // eslint-disable-line react-hooks/exhaustive-deps
   // …and with the patient's running package, if one has sessions left.
   useEffect(() => {
-    if (session || !packages) return;
+    if (session || !packages || !f.type_id) return; // with no service yet, picking a package picks the service instead
     const open = openPackage(f.type_id);
     setF((x) => ({ ...x, package_id: open ? String(open.id) : '' }));
   }, [packages]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -46,7 +46,19 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   // Places a package still has for a service: its own part plus the general ones (left_for, from the server).
   const placesFor = (p, typeId) => (typeId && p.left_for?.[typeId] != null ? p.left_for[typeId] : p.left_for?.any ?? 0);
   const fits = (p, typeId) => placesFor(p, typeId) > 0;
-  const usable = (packages || []).filter((p) => fits(p, f.type_id) || String(p.id) === String(session?.package_id));
+  // Packages to offer: those with places left (and the one this session is already in); ones without room for the
+  // chosen service are shown but can't be picked.
+  const offered = (packages || []).filter((p) => p.left > 0 || String(p.id) === String(session?.package_id));
+  const chosen = offered.find((p) => String(p.id) === String(f.package_id));
+  // Editing a session already in the chosen package: its place is already counted in what's left.
+  const alreadyIn = session && String(session.package_id) === String(f.package_id) && session.status !== 'cancelled';
+  // Picking a package with no service chosen yet: the first service it still has places for.
+  const pickPackage = (e) => {
+    const p = offered.find((x) => String(x.id) === e.target.value);
+    const part = !f.type_id && p?.items.find((it) => it.service_id && it.left > 0);
+    const ty = part ? typeOf(part.service_id) : null;
+    setF({ ...f, package_id: e.target.value, ...(ty ? { type_id: String(ty.id), end_time: endFor(f.start_time, ty) ?? f.end_time } : {}) });
+  };
   const openPackage = (typeId) => (packages || []).find((p) => (!p.expires || p.expires >= f.date) && fits(p, typeId));
 
   // The end time follows the start and the service's duration.
@@ -118,6 +130,26 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
             {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}{ty.default_fee ? ` · ${money0(ty.default_fee)}` : ''}</option>)}
           </Select>
         </label>
+        {f.client_id && (
+          <div className="field full">
+            <label className="field">{t('Package')}
+              <Select value={f.package_id ? String(f.package_id) : ''} onChange={pickPackage}>
+                <option value="">{t('No package (paid separately)')}</option>
+                {offered.map((p) => {
+                  const ok = fits(p, f.type_id) || String(p.id) === String(session?.package_id);
+                  return <option key={p.id} value={p.id} disabled={!ok}>
+                    {p.name} · {ok ? t('{n} left', { n: placesFor(p, f.type_id) }) : t('no place for this service')}
+                  </option>;
+                })}
+              </Select>
+            </label>
+            {chosen && <div className="package-hint">
+              <strong>{t('{n} left after this one', { n: Math.max(0, placesFor(chosen, f.type_id) - (alreadyIn ? 0 : 1)) })}</strong>
+              <span>{chosen.items.map((it) => `${it.service_name || t('Any service')}: ${it.left}/${it.sessions}`).join(' · ')}</span>
+            </div>}
+            {!offered.length && <span className="hint">{t('This patient has no package with sessions left.')}</span>}
+          </div>
+        )}
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field half">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
         <label className="field half">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
@@ -135,14 +167,6 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
         {f.venue === 'home' && (
           <label className="field">{t('Travel fee ({currency})', { currency: CURRENCY })}
             <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" />
-          </label>
-        )}
-        {f.client_id && (
-          <label className="field">{t('Paid with')}
-            <Select value={f.package_id ? String(f.package_id) : ''} onChange={set('package_id')}>
-              <option value="">{t('Its own price')}</option>
-              {usable.map((p) => <option key={p.id} value={p.id}>{p.name} · {t('{n} left', { n: placesFor(p, f.type_id) })}</option>)}
-            </Select>
           </label>
         )}
         {!f.package_id && (

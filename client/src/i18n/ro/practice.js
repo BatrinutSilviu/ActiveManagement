@@ -181,4 +181,6 @@ export default {
   'The sessions already booked with this package wouldn’t fit in it any more': 'Ședințele deja programate cu acest pachet nu ar mai încăpea în el',
   'Travel fee ({currency})': 'Taxă de deplasare ({currency})', 'usual cost of driving to them; filled in on home visits': 'cât costă de obicei drumul până la ei; se completează la vizitele la domiciliu',
   '{amount} travel': '{amount} deplasare', travel: 'deplasare', 'with travel': 'cu deplasare', "The travel fee can't be negative": 'Taxa de deplasare nu poate fi negativă',
+  'No package (paid separately)': 'Fără pachet (plătită separat)', 'no place for this service': 'fără loc pentru acest serviciu',
+  '{n} left after this one': 'Rămân {n} după aceasta', 'This patient has no package with sessions left.': 'Pacientul nu are niciun pachet cu ședințe rămase.',
 };
