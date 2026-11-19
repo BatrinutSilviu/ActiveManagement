@@ -10,6 +10,7 @@ import { confirmDelete } from '../components/Modal.jsx';
 import { BalanceLine, GroupedBars } from '../components/Charts.jsx';
 import { IconPlus, IconTrash, IconTrend, IconChevronLeft } from '../components/Icons.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
+import { t, tn } from '../i18n/index.js';
 
 const ymLabel = (ym) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
 
@@ -26,32 +27,32 @@ export function SportsList() {
     <div>
       <div className="page-head">
         <div>
-          <h1>Sports</h1>
-          <p>The general community fund and each sport’s reinvestment fund: what their events earned for them, what was reinvested, and what is left. Click one for its details.</p>
+          <h1>{t('Sports')}</h1>
+          <p>{t('The general community fund and each sport’s reinvestment fund: what their events earned for them, what was reinvested, and what is left. Click one for its details.')}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ fund: 'general' })}><IconPlus width="16" />Record reinvestment</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ fund: 'general' })}><IconPlus width="16" />{t('Record reinvestment')}</button>}
       </div>
       <div className="stack">
         <div className="grid grid-kpi">
-          <Kpi label="Left to reinvest (all sports)" hero value={money0(funds.sportsTotal.balance)}
-            sub={`${money0(funds.sportsTotal.allocated)} earned · ${money0(funds.sportsTotal.reinvested)} reinvested`} />
-          <Kpi label="General community fund" icon={IconTrend} tone="profit" value={money0(funds.general.balance)}
-            sub={`${money0(funds.general.reinvested)} spent so far`} />
+          <Kpi label={t('Left to reinvest (all sports)')} hero value={money0(funds.sportsTotal.balance)}
+            sub={`${t('{amount} earned', { amount: money0(funds.sportsTotal.allocated) })} · ${t('{amount} reinvested', { amount: money0(funds.sportsTotal.reinvested) })}`} />
+          <Kpi label={t('General community fund')} icon={IconTrend} tone="profit" value={money0(funds.general.balance)}
+            sub={t('{amount} spent so far', { amount: money0(funds.general.reinvested) })} />
         </div>
         <div className="sport-grid">
           <button className="card sport-card" onClick={() => navigate('/sports/general')}>
             <div className="sport-card-top">
-              <h2>General fund</h2>
-              <span className="muted">all events</span>
+              <h2>{t('General fund')}</h2>
+              <span className="muted">{t('all events')}</span>
             </div>
             <div className={`sport-balance ${funds.general.balance < 0 ? 'neg' : ''}`}>{money0(funds.general.balance)}</div>
-            <div className="muted" style={{ fontSize: 12.5 }}>left to spend</div>
+            <div className="muted" style={{ fontSize: 12.5 }}>{t('left to spend')}</div>
             <div className="progress" style={{ margin: '12px 0 8px' }}>
               <div style={{ width: `${(() => { const g = funds.general, inn = g.starting + g.allocated + g.topups; return inn > 0 ? Math.min(g.reinvested / inn, 1) * 100 : 0; })()}%`, background: 'var(--reinvested)' }} />
             </div>
             <div className="sport-card-foot">
-              <span>{money0(funds.general.allocated + funds.general.topups)} added</span>
-              <span>{money0(funds.general.reinvested)} spent</span>
+              <span>{t('{amount} added', { amount: money0(funds.general.allocated + funds.general.topups) })}</span>
+              <span>{t('{amount} spent', { amount: money0(funds.general.reinvested) })}</span>
             </div>
           </button>
           {sorted.map((s) => {
@@ -60,16 +61,16 @@ export function SportsList() {
               <button className="card sport-card" key={s.id} onClick={() => navigate(`/sports/${s.id}`)}>
                 <div className="sport-card-top">
                   <h2>{s.name}</h2>
-                  <span className="muted">{s.totalEvents} events{s.liveEvents ? ` · ${s.liveEvents} live` : ''}</span>
+                  <span className="muted">{tn(s.totalEvents, '{n} event', '{n} events')}{s.liveEvents ? ` · ${t('{n} live', { n: s.liveEvents })}` : ''}</span>
                 </div>
                 <div className={`sport-balance ${s.balance < 0 ? 'neg' : ''}`}>{money0(s.balance)}</div>
-                <div className="muted" style={{ fontSize: 12.5 }}>left to reinvest</div>
-                <div className="progress" style={{ margin: '12px 0 8px' }} title={`${Math.round(used * 100)}% reinvested`}>
+                <div className="muted" style={{ fontSize: 12.5 }}>{t('left to reinvest')}</div>
+                <div className="progress" style={{ margin: '12px 0 8px' }} title={t('{pct}% reinvested', { pct: Math.round(used * 100) })}>
                   <div style={{ width: `${used * 100}%`, background: 'var(--reinvested)' }} />
                 </div>
                 <div className="sport-card-foot">
-                  <span>{money0(s.allocated)} earned</span>
-                  <span>{money0(s.reinvested)} reinvested</span>
+                  <span>{t('{amount} earned', { amount: money0(s.allocated) })}</span>
+                  <span>{t('{amount} reinvested', { amount: money0(s.reinvested) })}</span>
                 </div>
               </button>
             );
@@ -94,68 +95,68 @@ export function SportDetail() {
   const recent = months.slice(-18).map((m) => ({ ...m, label: ymLabel(m.month) }));
   const finalized = r.events.filter((e) => e.status === 'completed');
   const addPart = async () => {
-    const name = window.prompt(`Name of the new part of the ${sport.name} fund (e.g. Active Padel Academy):`);
+    const name = window.prompt(t('Name of the new part of the {sport} fund (e.g. Active Padel Academy):', { sport: sport.name }));
     if (!name?.trim()) return;
     try { await api.post('/fund-parts', { sport_id: sport.id, name }); reload(); } catch (e) { window.alert(e.message); }
   };
   const delPart = async (p) => {
-    if (!window.confirm(`Stop counting “${p.name}” apart? Its ${p.count} movements stay in the ${sport.name} fund.`)) return;
+    if (!window.confirm(t('Stop counting “{part}” apart? Its {n} movements stay in the {sport} fund.', { part: p.name, n: p.count, sport: sport.name }))) return;
     await api.del(`/fund-parts/${p.id}`);
     reload();
   };
-  const del = async (t) => {
-    if (!confirmDelete('this fund movement')) return;
-    await api.del(`/transactions/${t.id}`);
+  const del = async (tx) => {
+    if (!confirmDelete(t('this fund movement'))) return;
+    await api.del(`/transactions/${tx.id}`);
     reload();
   };
 
   return (
     <div>
-      <Link to="/sports" className="back-link"><IconChevronLeft width="16" height="16" />Sports</Link>
+      <Link to="/sports" className="back-link"><IconChevronLeft width="16" height="16" />{t('Sports')}</Link>
       <div className="page-head">
         <div>
           <h1>{sport.name}</h1>
-          <p>{finalized.length} finalized events · {money0(finalized.reduce((s, e) => s + e.income, 0))} income ·
-            {' '}{signedMoney(finalized.reduce((s, e) => s + e.profit, 0))} profit</p>
+          <p>{tn(finalized.length, '{n} finalized event', '{n} finalized events')} · {t('{amount} income', { amount: money0(finalized.reduce((s, e) => s + e.income, 0)) })} ·
+            {' '}{t('{amount} profit', { amount: signedMoney(finalized.reduce((s, e) => s + e.profit, 0)) })}</p>
         </div>
         {canEdit && (
           <div className="page-actions">
-            <button className="btn" onClick={() => setForm({ kind: 'income' })}>Add money</button>
-            <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Record reinvestment</button>
+            <button className="btn" onClick={() => setForm({ kind: 'income' })}>{t('Add money')}</button>
+            <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />{t('Record reinvestment')}</button>
           </div>
         )}
       </div>
 
       <div className="stack">
         <div className="grid grid-kpi">
-          <Kpi label="Left to reinvest" hero value={money0(fund.balance)} sub={[fund.starting && `incl. ${money0(fund.starting)} starting balance`, fund.pending ? `${signedMoney(fund.pending)} pending from live events` : 'available now',
-            r.openVouchers?.n > r.openVouchers?.pct && `${money0(r.openVouchers.value)} in ${r.openVouchers.n - r.openVouchers.pct} unused voucher${r.openVouchers.n - r.openVouchers.pct > 1 ? 's' : ''} still to pay`,
-            r.openVouchers?.pct && `${r.openVouchers.pct} % off voucher${r.openVouchers.pct > 1 ? 's' : ''} not used yet`].filter(Boolean).join(' · ')} />
-          <Kpi label="Earned for the fund" icon={IconTrend} tone="profit" value={money0(fund.allocated)} sub={`from ${fund.events} finalized events`} />
-          <Kpi label="Reinvested" value={money0(fund.reinvested)} sub={fund.topups ? `+${money0(fund.topups)} added directly` : `${r.fundTx.filter((t) => t.kind === 'expense').length} purchases`} />
+          <Kpi label={t('Left to reinvest')} hero value={money0(fund.balance)} sub={[fund.starting && t('incl. {amount} starting balance', { amount: money0(fund.starting) }), fund.pending ? t('{amount} pending from live events', { amount: signedMoney(fund.pending) }) : t('available now'),
+            r.openVouchers?.n > r.openVouchers?.pct && tn(r.openVouchers.n - r.openVouchers.pct, '{amount} in {n} unused voucher still to pay', '{amount} in {n} unused vouchers still to pay', { amount: money0(r.openVouchers.value) }),
+            r.openVouchers?.pct && tn(r.openVouchers.pct, '{n} % off voucher not used yet', '{n} % off vouchers not used yet')].filter(Boolean).join(' · ')} />
+          <Kpi label={t('Earned for the fund')} icon={IconTrend} tone="profit" value={money0(fund.allocated)} sub={tn(fund.events, 'from {n} finalized event', 'from {n} finalized events')} />
+          <Kpi label={t('Reinvested')} value={money0(fund.reinvested)} sub={fund.topups ? t('+{amount} added directly', { amount: money0(fund.topups) }) : tn(r.fundTx.filter((x) => x.kind === 'expense').length, '{n} purchase', '{n} purchases')} />
         </div>
 
         <div className="grid grid-2">
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Earned vs. reinvested per month</h2><p>Last {recent.length} months with activity</p></div></div>
+            <div className="card-head"><div><h2>{t('Earned vs. reinvested per month')}</h2><p>{t('Last {n} months with activity', { n: recent.length })}</p></div></div>
             {recent.length ? (
               <GroupedBars data={recent} xKey="label" height={250} series={[
-                { key: 'allocated', name: 'Added to fund', color: c.sportfund },
-                { key: 'reinvested', name: 'Reinvested', color: c.reinvested },
-              ]} extraRows={(d) => [{ name: 'Balance after', value: money(d.balance) }]} />
-            ) : <div className="empty">No activity yet</div>}
+                { key: 'allocated', name: t('Added to fund'), color: c.sportfund },
+                { key: 'reinvested', name: t('Reinvested'), color: c.reinvested },
+              ]} extraRows={(d) => [{ name: t('Balance after'), value: money(d.balance) }]} />
+            ) : <div className="empty">{t('No activity yet')}</div>}
           </div>
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Fund balance over time</h2><p>What was left to reinvest at the end of each month</p></div></div>
-            {recent.length ? <BalanceLine data={recent} xKey="label" yKey="balance" height={278} name="Left to reinvest" /> : <div className="empty">No activity yet</div>}
+            <div className="card-head"><div><h2>{t('Fund balance over time')}</h2><p>{t('What was left to reinvest at the end of each month')}</p></div></div>
+            {recent.length ? <BalanceLine data={recent} xKey="label" yKey="balance" height={278} name={t('Left to reinvest')} /> : <div className="empty">{t('No activity yet')}</div>}
           </div>
         </div>
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Month by month</h2></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Month by month')}</h2></div>
           <div className="table-wrap" style={{ maxHeight: 420 }}>
             <table>
-              <thead><tr><th>Month</th><th className="r hide-sm">Events</th><th className="r hide-sm">Income</th><th className="r hide-sm">Profit</th><th className="r">Added to fund</th><th className="r">Reinvested</th><th className="r">Balance</th></tr></thead>
+              <thead><tr><th>{t('Month')}</th><th className="r hide-sm">{t('Events')}</th><th className="r hide-sm">{t('Income')}</th><th className="r hide-sm">{t('Profit')}</th><th className="r">{t('Added to fund')}</th><th className="r">{t('Reinvested')}</th><th className="r">{t('Balance')}</th></tr></thead>
               <tbody>
                 {[...months].reverse().map((m) => (
                   <tr key={m.month}>
@@ -176,48 +177,48 @@ export function SportDetail() {
         {(r.parts.length > 0 || canEdit) && (
           <div className="card">
             <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-              <div><h2>Parts of the fund</h2><p>Paid from the {sport.name} fund, but counted apart</p></div>
-              {canEdit && <button className="btn btn-sm" onClick={addPart}><IconPlus width="14" />Add a part</button>}
+              <div><h2>{t('Parts of the fund')}</h2><p>{t('Paid from the {sport} fund, but counted apart', { sport: sport.name })}</p></div>
+              {canEdit && <button className="btn btn-sm" onClick={addPart}><IconPlus width="14" />{t('Add a part')}</button>}
             </div>
             <div className="table-wrap">
               {r.parts.length ? (
                 <table>
-                  <thead><tr><th>Part</th><th className="r hide-sm">Movements</th><th className="r">Spent</th><th className="r hide-sm">Added</th>{canEdit && <th />}</tr></thead>
+                  <thead><tr><th>{t('Part')}</th><th className="r hide-sm">{t('Movements')}</th><th className="r">{t('Spent')}</th><th className="r hide-sm">{t('Added')}</th>{canEdit && <th />}</tr></thead>
                   <tbody>
                     {r.parts.map((p) => (
                       <tr key={p.id}>
-                        <td><strong>{p.name}</strong><div className="row-sub show-sm">{p.count} movements</div></td>
+                        <td><strong>{p.name}</strong><div className="row-sub show-sm">{tn(p.count, '{n} movement', '{n} movements')}</div></td>
                         <td className="r hide-sm">{p.count}</td>
                         <td className="r"><strong>{p.spent ? `−${money(p.spent)}` : '—'}</strong></td>
                         <td className="r hide-sm">{p.added ? `+${money(p.added)}` : '—'}</td>
                         {canEdit && (
                           <td className="r actions">
-                            <button className="btn btn-sm" onClick={() => setForm({ kind: 'expense', part: p.id })}><span className="hide-sm">Record spending</span><span className="show-sm">Spend</span></button>
-                            <button className="icon-btn" aria-label="Remove part" onClick={() => delPart(p)}><IconTrash /></button>
+                            <button className="btn btn-sm" onClick={() => setForm({ kind: 'expense', part: p.id })}><span className="hide-sm">{t('Record spending')}</span><span className="show-sm">{t('Spend')}</span></button>
+                            <button className="icon-btn" aria-label={t('Remove part')} onClick={() => delPart(p)}><IconTrash /></button>
                           </td>
                         )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              ) : <div className="empty">No parts. Add one to count a project’s spending apart, e.g. an academy.</div>}
+              ) : <div className="empty">{t('No parts. Add one to count a project’s spending apart, e.g. an academy.')}</div>}
             </div>
           </div>
         )}
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>Reinvestments &amp; fund movements</h2><p>Purchases paid from this sport’s fund</p></div></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>{t('Reinvestments & fund movements')}</h2><p>{t('Purchases paid from this sport’s fund')}</p></div></div>
           <div className="table-wrap">
-            <TxTable rows={r.fundTx} showEvent={false} onEdit={(t) => setForm({ tx: t })} onDelete={del}
-              empty="Nothing reinvested yet. Record a purchase with “Record reinvestment”." />
+            <TxTable rows={r.fundTx} showEvent={false} onEdit={(tx) => setForm({ tx })} onDelete={del}
+              empty={t('Nothing reinvested yet. Record a purchase with “Record reinvestment”.')} />
           </div>
         </div>
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Events</h2></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Events')}</h2></div>
           <div className="table-wrap" style={{ maxHeight: 480 }}>
             <table>
-              <thead><tr><th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Status</th><th className="r hide-sm">People</th><th className="r hide-sm">Income</th><th className="r">Profit</th><th className="r">To this fund</th></tr></thead>
+              <thead><tr><th className="hide-sm">{t('Date')}</th><th>{t('Event')}</th><th className="hide-sm">{t('Status')}</th><th className="r hide-sm">{t('People')}</th><th className="r hide-sm">{t('Income')}</th><th className="r">{t('Profit')}</th><th className="r">{t('To this fund')}</th></tr></thead>
               <tbody>
                 {r.events.map((e) => (
                   <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
@@ -258,9 +259,9 @@ export function GeneralFundDetail() {
   if (!r) return null;
   const { fund, months } = r;
   const recent = months.slice(-18).map((m) => ({ ...m, label: ymLabel(m.month) }));
-  const del = async (t) => {
-    if (!confirmDelete('this fund movement')) return;
-    await api.del(`/transactions/${t.id}`);
+  const del = async (tx) => {
+    if (!confirmDelete(t('this fund movement'))) return;
+    await api.del(`/transactions/${tx.id}`);
     reload();
   };
   const fromPayouts = r.payouts.reduce((a, p) => a + p.amount, 0);
@@ -268,54 +269,54 @@ export function GeneralFundDetail() {
 
   return (
     <div>
-      <Link to="/sports" className="back-link"><IconChevronLeft width="16" height="16" />Sports</Link>
+      <Link to="/sports" className="back-link"><IconChevronLeft width="16" height="16" />{t('Sports')}</Link>
       <div className="page-head">
         <div>
-          <h1>General community fund</h1>
-          <p>Gets the general share of every finalized event (all of the community share for events that aren’t a sport), payouts left to the community and donations.
-            {' '}It pays for the community’s own spending and for the discounts given at events.</p>
+          <h1>{t('General community fund')}</h1>
+          <p>{t('Gets the general share of every finalized event (all of the community share for events that aren’t a sport), payouts left to the community and donations.')}
+            {' '}{t('It pays for the community’s own spending and for the discounts given at events.')}</p>
         </div>
         {canEdit && (
           <div className="page-actions">
-            <button className="btn" onClick={() => setForm({ kind: 'income' })}>Add money</button>
-            <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />Record spending</button>
+            <button className="btn" onClick={() => setForm({ kind: 'income' })}>{t('Add money')}</button>
+            <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense' })}><IconPlus width="16" />{t('Record spending')}</button>
           </div>
         )}
       </div>
 
       <div className="stack">
         <div className="grid grid-kpi">
-          <Kpi label="Left to spend" hero value={money0(fund.balance)} sub={[fund.starting && `incl. ${money0(fund.starting)} starting balance`,
-            fund.pending ? `${signedMoney(fund.pending)} pending from live events` : 'available now',
-            v?.n > v?.pct && `${money0(v.value)} in ${v.n - v.pct} unused voucher${v.n - v.pct > 1 ? 's' : ''} still to pay`].filter(Boolean).join(' · ')} />
-          <Kpi label="Earned from events" icon={IconTrend} tone="profit" value={money0(fund.allocated - fromPayouts)} sub={`from ${fund.events} finalized events`} />
-          <Kpi label="Donations & payouts left to it" value={money0(fund.topups + fromPayouts)}
-            sub={`${money0(fund.topups)} added directly · ${money0(fromPayouts)} from payouts`} />
-          <Kpi label="Spent" value={money0(fund.reinvested)} sub={`${money0(fund.reinvested - fund.discounts)} spending · ${money0(fund.discounts)} event discounts`} />
+          <Kpi label={t('Left to spend')} hero value={money0(fund.balance)} sub={[fund.starting && t('incl. {amount} starting balance', { amount: money0(fund.starting) }),
+            fund.pending ? t('{amount} pending from live events', { amount: signedMoney(fund.pending) }) : t('available now'),
+            v?.n > v?.pct && tn(v.n - v.pct, '{amount} in {n} unused voucher still to pay', '{amount} in {n} unused vouchers still to pay', { amount: money0(v.value) })].filter(Boolean).join(' · ')} />
+          <Kpi label={t('Earned from events')} icon={IconTrend} tone="profit" value={money0(fund.allocated - fromPayouts)} sub={tn(fund.events, 'from {n} finalized event', 'from {n} finalized events')} />
+          <Kpi label={t('Donations & payouts left to it')} value={money0(fund.topups + fromPayouts)}
+            sub={t('{topups} added directly · {payouts} from payouts', { topups: money0(fund.topups), payouts: money0(fromPayouts) })} />
+          <Kpi label={t('Spent')} value={money0(fund.reinvested)} sub={t('{spending} spending · {discounts} event discounts', { spending: money0(fund.reinvested - fund.discounts), discounts: money0(fund.discounts) })} />
         </div>
 
         <div className="grid grid-2">
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Added vs. spent per month</h2><p>Last {recent.length} months with activity</p></div></div>
+            <div className="card-head"><div><h2>{t('Added vs. spent per month')}</h2><p>{t('Last {n} months with activity', { n: recent.length })}</p></div></div>
             {recent.length ? (
               <GroupedBars data={recent} xKey="label" height={250} series={[
-                { key: 'added', name: 'Added to fund', color: c.general },
-                { key: 'reinvested', name: 'Spent', color: c.reinvested },
-              ]} extraRows={(d) => [{ name: 'Balance after', value: money(d.balance) }]} />
-            ) : <div className="empty">No activity yet</div>}
+                { key: 'added', name: t('Added to fund'), color: c.general },
+                { key: 'reinvested', name: t('Spent'), color: c.reinvested },
+              ]} extraRows={(d) => [{ name: t('Balance after'), value: money(d.balance) }]} />
+            ) : <div className="empty">{t('No activity yet')}</div>}
           </div>
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Fund balance over time</h2><p>What was left at the end of each month</p></div></div>
-            {recent.length ? <BalanceLine data={recent} xKey="label" yKey="balance" height={278} name="Left to spend" /> : <div className="empty">No activity yet</div>}
+            <div className="card-head"><div><h2>{t('Fund balance over time')}</h2><p>{t('What was left at the end of each month')}</p></div></div>
+            {recent.length ? <BalanceLine data={recent} xKey="label" yKey="balance" height={278} name={t('Left to spend')} /> : <div className="empty">{t('No activity yet')}</div>}
           </div>
         </div>
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Month by month</h2></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Month by month')}</h2></div>
           <div className="table-wrap" style={{ maxHeight: 420 }}>
             <table>
-              <thead><tr><th>Month</th><th className="r hide-sm">Events</th><th className="r">From events</th><th className="r hide-sm">Donations &amp; payouts</th>
-                <th className="r">Spent</th><th className="r hide-sm">Discounts</th><th className="r">Balance</th></tr></thead>
+              <thead><tr><th>{t('Month')}</th><th className="r hide-sm">{t('Events')}</th><th className="r">{t('From events')}</th><th className="r hide-sm">{t('Donations & payouts')}</th>
+                <th className="r">{t('Spent')}</th><th className="r hide-sm">{t('Discounts')}</th><th className="r">{t('Balance')}</th></tr></thead>
               <tbody>
                 {[...months].reverse().map((m) => (
                   <tr key={m.month}>
@@ -334,19 +335,19 @@ export function GeneralFundDetail() {
         </div>
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>Spending &amp; donations</h2><p>Money spent from or added straight to the general fund</p></div></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>{t('Spending & donations')}</h2><p>{t('Money spent from or added straight to the general fund')}</p></div></div>
           <div className="table-wrap">
-            <TxTable rows={r.fundTx} showEvent={false} onEdit={(t) => setForm({ tx: t })} onDelete={del}
-              empty="Nothing spent from the general fund yet. Record a purchase with “Record spending”." />
+            <TxTable rows={r.fundTx} showEvent={false} onEdit={(tx) => setForm({ tx })} onDelete={del}
+              empty={t('Nothing spent from the general fund yet. Record a purchase with “Record spending”.')} />
           </div>
         </div>
 
         {r.payouts.length > 0 && (
           <div className="card">
-            <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>Payouts left to the community</h2><p>What people were owed for a month and gave to the general fund instead</p></div></div>
+            <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>{t('Payouts left to the community')}</h2><p>{t('What people were owed for a month and gave to the general fund instead')}</p></div></div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Month</th><th className="hide-sm">Recorded</th><th className="r hide-sm">People</th><th className="r">Amount</th></tr></thead>
+                <thead><tr><th>{t('Month')}</th><th className="hide-sm">{t('Recorded')}</th><th className="r hide-sm">{t('People')}</th><th className="r">{t('Amount')}</th></tr></thead>
                 <tbody>
                   {r.payouts.map((p) => (
                     <tr key={`${p.month}-${p.paid_at}`} className="clickable" onClick={() => navigate('/payouts')}>
@@ -363,11 +364,11 @@ export function GeneralFundDetail() {
         )}
 
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>Events</h2><p>Each event’s share for the general fund, and the discounts it paid for them</p></div></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><div><h2>{t('Events')}</h2><p>{t('Each event’s share for the general fund, and the discounts it paid for them')}</p></div></div>
           <div className="table-wrap" style={{ maxHeight: 480 }}>
             <table>
-              <thead><tr><th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Sport</th><th className="hide-sm">Status</th>
-                <th className="r hide-sm">Profit</th><th className="r">To this fund</th><th className="r">Discounts paid</th></tr></thead>
+              <thead><tr><th className="hide-sm">{t('Date')}</th><th>{t('Event')}</th><th className="hide-sm">{t('Sport')}</th><th className="hide-sm">{t('Status')}</th>
+                <th className="r hide-sm">{t('Profit')}</th><th className="r">{t('To this fund')}</th><th className="r">{t('Discounts paid')}</th></tr></thead>
               <tbody>
                 {r.events.map((e) => (
                   <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>

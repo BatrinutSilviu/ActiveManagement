@@ -2,5 +2,6 @@
 import common from './common.js';
 import practice from './practice.js';
 import stock from './stock.js';
+import money from './money.js';
 
-export default { ...common, ...practice, ...stock };
+export default { ...common, ...practice, ...stock, ...money };
