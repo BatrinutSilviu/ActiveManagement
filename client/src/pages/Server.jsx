@@ -87,6 +87,7 @@ export default function Server() {
   if (!data.available) {
     return <div className="card card-pad empty">{t('No snapshots yet: the server’s metrics job (active-metrics) hasn’t written any, or its folder isn’t mounted.')}</div>;
   }
+  if (data.scope === 'app') return <AppServer data={data} range={range} setRange={setRange} loading={loading} c={c} />;
 
   const { latest, storage, points, apps, host, sites = {} } = data;
   const nowSites = Object.fromEntries((latest.sites ?? []).map((x) => [x.app, x]));
@@ -383,5 +384,83 @@ function StorageGroupRows({ group, total, used, label }) {
         </tr>
       ))}
     </>
+  );
+}
+
+/** A copy for another business: only what its own app uses of the server, its site and its storage. */
+function AppServer({ data, range, setRange, loading, c }) {
+  const { latest, points, usage, site, storage } = data;
+  const rangeLabel = t(RANGES.find((r) => r[0] === range)[1]);
+  const tick = (at) => timeLabel(at, range);
+  const bucket = data.bucketMin >= 60 ? tn(data.bucketMin / 60, '{n} hour', '{n} hours') : tn(data.bucketMin, '{n} minute', '{n} minutes');
+  const now = latest.site;
+  const up = now && now.status >= 200 && now.status < 400;
+  const stored = (storage?.items ?? []).reduce((a, x) => a + (x.bytes ?? 0), 0);
+  const chart = (key, format, name) => (
+    <div className="chart" style={{ height: 220 }}>
+      <ResponsiveContainer>
+        <LineChart data={points} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke={c.grid} />
+          <XAxis dataKey="t" tickFormatter={tick} {...axis(c)} minTickGap={24} />
+          <YAxis tickFormatter={format} {...axis(c)} width={64} />
+          <Tooltip cursor={{ stroke: c.axis }} content={<Tip range={range} rows={(d) => [{ name, value: format(d[key]), color: c.apps[0] }]} />} />
+          <Line dataKey={key} stroke={c.apps[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: c.surface, strokeWidth: 2 }} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+  return (
+    <div className={loading ? 'loading' : ''}>
+      <div className="page-head">
+        <div>
+          <h1>{t('Server')}</h1>
+          <p>{t('How much of the server this app uses, and how its site answers. Measured every 5 minutes; last at {time}.', { time: new Date(latest.at).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }) })}</p>
+        </div>
+        <div className="segmented" role="tablist" aria-label={t('Period')}>
+          {RANGES.map(([k, label]) => <button key={k} role="tab" aria-selected={range === k} className={range === k ? 'on' : ''} onClick={() => setRange(k)}>{t(label)}</button>)}
+        </div>
+      </div>
+      <div className="stack">
+        <div className="grid grid-kpi">
+          <div className="card kpi"><div className="kpi-label">{t('Site now')}</div>
+            <div className="kpi-value" style={{ fontSize: 20 }}>{!now ? '—' : up
+              ? <span className="badge status-completed"><span className="dot" />✓ {t('up')}</span>
+              : <span className="badge server-bad"><span className="dot" />⚠ {t('down')} ({now.status || t('no answer')})</span>}</div>
+            <div className="kpi-sub">{now?.ms != null ? t('answered in {ms} ms', { ms: now.ms }) : ''}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Up')} · {rangeLabel}</div>
+            <div className="kpi-value">{site?.uptime != null ? `${(site.uptime * 100).toFixed(site.uptime === 1 ? 0 : 2)}%` : '—'}</div>
+            <div className="kpi-sub">{site?.msAvg != null ? t('average {avg} ms, slowest {max} ms', { avg: site.msAvg, max: site.msMax }) : ''}
+              {site?.lastDown ? ` · ${t('last down {when}', { when: ago(site.lastDown) })}` : ''}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Errors')} · {rangeLabel}</div>
+            <div className="kpi-value">{latest.errorsLogged ? (site?.errors ?? 0) : '—'}</div><div className="kpi-sub">{t('logged by the app')}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('CPU now')}</div>
+            <div className="kpi-value">{pctText(latest.app?.cpu)}</div>
+            <div className="kpi-sub">{t('of one core (the server has {n}) · average {avg}', { n: latest.cores, avg: pctText(usage?.cpuAvg) })}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Memory now')}</div>
+            <div className="kpi-value">{bytes(latest.app?.mem)}</div>
+            <div className="kpi-sub">{t('average {avg} · peak {peak}', { avg: bytes(usage?.memAvg), peak: bytes(usage?.memPeak) })}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Traffic')} · {rangeLabel}</div>
+            <div className="kpi-value">{bytes(usage?.traffic)}</div><div className="kpi-sub">{t('sent and received')}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Storage')}</div>
+            <div className="kpi-value">{bytes(stored)}</div>
+            <div className="kpi-sub">{(storage?.items ?? []).map((x) => `${t(x.kind)} ${bytes(x.bytes)}`).join(' · ')}</div></div>
+          <div className="card kpi"><div className="kpi-label">{t('Last backup')}</div>
+            <div className="kpi-value" style={{ fontSize: 20 }}>{!storage?.backup || Date.now() - Date.parse(storage.backup) > 26 * 3_600_000
+              ? <span className="badge server-bad"><span className="dot" />⚠ {t('overdue')}</span>
+              : <span className="badge status-completed"><span className="dot" />✓ {t('up to date')}</span>}</div>
+            <div className="kpi-sub">{ago(storage?.backup)}</div></div>
+        </div>
+        <div className="grid grid-2">
+          <div className="card card-pad">
+            <div className="card-head"><div><h2>{t('CPU')}</h2><p>{t('% of one core, average per {bucket}', { bucket })}</p></div></div>
+            {chart('cpu', pctText, t('CPU'))}
+          </div>
+          <div className="card card-pad">
+            <div className="card-head"><div><h2>{t('Memory')}</h2><p>{t('Average per {bucket}', { bucket })}</p></div></div>
+            {chart('mem', bytes, t('Memory'))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

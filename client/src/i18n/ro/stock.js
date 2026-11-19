@@ -446,4 +446,10 @@ export default {
   'Choose what kind of purchase it was': 'Alege ce tip de achiziție a fost',
   'Choose who bought it': 'Alege cine l-a cumpărat',
   'The amount paid can’t be negative': 'Suma plătită nu poate fi negativă',
+  // the Server page of a copy that sees only its own app
+  'How much of the server this app uses, and how its site answers. Measured every 5 minutes; last at {time}.': 'Cât din server folosește această aplicație și cum răspunde site-ul ei. Măsurat la fiecare 5 minute; ultima dată la {time}.',
+  'Site now': 'Site-ul acum', 'answered in {ms} ms': 'a răspuns în {ms} ms', 'average {avg} ms, slowest {max} ms': 'în medie {avg} ms, cel mai lent {max} ms',
+  'logged by the app': 'înregistrate de aplicație', 'of one core (the server has {n}) · average {avg}': 'dintr-un nucleu (serverul are {n}) · în medie {avg}',
+  'average {avg} · peak {peak}': 'în medie {avg} · vârf {peak}', 'sent and received': 'trimis și primit', 'Last backup': 'Ultimul backup',
+  CPU: 'CPU', Memory: 'Memorie', '% of one core, average per {bucket}': '% dintr-un nucleu, medie la fiecare {bucket}',
 };

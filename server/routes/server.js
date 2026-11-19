@@ -144,11 +144,41 @@ export function summarize(snaps, bucketMin) {
   };
 }
 
+// A copy for another business (APP_NAME isn't Active's) sees only its own app: what it uses of the server, its site
+// and its storage, without the other apps or the server's totals. METRICS_APP overrides which app that is (the key
+// the metrics job gives its container, which is its APP_NAME).
+const OWN_APP = process.env.METRICS_APP
+  || (process.env.APP_NAME && process.env.APP_NAME !== 'active-management' ? process.env.APP_NAME : '');
+
+/** A snapshot with only this app in it (the host's own usage left out). */
+const onlyApp = (s, app) => ({
+  at: s.at, cores: s.cores, cpu: null, mem: { total: s.mem.total, available: s.mem.total }, disk: { total: s.disk.total, free: s.disk.total },
+  containers: (s.containers ?? []).filter((c) => c.app === app),
+  sites: (s.sites ?? []).filter((x) => x.app === app),
+  errors: app in (s.errors ?? {}) ? { [app]: s.errors[app] } : {},
+});
+
+function appOnly(app, range, latest) {
+  const sum = summarize(snapshots(range.days).map((s) => onlyApp(s, app)), range.bucketMin);
+  const storage = readJson('latest-storage.json');
+  const own = onlyApp(latest, app);
+  return {
+    available: true, scope: 'app', app, bucketMin: range.bucketMin,
+    latest: { at: own.at, cores: own.cores, memTotal: latest.mem.total, app: byApp(own.containers)[app] ?? null, site: own.sites[0] ?? null,
+      errorsLogged: app in (latest.errors ?? {}) },
+    storage: storage && { at: storage.at, items: (storage.storage ?? []).filter((x) => x.app === app), backup: storage.backups?.[app] ?? null },
+    points: sum.points.map((p) => ({ t: p.t, cpu: p.apps[app]?.cpu ?? 0, mem: p.apps[app]?.mem ?? 0, traffic: p.traffic[app] ?? 0 })),
+    usage: sum.apps[app] ?? null,
+    site: sum.sites[app] ?? null,
+  };
+}
+
 router.get('/server', (req, res) => {
   const range = RANGES[req.query.range ?? '1d'];
   need(range, 'Unknown range');
   const latest = readJson('latest.json');
   if (!latest) return res.json({ available: false });
+  if (OWN_APP) return res.json(appOnly(OWN_APP, range, latest));
   res.json({
     available: true,
     latest: { ...latest, apps: byApp(latest.containers) },
