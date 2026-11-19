@@ -8,6 +8,7 @@ import { CURRENCY, date, money0 } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
 import { PAYMENT_METHODS } from '../../components/TxForm.jsx';
+import { t } from '../../i18n/index.js';
 import { KIND_LABELS, localToday, timeLabel } from './common.jsx';
 
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -47,7 +48,7 @@ export default function InvoiceForm({ invoiceId, clientId, select, onClose, onSa
   if (!f) return null;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const items = billable ? [
-    ...billable.packages.map((p) => ({ key: `p${p.id}`, list: 'package_ids', id: p.id, label: `${p.name} (package, ${date(p.date)})`, amount: p.price })),
+    ...billable.packages.map((p) => ({ key: `p${p.id}`, list: 'package_ids', id: p.id, label: t('{name} (package, {date})', { name: p.name, date: date(p.date) }), amount: p.price })),
     ...billable.appointments.map((a) => ({ key: `a${a.id}`, list: 'appointment_ids', id: a.id,
       label: `${date(a.date)}${a.start_time ? ` ${timeLabel(a)}` : ''}${a.type_name ? ` · ${a.type_name}` : ''}`, amount: a.price })),
   ] : [];
@@ -66,30 +67,30 @@ export default function InvoiceForm({ invoiceId, clientId, select, onClose, onSa
   };
 
   return (
-    <Modal title={invoiceId ? `Edit ${KIND_LABELS[f.kind].toLowerCase()}` : 'New invoice or receipt'} onClose={onClose} onSubmit={save}
+    <Modal title={invoiceId ? t(`Edit ${KIND_LABELS[f.kind].toLowerCase()}`) : t('New invoice or receipt')} onClose={onClose} onSubmit={save}
       footer={<>
-        <button type="button" className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={saving}>Save</button>
+        <button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button>
+        <button className="btn btn-primary" disabled={saving}>{t('Save')}</button>
       </>}>
       {error && <div className="error-box">{error}</div>}
-      <div className="segmented" role="radiogroup" aria-label="Kind">
+      <div className="segmented" role="radiogroup" aria-label={t('Kind')}>
         {Object.entries(KIND_LABELS).map(([k, label]) => (
           <button type="button" key={k} className={f.kind === k ? 'on' : ''} role="radio" aria-checked={f.kind === k}
-            onClick={() => setF({ ...f, kind: k })}>{label}</button>
+            onClick={() => setF({ ...f, kind: k })}>{t(label)}</button>
         ))}
       </div>
       <div className="form-grid">
-        <label className="field">Number<input value={f.number || ''} onChange={set('number')} placeholder="e.g. KA-0001" /></label>
-        <label className="field">Date<input type="date" value={f.date} onChange={set('date')} required /></label>
-        <label className="field full">{Term('person')}
+        <label className="field">{t('Number')}<input value={f.number || ''} onChange={set('number')} placeholder={t('e.g. KA-0001')} /></label>
+        <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
+        <label className="field full">{t(Term('person'))}
           <Select value={f.client_id ? String(f.client_id) : ''} onChange={(e) => setF({ ...f, client_id: e.target.value, appointment_ids: [], package_ids: [] })}>
-            <option value="">— none —</option>
+            <option value="">{t('— none —')}</option>
             {clients?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </label>
         {f.client_id && (
           <div className="field full">
-            <span>What it covers</span>
+            <span>{t('What it covers')}</span>
             {items.length ? (
               <div className="check-list" style={{ gap: 8, marginTop: 4 }}>
                 {items.map((it) => (
@@ -99,25 +100,25 @@ export default function InvoiceForm({ invoiceId, clientId, select, onClose, onSa
                   </label>
                 ))}
               </div>
-            ) : <span className="hint">Nothing to bill for this {term('person')}: {term('events')} done outside a package and packages show up here.</span>}
+            ) : <span className="hint">{t(`Nothing to bill for this ${term('person')}: ${term('events')} done outside a package and packages show up here.`)}</span>}
           </div>
         )}
-        <label className="field">Amount ({CURRENCY})
+        <label className="field">{t('Amount ({currency})', { currency: CURRENCY })}
           <input type="number" min="0.01" step="0.01" value={amount} required
             onChange={(e) => { setAmountTyped(true); setF({ ...f, amount: e.target.value }); }} />
           {amountTyped && itemsTotal > 0 && Number(amount) !== itemsTotal
-            && <span className="hint">The ticked items come to {money0(itemsTotal)} · <button type="button" className="link-btn" onClick={() => setAmountTyped(false)}>use that</button></span>}
+            && <span className="hint">{t('The ticked items come to {amount}', { amount: money0(itemsTotal) })} · <button type="button" className="link-btn" onClick={() => setAmountTyped(false)}>{t('use that')}</button></span>}
         </label>
-        <label className="field">Description<input value={f.description || ''} onChange={set('description')} placeholder="optional" /></label>
+        <label className="field">{t('Description')}<input value={f.description || ''} onChange={set('description')} placeholder={t('optional')} /></label>
         <label className="field full check-field">
           <input type="checkbox" checked={f.paid} onChange={(e) => setF({ ...f, paid: e.target.checked })} />
-          <span>Paid <span className="hint">— its money counts on the day it was paid</span></span>
+          <span>{t('Paid')} <span className="hint">{t('— its money counts on the day it was paid')}</span></span>
         </label>
         {f.paid && <>
-          <label className="field">Paid on<input type="date" value={f.paid_date || ''} onChange={set('paid_date')} required /></label>
-          <label className="field">Payment method
+          <label className="field">{t('Paid on')}<input type="date" value={f.paid_date || ''} onChange={set('paid_date')} required /></label>
+          <label className="field">{t('Payment method')}
             <Select value={f.payment_method || ''} onChange={set('payment_method')}>
-              {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
+              {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{t(m)}</option>)}
             </Select>
           </label>
         </>}

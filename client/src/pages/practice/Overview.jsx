@@ -10,6 +10,7 @@ import Kpi from '../../components/Kpi.jsx';
 import Select from '../../components/Select.jsx';
 import { IncomeExpenseChart } from '../../components/Charts.jsx';
 import { IconArrowDown, IconArrowUp, IconCalendar, IconPlus, IconTrend } from '../../components/Icons.jsx';
+import { t, tn } from '../../i18n/index.js';
 import InvoiceForm from './InvoiceForm.jsx';
 import SessionForm from './SessionForm.jsx';
 import { SessionCard } from './Sessions.jsx';
@@ -38,8 +39,8 @@ export default function Overview() {
   return (
     <div className={loading ? 'loading' : ''}>
       <div className="page-head">
-        <div><h1>Dashboard</h1><p>Money received, what’s still owed, and the {term('events')} to see to.</p></div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ kind: 'session' })}><IconPlus width="16" />New {term('event')}</button>}
+        <div><h1>{t('Dashboard')}</h1><p>{t(`Money received, what’s still owed, and the ${term('events')} to see to.`)}</p></div>
+        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ kind: 'session' })}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
       </div>
       {err && <div className="error-box" style={{ marginBottom: 12 }}>{err}</div>}
       <div className="stack" style={{ gap: 28 }}>
@@ -47,59 +48,59 @@ export default function Overview() {
           <section className="stack">
             <div className="section-head"><h2>{MONTHS_LONG[thisMonth.month - 1]}</h2></div>
             <div className="grid grid-kpi">
-              <Kpi label="Received" value={money0(thisMonth.income)} icon={IconArrowUp} tone="income" sub="paid invoices, receipts and other income" />
-              <Kpi label="Expenses" value={money0(thisMonth.expenses)} icon={IconArrowDown} tone="expense" />
-              <Kpi label="Profit" hero value={signedMoney(thisMonth.profit)} icon={IconTrend} tone="profit" />
-              <Kpi label={`${Term('events')} done`} value={thisMonth.sessions} icon={IconCalendar} />
+              <Kpi label={t('Received')} value={money0(thisMonth.income)} icon={IconArrowUp} tone="income" sub={t('paid invoices, receipts and other income')} />
+              <Kpi label={t('Expenses')} value={money0(thisMonth.expenses)} icon={IconArrowDown} tone="expense" />
+              <Kpi label={t('Profit')} hero value={signedMoney(thisMonth.profit)} icon={IconTrend} tone="profit" />
+              <Kpi label={t(`${Term('events')} done`)} value={thisMonth.sessions} icon={IconCalendar} />
             </div>
           </section>
         )}
 
         <div className="grid grid-2" style={{ alignItems: 'start' }}>
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Not paid yet · {money0(o.unpaid.amount)}</h2><p>Invoices and receipts without the paid tick</p></div>
-              <Link to="/invoices" className="section-link">All →</Link></div>
+            <div className="card-head"><div><h2>{t('Not paid yet')} · {money0(o.unpaid.amount)}</h2><p>{t('Invoices and receipts without the paid tick')}</p></div>
+              <Link to="/invoices" className="section-link">{t('All')} →</Link></div>
             {o.unpaid.list.length ? o.unpaid.list.slice(0, 8).map((i) => (
               <div key={i.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <input type="checkbox" checked={false} disabled={!canEdit} aria-label="Paid" title="Tick when it's paid (today)"
+                <input type="checkbox" checked={false} disabled={!canEdit} aria-label={t('Paid')} title={t('Tick when it’s paid (today)')}
                   onChange={() => run(() => api.put(`/invoices/${i.id}/paid`, { paid: true, paid_date: today }))} />
                 <div style={{ flex: 1 }}><Link to={`/patients/${i.client_id}`}>{i.client_name || '—'}</Link>
                   <div className="row-sub">{docLabel(i)} · {date(i.date)}</div></div>
                 <strong className="neg">{money0(i.amount)}</strong>
               </div>
-            )) : <p className="muted" style={{ margin: 0 }}>Everything billed is paid.</p>}
+            )) : <p className="muted" style={{ margin: 0 }}>{t('Everything billed is paid.')}</p>}
           </div>
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Not billed yet · {money0(o.unbilled.amount)}</h2><p>{Term('events')} done outside a package, and packages, with no invoice or receipt</p></div></div>
+            <div className="card-head"><div><h2>{t('Not billed yet')} · {money0(o.unbilled.amount)}</h2><p>{t(`${Term('events')} done outside a package, and packages, with no invoice or receipt`)}</p></div></div>
             {owing.size ? [...owing.values()].map((e) => (
               <div key={e.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}><Link to={`/patients/${e.id}`}>{e.name}</Link><div className="row-sub">{e.n} {e.n === 1 ? 'item' : 'items'}</div></div>
+                <div style={{ flex: 1 }}><Link to={`/patients/${e.id}`}>{e.name}</Link><div className="row-sub">{tn(e.n, '{n} item', '{n} items')}</div></div>
                 <strong>{money0(e.amount)}</strong>
-                {canEdit && <button className="btn btn-sm" onClick={() => setForm({ kind: 'invoice', clientId: e.id })}>Bill</button>}
+                {canEdit && <button className="btn btn-sm" onClick={() => setForm({ kind: 'invoice', clientId: e.id })}>{t('Bill')}</button>}
               </div>
-            )) : <p className="muted" style={{ margin: 0 }}>Nothing waiting to be billed.</p>}
+            )) : <p className="muted" style={{ margin: 0 }}>{t('Nothing waiting to be billed.')}</p>}
           </div>
         </div>
 
         <div className="grid grid-2" style={{ alignItems: 'start' }}>
           <div className="card card-pad">
-            <div className="card-head"><div><h2>Next 7 days</h2><p>{o.upcoming.length} {o.upcoming.length === 1 ? term('event') : term('events')} booked</p></div>
-              <Link to="/sessions" className="section-link">Schedule →</Link></div>
+            <div className="card-head"><div><h2>{t('Next 7 days')}</h2><p>{tn(o.upcoming.length, `{n} ${term('event')} booked`, `{n} ${term('events')} booked`)}</p></div>
+              <Link to="/sessions" className="section-link">{t('Schedule')} →</Link></div>
             {o.upcoming.length ? <div className="stack" style={{ gap: 8 }}>{o.upcoming.map((a) => (
               <SessionCard key={a.id} a={a} canEdit={canEdit} showDate onOpen={() => canEdit && setForm({ kind: 'session', session: a })} onDone={() => status(a, 'done')} />
-            ))}</div> : <p className="muted" style={{ margin: 0 }}>Nothing booked.</p>}
+            ))}</div> : <p className="muted" style={{ margin: 0 }}>{t('Nothing booked.')}</p>}
           </div>
           <div className="stack">
             {o.toConfirm.length > 0 && (
               <div className="card card-pad">
-                <div className="card-head"><div><h2>Did these happen?</h2><p>Past {term('events')} still marked scheduled: mark them done or cancelled</p></div></div>
+                <div className="card-head"><div><h2>{t('Did these happen?')}</h2><p>{t(`Past ${term('events')} still marked scheduled: mark them done or cancelled`)}</p></div></div>
                 {o.toConfirm.map((a) => (
                   <div key={a.id} className="side-item" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 160 }}><Link to={`/patients/${a.client_id}`}>{a.client_name}</Link>
                       <div className="row-sub">{date(a.date)}{a.start_time ? ` · ${a.start_time}` : ''}{a.type_name ? ` · ${a.type_name}` : ''}</div></div>
                     {canEdit && <>
-                      <button className="btn btn-sm" onClick={() => status(a, 'done')}>Done</button>
-                      <button className="btn btn-sm" onClick={() => status(a, 'cancelled')}>Cancelled</button>
+                      <button className="btn btn-sm" onClick={() => status(a, 'done')}>{t('Done')}</button>
+                      <button className="btn btn-sm" onClick={() => status(a, 'cancelled')}>{t('Cancelled')}</button>
                     </>}
                   </div>
                 ))}
@@ -107,11 +108,11 @@ export default function Overview() {
             )}
             {o.lowPackages.length > 0 && (
               <div className="card card-pad">
-                <div className="card-head"><div><h2>Packages nearly used up</h2><p>Time to offer a new one</p></div></div>
+                <div className="card-head"><div><h2>{t('Packages nearly used up')}</h2><p>{t('Time to offer a new one')}</p></div></div>
                 {o.lowPackages.map((p) => (
                   <div key={p.id} className="side-item" style={{ display: 'flex', gap: 10 }}>
                     <div style={{ flex: 1 }}><Link to={`/patients/${p.client_id}`}>{p.client_name}</Link><div className="row-sub">{p.name}</div></div>
-                    <span className="secondary">{p.left} left to book · {p.sessions - p.used} not done</span>
+                    <span className="secondary">{t('{left} left to book · {n} not done', { left: p.left, n: p.sessions - p.used })}</span>
                   </div>
                 ))}
               </div>
@@ -121,10 +122,10 @@ export default function Overview() {
 
         <section className="stack">
           <div className="section-head row">
-            <div><h2>{o.year} month by month</h2>
-              <p>Received {money0(total('income'))} · expenses {money0(total('expenses'))} · profit {signedMoney(total('profit'))} · {total('sessions')} {term('events')} done</p></div>
+            <div><h2>{t('{year} month by month', { year: o.year })}</h2>
+              <p>{t(`Received {income} · expenses {expenses} · profit {profit} · {n} ${term('events')} done`, { income: money0(total('income')), expenses: money0(total('expenses')), profit: signedMoney(total('profit')), n: total('sessions') })}</p></div>
             <div style={{ width: 130 }}>
-              <Select value={o.year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+              <Select value={o.year} onChange={(e) => setYear(e.target.value)} aria-label={t('Year')}>
                 {o.years.map((y) => <option key={y}>{y}</option>)}
               </Select>
             </div>
@@ -134,7 +135,7 @@ export default function Overview() {
           </div>
           <div className="card table-wrap">
             <table>
-              <thead><tr><th>Month</th><th className="r">{Term('events')}</th><th className="r">Received</th><th className="r">Expenses</th><th className="r">Profit</th></tr></thead>
+              <thead><tr><th>{t('Month')}</th><th className="r">{t(Term('events'))}</th><th className="r">{t('Received')}</th><th className="r">{t('Expenses')}</th><th className="r">{t('Profit')}</th></tr></thead>
               <tbody>
                 {o.months.filter((m) => m.income || m.expenses || m.sessions).map((m) => (
                   <tr key={m.month}>
@@ -144,7 +145,7 @@ export default function Overview() {
                 ))}
               </tbody>
             </table>
-            {!o.months.some((m) => m.income || m.expenses || m.sessions) && <div className="empty">Nothing in {o.year} yet.</div>}
+            {!o.months.some((m) => m.income || m.expenses || m.sessions) && <div className="empty">{t('Nothing in {year} yet.', { year: o.year })}</div>}
           </div>
         </section>
       </div>

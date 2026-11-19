@@ -5,6 +5,7 @@ import { api, qs } from '../../api.js';
 import { useAction, useApi, usePermissions, usePersistentState } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
 import { IconCheck, IconChevronLeft, IconPlus } from '../../components/Icons.jsx';
+import { t, tn } from '../../i18n/index.js';
 import SessionForm from './SessionForm.jsx';
 import { addDays, Billing, dayMonth, localToday, mapsUrl, sessionPrice, SessionStatus, timeLabel, weekday, weekStart } from './common.jsx';
 
@@ -25,18 +26,18 @@ export default function Sessions() {
   return (
     <div className={loading ? 'loading' : ''}>
       <div className="page-head">
-        <div><h1>{Term('events')}</h1>
-          <p>{dayMonth(start)} – {dayMonth(end)} · {list.filter((a) => a.status !== 'cancelled').length} {term('events')}{done ? `, ${done} done` : ''}</p></div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ date: today >= start && today <= end ? today : start })}><IconPlus width="16" />New {term('event')}</button>}
+        <div><h1>{t(Term('events'))}</h1>
+          <p>{dayMonth(start)} – {dayMonth(end)} · {tn(list.filter((a) => a.status !== 'cancelled').length, `{n} ${term('event')}`, `{n} ${term('events')}`)}{done ? `, ${t('{n} done', { n: done })}` : ''}</p></div>
+        {canEdit && <button className="btn btn-primary" onClick={() => setForm({ date: today >= start && today <= end ? today : start })}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
       </div>
       <div className="filters">
         <div className="segmented">
-          <button onClick={() => setStart(addDays(start, -7))} aria-label="Previous week"><IconChevronLeft width="15" /></button>
-          <button className={start === weekStart(today) ? 'on' : ''} onClick={() => setStart(weekStart(today))}>This week</button>
-          <button onClick={() => setStart(addDays(start, 7))} aria-label="Next week"><IconChevronLeft width="15" style={{ transform: 'rotate(180deg)' }} /></button>
+          <button onClick={() => setStart(addDays(start, -7))} aria-label={t('Previous week')}><IconChevronLeft width="15" /></button>
+          <button className={start === weekStart(today) ? 'on' : ''} onClick={() => setStart(weekStart(today))}>{t('This week')}</button>
+          <button onClick={() => setStart(addDays(start, 7))} aria-label={t('Next week')}><IconChevronLeft width="15" style={{ transform: 'rotate(180deg)' }} /></button>
         </div>
-        <input type="date" value={start} onChange={(e) => e.target.value && setStart(weekStart(e.target.value))} aria-label="Go to week" style={{ width: 'auto' }} />
-        <label className="check"><input type="checkbox" checked={hideCancelled} onChange={(e) => setHideCancelled(e.target.checked)} />Hide cancelled</label>
+        <input type="date" value={start} onChange={(e) => e.target.value && setStart(weekStart(e.target.value))} aria-label={t('Go to week')} style={{ width: 'auto' }} />
+        <label className="check"><input type="checkbox" checked={hideCancelled} onChange={(e) => setHideCancelled(e.target.checked)} />{t('Hide cancelled')}</label>
       </div>
       {err && <div className="error-box" style={{ marginBottom: 12 }}>{err}</div>}
       <div className="week">
@@ -46,7 +47,7 @@ export default function Sessions() {
             <section key={d} className={`week-day card ${d === today ? 'today' : ''}`}>
               <header>
                 <span><strong>{weekday(d)}</strong><span>{dayMonth(d)}</span></span>
-                {canEdit && <button className="icon-btn" aria-label={`New ${term('event')} on ${dayMonth(d)}`} onClick={() => setForm({ date: d })}><IconPlus width="15" /></button>}
+                {canEdit && <button className="icon-btn" aria-label={t(`New ${term('event')} on {date}`, { date: dayMonth(d) })} onClick={() => setForm({ date: d })}><IconPlus width="15" /></button>}
               </header>
               {items.length ? items.map((a) => (
                 <SessionCard key={a.id} a={a} canEdit={canEdit} onOpen={() => canEdit && setForm({ session: a })}
@@ -65,13 +66,13 @@ export function SessionCard({ a, canEdit, onOpen, onDone, showDate }) {
   return (
     <div className={`session-card status-${a.status}`} onClick={onOpen} role={canEdit ? 'button' : undefined}>
       <div className="session-top">
-        <strong>{showDate ? `${dayMonth(a.date)} ` : ''}{timeLabel(a) || 'No time set'}</strong>
+        <strong>{showDate ? `${dayMonth(a.date)} ` : ''}{timeLabel(a) || t('No time set')}</strong>
         {a.status !== 'scheduled' ? <SessionStatus status={a.status} />
-          : canEdit && a.date <= localToday() && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDone(); }}><IconCheck width="13" />Done</button>}
+          : canEdit && a.date <= localToday() && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDone(); }}><IconCheck width="13" />{t('Done')}</button>}
       </div>
       <Link to={`/patients/${a.client_id}`} onClick={(e) => e.stopPropagation()} className="session-who">{a.client_name}</Link>
       <div className="row-sub">{[a.type_name, a.place].filter(Boolean).join(' · ')}
-        {a.place && <> <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>map ↗</a></>}</div>
+        {a.place && <> <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{t('map')} ↗</a></>}</div>
       <div className="session-foot"><span>{sessionPrice(a)}</span><Billing a={a} /></div>
     </div>
   );

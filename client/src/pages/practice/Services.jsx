@@ -6,6 +6,7 @@ import { useBusiness } from '../../business.js';
 import { CURRENCY } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
+import { t } from '../../i18n/index.js';
 import { rename } from '../settings/rename.js';
 
 export function Services() {
@@ -19,24 +20,24 @@ export function Services() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>{Term('sports')}</h2><p>What you offer, and the price a new {term('event')} of each starts with</p></div></div>
+      <div className="card-head"><div><h2>{t(Term('sports'))}</h2><p>{t(`What you offer, and the price a new ${term('event')} of each starts with`)}</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       {data?.length ? (
         <div className="table-wrap" style={{ marginBottom: 12 }}>
           <table>
-            <thead><tr><th style={{ width: '100%' }}>{Term('sport')}</th><th className="r">Price ({CURRENCY})</th><th /></tr></thead>
+            <thead><tr><th style={{ width: '100%' }}>{t(Term('sport'))}</th><th className="r">{t('Price ({currency})', { currency: CURRENCY })}</th><th /></tr></thead>
             <tbody>
-              {data.map((t) => (
-                <tr key={`${t.id}-${t.default_fee}`}>
-                  <td>{t.name}</td>
+              {data.map((x) => (
+                <tr key={`${x.id}-${x.default_fee}`}>
+                  <td>{x.name}</td>
                   <td className="r">
-                    <input className="select-sm num-input" type="number" min="0" step="0.01" defaultValue={t.default_fee || ''} placeholder="0"
-                      aria-label={`${t.name} price`} style={{ width: 100 }}
-                      onBlur={(e) => Number(e.target.value || 0) !== t.default_fee && run(() => api.put(`/event-types/${t.id}`, { default_fee: Number(e.target.value || 0), default_venue_fee: 0 }))} />
+                    <input className="select-sm num-input" type="number" min="0" step="0.01" defaultValue={x.default_fee || ''} placeholder="0"
+                      aria-label={t('{name} price', { name: x.name })} style={{ width: 100 }}
+                      onBlur={(e) => Number(e.target.value || 0) !== x.default_fee && run(() => api.put(`/event-types/${x.id}`, { default_fee: Number(e.target.value || 0), default_venue_fee: 0 }))} />
                   </td>
                   <td className="r actions">
-                    <button className="icon-btn" aria-label="Rename" onClick={() => { const n = rename(t.name); if (n) run(() => api.put(`/event-types/${t.id}`, { name: n })); }}><IconEdit /></button>
-                    <button className="icon-btn" aria-label="Delete" onClick={() => confirmDelete(`“${t.name}”`) && run(() => api.del(`/event-types/${t.id}`))}><IconTrash /></button>
+                    <button className="icon-btn" aria-label={t('Rename')} onClick={() => { const n = rename(x.name); if (n) run(() => api.put(`/event-types/${x.id}`, { name: n })); }}><IconEdit /></button>
+                    <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(`“${x.name}”`) && run(() => api.del(`/event-types/${x.id}`))}><IconTrash /></button>
                   </td>
                 </tr>
               ))}
@@ -45,8 +46,8 @@ export function Services() {
         </div>
       ) : null}
       <form onSubmit={add} style={{ display: 'flex', gap: 8 }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`New ${term('sport')}, e.g. Manual therapy`} required style={{ flex: 1 }} />
-        <button className="btn">Add</button>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t(`New ${term('sport')}, e.g. Manual therapy`)} required style={{ flex: 1 }} />
+        <button className="btn">{t('Add')}</button>
       </form>
     </div>
   );
