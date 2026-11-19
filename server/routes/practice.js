@@ -78,11 +78,11 @@ function saveConditions(id, list) {
 }
 const CONDITIONS_SQL = "(SELECT json_group_array(name) FROM (SELECT name FROM client_conditions WHERE client_id = c.id ORDER BY name)) AS conditions";
 const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]'), travel_fee: toRon(c.travel_fee), other_therapies: JSON.parse(c.other_therapies || '[]') });
-// Other therapies they follow with other therapists: rows of what, with whom and where (empty rows dropped).
+// Other therapies they follow with other therapists: rows of what, with whom, where and how often (empty rows dropped).
 function readOtherTherapies(v) {
   const rows = (Array.isArray(v) ? v : []).slice(0, 30)
-    .map((r) => ({ therapy: text(r?.therapy, 120), therapist: text(r?.therapist, 120), place: text(r?.place, 200) }))
-    .filter((r) => r.therapy || r.therapist || r.place);
+    .map((r) => ({ therapy: text(r?.therapy, 120), therapist: text(r?.therapist, 120), place: text(r?.place, 200), frequency: text(r?.frequency, 80) }))
+    .filter((r) => r.therapy || r.therapist || r.place || r.frequency);
   need(rows.every((r) => r.therapy), 'Each other therapy needs a name');
   return rows.length ? JSON.stringify(rows) : null;
 }

@@ -767,8 +767,8 @@ tr.row-picked td { background: var(--accent-soft); }
 .session-card.status-cancelled { border-left-color: var(--muted); opacity: .6; background: var(--surface); color: inherit; }
 .session-card.has-color { border-left-color: var(--svc); background: color-mix(in srgb, var(--svc) 9%, var(--surface)); }
 .born-filter input[type='date'] { width: auto; }
-.other-therapy { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 6px; align-items: center; }
-@media (max-width: 560px) { .other-therapy { grid-template-columns: 1fr 1fr auto; } .other-therapy > :first-child { grid-column: 1 / -1; } }
+.other-therapy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.other-therapy > button { grid-column: 3; grid-row: 1 / span 2; }
 .package-item { display: grid; grid-template-columns: minmax(0, 1fr) 84px auto; gap: 6px; align-items: center; }
 .package-hint { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; font-weight: 450; color: var(--text-2);
   background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }

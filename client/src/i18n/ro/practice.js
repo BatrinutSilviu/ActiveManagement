@@ -187,4 +187,5 @@ export default {
   'The service was changed to {service}, which this package covers.': 'Serviciul a fost schimbat în {service}, pe care îl acoperă acest pachet.',
   'Other therapies': 'Alte terapii', 'with other therapists (optional)': 'cu alți terapeuți (opțional)', 'Therapy, e.g. speech therapy': 'Terapia, ex. logopedie',
   Therapist: 'Terapeut', 'Add therapy': 'Adaugă terapie', 'Each other therapy needs a name': 'Fiecare terapie trebuie să aibă un nume',
+  'How often, e.g. 2× a week': 'Cât de des, ex. de 2× pe săptămână',
 };

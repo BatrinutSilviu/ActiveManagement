@@ -26,7 +26,7 @@ const footer = (onClose, saving) => <>
   <button className="btn btn-primary" disabled={saving}>{t('Save')}</button>
 </>;
 
-/** Other therapies the patient follows with other therapists: what, with whom, where. Optional. */
+/** Other therapies the patient follows with other therapists: what, with whom, where, how often. Optional. */
 function OtherTherapies({ rows, onChange }) {
   const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
   return (
@@ -37,10 +37,11 @@ function OtherTherapies({ rows, onChange }) {
             <input value={r.therapy || ''} onChange={change(i, 'therapy')} placeholder={t('Therapy, e.g. speech therapy')} required maxLength={120} />
             <input value={r.therapist || ''} onChange={change(i, 'therapist')} placeholder={t('Therapist')} maxLength={120} />
             <input value={r.place || ''} onChange={change(i, 'place')} placeholder={t('Where')} maxLength={200} />
+            <input value={r.frequency || ''} onChange={change(i, 'frequency')} placeholder={t('How often, e.g. 2× a week')} maxLength={80} />
             <button type="button" className="icon-btn" aria-label={t('Remove')} onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
           </div>
         ))}
-        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { therapy: '', therapist: '', place: '' }])}>{t('Add therapy')}</button></div>
+        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { therapy: '', therapist: '', place: '', frequency: '' }])}>{t('Add therapy')}</button></div>
       </div>
     </div>
   );

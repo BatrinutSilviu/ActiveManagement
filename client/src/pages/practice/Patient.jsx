@@ -84,7 +84,7 @@ function Patient({ id }) {
                 {c.other_therapies.map((r, i) => (
                   <div key={i} className="side-item">
                     <div className="row-title">{r.therapy}</div>
-                    <div className="row-sub">{[r.therapist, r.place].filter(Boolean).join(' · ')}</div>
+                    <div className="row-sub">{[r.therapist, r.place, r.frequency].filter(Boolean).join(' · ')}</div>
                   </div>
                 ))}
               </div>
