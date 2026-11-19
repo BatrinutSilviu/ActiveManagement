@@ -12,6 +12,8 @@ import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
 export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
   const { term, Term, business } = useBusiness();
   const locations = business?.locations || [];
+  // The practice's locations, plus one a session was booked at that has since been removed.
+  const places = [...locations, ...(session?.location && !locations.some((l) => l.name === session.location) ? [{ name: session.location }] : [])];
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
@@ -105,23 +107,14 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
         <label className="field">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
-        <div className="field full">{t('Where')}
-          <div className="segmented" role="radiogroup" aria-label={t('Where')}>
-            {Object.entries(VENUES).map(([k, label]) => (
-              <button type="button" key={k} className={f.venue === k ? 'on' : ''} role="radio" aria-checked={f.venue === k}
-                onClick={() => setF({ ...f, venue: k, location: k === 'practice' && !f.location && locations.length === 1 ? locations[0].name : f.location })}>{t(label)}</button>
-            ))}
-          </div>
-        </div>
-        {f.venue === 'practice' && (locations.length ? (
-          <label className="field full">{t('Location')}
-            <Select value={f.location || ''} onChange={set('location')} required>
-              <option value="">{t('— choose —')}</option>
-              {[...locations, ...(f.location && !locations.some((l) => l.name === f.location) ? [{ name: f.location }] : [])]
-                .map((l) => <option key={l.name} value={l.name}>{l.name}{l.address ? ` · ${l.address}` : ''}</option>)}
-            </Select>
-          </label>
-        ) : <span className="hint field full">{t('No practice locations yet: add them in Settings → Business')}</span>)}
+        <label className="field full">{t('Venue')}
+          <Select value={f.venue === 'practice' ? `practice:${f.location || ''}` : 'home'} required
+            onChange={(e) => { const [venue, ...name] = e.target.value.split(':'); setF({ ...f, venue, location: name.join(':') }); }}>
+            <option value="home">{t(VENUES.home)}</option>
+            {places.map((l) => <option key={l.name} value={`practice:${l.name}`}>{l.name}{l.address ? ` · ${l.address}` : ''}</option>)}
+            {!locations.length && <option value="practice:">{t(VENUES.practice)}</option>}
+          </Select>
+        </label>
         {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />
         </label>}

@@ -1,7 +1,8 @@
-// Settings for a practice: the services offered, each with how long it lasts and the price a new session starts with.
+// Settings for a practice: the services offered (each with its colour, how long it lasts and the price a new session
+// starts with), and the venues: the patient's home or one of the practice's locations.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
-import { useAction, useApi } from '../../hooks.js';
+import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
 import { CURRENCY } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
@@ -73,4 +74,48 @@ function ColorPick({ value, label, onPick }) {
   });
   return <input ref={ref} type="color" defaultValue={value || '#2a78d6'} aria-label={label} title={t('Its colour on the timetable')}
     style={{ width: 40, height: 30, padding: 2 }} />;
+}
+
+/** Where sessions happen: at the patient's home, or at one of the practice's locations (business.locations). */
+export function Venues() {
+  const { business } = useBusiness();
+  const { isAdmin } = usePermissions();
+  const saved = business?.locations || [];
+  const [list, setList] = useState(null); // being edited: [{ name, address, was }]
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const rows = list ?? saved.map((l) => ({ ...l, was: l.name }));
+  const change = (i, k) => (e) => setList(rows.map((l, j) => (j === i ? { ...l, [k]: e.target.value } : l)));
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const renames = Object.fromEntries(rows.filter((l) => l.was && l.was !== l.name.trim()).map((l) => [l.was, l.name.trim()]));
+      await api.put('/business', { locations: rows.map(({ name, address }) => ({ name, address })), renames });
+      setList(null); setError(null);
+      window.dispatchEvent(new Event('am:business')); // the session form follows
+    } catch (err) { setError(err.message); }
+    setSaving(false);
+  };
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>{t('Venues')}</h2><p>{t('Where sessions happen: at the patient’s home, or at one of the practice’s locations')}</p></div></div>
+      {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
+      <form onSubmit={save} className="stack" style={{ gap: 6 }}>
+        <div className="row-title">{t("At the patient's home")} <span className="hint">— {t('the address on their page, or one given for the session')}</span></div>
+        {rows.map((l, i) => (isAdmin ? (
+          <div key={i} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={l.name} onChange={change(i, 'name')} placeholder={t('Name, e.g. Sânandrei')} maxLength={60} required style={{ flex: '1 1 160px' }} />
+            <input value={l.address} onChange={change(i, 'address')} placeholder={t('Address')} maxLength={300} style={{ flex: '3 1 240px' }} />
+            <button type="button" className="btn btn-sm" onClick={() => setList(rows.filter((_, j) => j !== i))}>{t('Remove')}</button>
+          </div>
+        ) : <div key={i}><span className="row-title">{l.name}</span> <span className="muted">{l.address}</span></div>))}
+        {isAdmin && <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-sm" onClick={() => setList([...rows, { name: '', address: '' }])}>{t('Add location')}</button>
+          {list && <button className="btn btn-primary btn-sm" disabled={saving}>{t('Save')}</button>}
+          {list && <button type="button" className="btn btn-sm" onClick={() => { setList(null); setError(null); }}>{t('Cancel')}</button>}
+        </div>}
+      </form>
+    </div>
+  );
 }

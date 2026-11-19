@@ -150,4 +150,6 @@ export default {
   'e.g. the child is ill, the family is away…': 'ex. copilul e bolnav, familia e plecată…',
   '{name} colour': 'Culoarea {name}', 'Its colour on the timetable': 'Culoarea în orar',
   'What you offer, its colour on the timetable, how long each lasts, and the price a new session of each starts with': 'Ce oferi, culoarea în orar, cât durează fiecare și prețul cu care pornește o ședință nouă',
+  Venues: 'Locații', Venue: 'Locație', 'Where sessions happen: at the patient’s home, or at one of the practice’s locations': 'Unde au loc ședințele: la domiciliul pacientului sau într-una din locațiile cabinetului',
+  'the address on their page, or one given for the session': 'adresa de pe pagina lui sau una dată pentru ședință',
 };
