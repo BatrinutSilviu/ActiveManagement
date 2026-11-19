@@ -10,7 +10,7 @@ import { t } from '../../i18n/index.js';
 import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
 
 export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
-  const { term, Term } = useBusiness();
+  const { term, Term, business } = useBusiness();
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
@@ -96,6 +96,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
                 onClick={() => setF({ ...f, venue: k })}>{t(label)}</button>
             ))}
           </div>
+          {f.venue === 'practice' && <span className="hint">{business?.address || t('No practice address yet: set it in Settings → Business')}</span>}
         </div>
         {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />

@@ -192,7 +192,9 @@ function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time'
     LEFT JOIN event_types et ON et.id = a.type_id
     LEFT JOIN packages p ON p.id = a.package_id
     LEFT JOIN invoices i ON i.id = a.invoice_id
-    ${where} ${order}`).all(...params).map((a) => ({ ...a, price: toRon(a.price) }));
+    ${where} ${order}`).all(...params)
+    // At the practice: its address (Settings → Business).
+    .map((a) => ({ ...a, price: toRon(a.price), place: a.venue === 'practice' ? getBusiness()?.address || null : a.place }));
 }
 
 const STATUSES = ['scheduled', 'done', 'cancelled'];

@@ -34,7 +34,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', entities: [], language: 'en' };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', address: '', entities: [], language: 'en' };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -78,7 +78,7 @@ export function readBusiness(body, current = {}) {
     if (!TYPES[body.type]) return { error: 'Unknown business type' };
     v.type = body.type;
   }
-  text('name', 60); text('tagline', 60); text('website', 200);
+  text('name', 60); text('tagline', 60); text('website', 200); text('address', 300);
   if (!v.name) return { error: 'The business needs a name' };
   if (v.website && !/^https?:\/\/\S+$/i.test(v.website)) return { error: 'The website must start with http:// or https://' };
   if (body.color !== undefined) {

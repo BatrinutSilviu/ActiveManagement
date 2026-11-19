@@ -138,4 +138,6 @@ export default {
   // where a session happens
   Where: 'Unde', "At the patient's home": 'La domiciliul pacientului', 'At the practice': 'La cabinet',
   'Choose the service': 'Alege serviciul', 'Unknown venue': 'Loc necunoscut',
+  'Practice address': 'Adresa cabinetului', 'where sessions “at the practice” happen': 'unde au loc ședințele „la cabinet”',
+  'No practice address yet: set it in Settings → Business': 'Adresa cabinetului nu e setată încă: o poți seta în Setări → Afacere',
 };

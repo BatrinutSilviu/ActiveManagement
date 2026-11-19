@@ -40,6 +40,11 @@ export function Business() {
           </label>
           <label className="field">{t('Number format')}<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
           {v.features.practice && (
+            <label className="field full">{t('Practice address')} <span className="hint">— {t('where sessions “at the practice” happen')}</span>
+              <input value={v.address || ''} onChange={set('address')} maxLength={300} />
+            </label>
+          )}
+          {v.features.practice && (
             <label className="field full">{t('Legal entities')} <span className="hint">— {t('one per line; each patient is treated through one of them')}</span>
               <textarea rows={3} value={Array.isArray(v.entities) ? v.entities.join('\n') : v.entities || ''}
                 onChange={(e) => setF({ ...v, entities: e.target.value })} />
