@@ -871,9 +871,13 @@ db.exec(`CREATE TABLE IF NOT EXISTS package_types (
   name TEXT NOT NULL,
   sessions INTEGER NOT NULL CHECK (sessions > 0),
   price INTEGER NOT NULL DEFAULT 0 CHECK (price >= 0),          -- bani
-  valid_months INTEGER,                                          -- empty: no expiry
+  valid_months INTEGER,                                          -- superseded by valid_days
   service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL
 )`);
+// How long a package type is valid, in days (empty: no expiry). Types made with months get 30 days a month.
+if (!columns('package_types').includes('valid_days')) {
+  db.exec('ALTER TABLE package_types ADD COLUMN valid_days INTEGER; UPDATE package_types SET valid_days = valid_months * 30, valid_months = NULL WHERE valid_months IS NOT NULL;');
+}
 if (!columns('packages').includes('service_id'))
   db.exec('ALTER TABLE packages ADD COLUMN service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL'); // superseded by package_items
 // What a package (and a package type) is made of: so many sessions of a service, or of any service (service_id empty,

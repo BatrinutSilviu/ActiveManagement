@@ -250,17 +250,17 @@ const loadPackageTypes = () => db.prepare('SELECT * FROM package_types ORDER BY 
 function readPackageType(body) {
   const name = text(body.name, 120);
   need(name, 'Give the package a name, e.g. 10 sessions');
-  const months = body.valid_months === '' || body.valid_months == null ? null : Number(body.valid_months);
-  need(months == null || (Number.isInteger(months) && months > 0 && months <= 120), 'Validity must be a whole number of months');
+  const days = body.valid_days === '' || body.valid_days == null ? null : Number(body.valid_days);
+  need(days == null || (Number.isInteger(days) && days > 0 && days <= 3650), 'Validity must be a whole number of days');
   const items = readItems(body.items);
-  return { values: [name, total(items), money(body.price, 'The price'), months], items };
+  return { values: [name, total(items), money(body.price, 'The price'), days], items };
 }
 
 router.get('/package-types', (req, res) => res.json(loadPackageTypes()));
 router.post('/package-types', (req, res) => {
   const { values, items } = readPackageType(req.body);
   const id = tx(() => {
-    const { lastInsertRowid } = db.prepare('INSERT INTO package_types (name, sessions, price, valid_months) VALUES (?, ?, ?, ?)').run(...values);
+    const { lastInsertRowid } = db.prepare('INSERT INTO package_types (name, sessions, price, valid_days) VALUES (?, ?, ?, ?)').run(...values);
     saveItems('package_type_items', 'package_type_id', Number(lastInsertRowid), items);
     return Number(lastInsertRowid);
   });
@@ -269,7 +269,7 @@ router.post('/package-types', (req, res) => {
 router.put('/package-types/:id', (req, res) => {
   const { values, items } = readPackageType(req.body);
   tx(() => {
-    const r = db.prepare('UPDATE package_types SET name = ?, sessions = ?, price = ?, valid_months = ? WHERE id = ?').run(...values, idParam(req));
+    const r = db.prepare('UPDATE package_types SET name = ?, sessions = ?, price = ?, valid_days = ? WHERE id = ?').run(...values, idParam(req));
     if (!r.changes) throw httpError(404, 'This package type no longer exists');
     saveItems('package_type_items', 'package_type_id', idParam(req), items);
   });

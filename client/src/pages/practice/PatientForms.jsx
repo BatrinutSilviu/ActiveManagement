@@ -130,18 +130,18 @@ export function PackageForm({ pkg, clientId, onClose, onSaved }) {
     { name: t(`10 ${term('events')}`), price: '', date: localToday(), expires: '', note: '', ...(pkg || {}),
       items: pkg ? itemsForForm(pkg.items) : [{ service_id: '', sessions: 10 }] },
     (v) => (pkg ? api.put(`/packages/${pkg.id}`, v) : api.post(`/clients/${clientId}/packages`, v)), onSaved);
-  // A package type fills everything in; the expiry is its months from the day it's bought.
-  const expiry = (date, months) => {
-    if (!date || !months) return '';
-    const d = new Date(`${date}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + Number(months));
+  // A package type fills everything in; the expiry is its days from the day it's bought.
+  const expiry = (date, days) => {
+    if (!date || !days) return '';
+    const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + Number(days));
     return d.toISOString().slice(0, 10);
   };
   const pickKind = (e) => {
     const k = kinds?.find((x) => String(x.id) === e.target.value);
     if (!k) return setF({ ...f, kind: '' });
-    setF({ ...f, kind: e.target.value, name: k.name, price: k.price, items: itemsForForm(k.items), valid_months: k.valid_months, expires: expiry(f.date, k.valid_months) });
+    setF({ ...f, kind: e.target.value, name: k.name, price: k.price, items: itemsForForm(k.items), valid_days: k.valid_days, expires: expiry(f.date, k.valid_days) });
   };
-  const pickDate = (e) => setF({ ...f, date: e.target.value, expires: f.valid_months ? expiry(e.target.value, f.valid_months) : f.expires });
+  const pickDate = (e) => setF({ ...f, date: e.target.value, expires: f.valid_days ? expiry(e.target.value, f.valid_days) : f.expires });
   return (
     <Modal title={pkg ? t('Edit package') : t('New package')} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
       {error && <div className="error-box">{error}</div>}
