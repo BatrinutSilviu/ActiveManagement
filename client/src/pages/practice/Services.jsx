@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
-import { CURRENCY } from '../../format.js';
+import { CURRENCY, money0 } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
+import Select from '../../components/Select.jsx';
 import { t } from '../../i18n/index.js';
 import { rename } from '../settings/rename.js';
 
@@ -158,6 +159,63 @@ export function Conditions() {
           {list && <button type="button" className="btn btn-sm" onClick={() => { setList(null); setError(null); }}>{t('Cancel')}</button>}
         </div>}
       </form>
+    </div>
+  );
+}
+
+/** Package types: ready-made packages to sell (sessions, price, validity, optionally one service). */
+export function PackageTypes() {
+  const { term } = useBusiness();
+  const { canEdit } = usePermissions();
+  const { data, reload } = useApi('/package-types');
+  const { data: services } = useApi('/event-types');
+  const [error, run] = useAction(reload);
+  const [f, setF] = useState(null); // being added / edited
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const save = async (e) => {
+    e.preventDefault();
+    if (await run(() => (f.id ? api.put(`/package-types/${f.id}`, f) : api.post('/package-types', f)))) setF(null);
+  };
+  const months = (n) => (n ? t('valid {n} months', { n }) : t('no expiry'));
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>{t('Package types')}</h2><p>{t(`Ready-made packages of ${term('events')}: picked when selling a package to a patient`)}</p></div>
+        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ name: '', sessions: 10, price: '', valid_months: '', service_id: '' })}>{t('Add package type')}</button>}</div>
+      {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
+      {f && (
+        <form onSubmit={save} className="form-grid" style={{ marginBottom: 14 }}>
+          <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required autoFocus placeholder={t("e.g. 10 sessions Kinetoterapie 50'")} /></label>
+          <label className="field half">{t(`Number of ${term('events')}`)}<input type="number" min="1" step="1" value={f.sessions} onChange={set('sessions')} required /></label>
+          <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
+          <label className="field half">{t('Valid for (months)')}<input type="number" min="1" step="1" value={f.valid_months ?? ''} onChange={set('valid_months')} placeholder={t('no expiry')} /></label>
+          <label className="field half">{t('Only for the service')}
+            <Select value={f.service_id ? String(f.service_id) : ''} onChange={set('service_id')}>
+              <option value="">{t('Any service')}</option>
+              {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </Select>
+          </label>
+          <div className="full" style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary btn-sm">{t('Save')}</button>
+            <button type="button" className="btn btn-sm" onClick={() => setF(null)}>{t('Cancel')}</button>
+          </div>
+        </form>
+      )}
+      {data?.length ? (
+        <div className="stack" style={{ gap: 0 }}>
+          {data.map((k) => (
+            <div key={k.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="row-title">{k.name}</div>
+                <div className="row-sub">{t(`{n} ${term('events')}`, { n: k.sessions })} · {money0(k.price)} · {months(k.valid_months)}{k.service_name ? ` · ${t('only {service}', { service: k.service_name })}` : ''}</div>
+              </div>
+              {canEdit && <span className="actions">
+                <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF({ ...k, service_id: k.service_id ? String(k.service_id) : '', valid_months: k.valid_months ?? '' })}><IconEdit /></button>
+                <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(`“${k.name}”`) && run(() => api.del(`/package-types/${k.id}`))}><IconTrash /></button>
+              </span>}
+            </div>
+          ))}
+        </div>
+      ) : !f && <p className="muted" style={{ margin: 0 }}>{t('None yet.')}</p>}
     </div>
   );
 }

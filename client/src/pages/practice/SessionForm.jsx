@@ -33,13 +33,16 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   // …and with the patient's running package, if one has sessions left.
   useEffect(() => {
     if (session || !packages) return;
-    const open = packages.find((p) => p.left > 0 && (!p.expires || p.expires >= f.date));
+    const open = openPackage(f.type_id);
     setF((x) => ({ ...x, package_id: open ? String(open.id) : '' }));
   }, [packages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const client = clients?.find((c) => String(c.id) === String(f.client_id));
   // Packages it can use: with sessions left, or the one it's already in.
-  const usable = (packages || []).filter((p) => p.left > 0 || String(p.id) === String(session?.package_id));
+  // A package tied to a service pays only for sessions of that service.
+  const fits = (p, typeId) => !p.service_id || String(p.service_id) === String(typeId);
+  const usable = (packages || []).filter((p) => (p.left > 0 || String(p.id) === String(session?.package_id)) && fits(p, f.type_id));
+  const openPackage = (typeId) => (packages || []).find((p) => p.left > 0 && (!p.expires || p.expires >= f.date) && fits(p, typeId));
 
   // The end time follows the start and the service's duration.
   const endFor = (start, type) => {
@@ -52,7 +55,10 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   const pickStart = (e) => setF({ ...f, start_time: e.target.value, end_time: endFor(e.target.value, typeOf(f.type_id)) ?? f.end_time });
   const pickType = (e) => {
     const ty = typeOf(e.target.value);
-    setF({ ...f, type_id: e.target.value, price: ty?.default_fee ? String(ty.default_fee) : f.price, end_time: endFor(f.start_time, ty) ?? f.end_time });
+    // The package follows: kept if it fits the new service, else the patient's open package that does (new sessions).
+    const current = (packages || []).find((p) => String(p.id) === String(f.package_id));
+    const packageId = current && fits(current, e.target.value) ? f.package_id : !session && openPackage(e.target.value) ? String(openPackage(e.target.value).id) : '';
+    setF({ ...f, type_id: e.target.value, price: ty?.default_fee ? String(ty.default_fee) : f.price, end_time: endFor(f.start_time, ty) ?? f.end_time, package_id: packageId });
   };
   const addClient = async (name) => {
     const n = name || window.prompt(t(`First name and surname of the new ${term('person')}:`));

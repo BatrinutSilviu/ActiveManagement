@@ -864,6 +864,18 @@ if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'client_conditions'").
 // The patient's contract: its number and the date it was signed.
 if (!columns('clients').includes('contract_number'))
   db.exec('ALTER TABLE clients ADD COLUMN contract_number TEXT; ALTER TABLE clients ADD COLUMN contract_date TEXT;');
+// Package types (Settings → Services): ready-made packages to sell, e.g. 10 sessions of one service for a price, valid
+// some months. A package sold from one copies it; a package tied to a service pays only for sessions of that service.
+db.exec(`CREATE TABLE IF NOT EXISTS package_types (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  sessions INTEGER NOT NULL CHECK (sessions > 0),
+  price INTEGER NOT NULL DEFAULT 0 CHECK (price >= 0),          -- bani
+  valid_months INTEGER,                                          -- empty: no expiry
+  service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL
+)`);
+if (!columns('packages').includes('service_id'))
+  db.exec('ALTER TABLE packages ADD COLUMN service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL');
 // Why a session was cancelled.
 if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).

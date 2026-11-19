@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useApi } from '../../hooks.js';
 import { api } from '../../api.js';
 import { useBusiness } from '../../business.js';
-import { CURRENCY } from '../../format.js';
+import { CURRENCY, money0 } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
 import { t } from '../../i18n/index.js';
@@ -91,19 +91,48 @@ export function PatientForm({ patient, onClose, onSaved }) {
 
 export function PackageForm({ pkg, clientId, onClose, onSaved }) {
   const { term, Term } = useBusiness();
-  const { f, set, error, saving, save } = useForm(
-    { name: t(`10 ${term('events')}`), sessions: 10, price: '', date: localToday(), expires: '', note: '', ...(pkg || {}) },
+  const { data: kinds } = useApi('/package-types');
+  const { data: services } = useApi('/event-types');
+  const { f, setF, set, error, saving, save } = useForm(
+    { name: t(`10 ${term('events')}`), sessions: 10, price: '', date: localToday(), expires: '', note: '', service_id: '', ...(pkg || {}) },
     (v) => (pkg ? api.put(`/packages/${pkg.id}`, v) : api.post(`/clients/${clientId}/packages`, v)), onSaved);
+  // A package type fills everything in; the expiry is its months from the day it's bought.
+  const expiry = (date, months) => {
+    if (!date || !months) return '';
+    const d = new Date(`${date}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + Number(months));
+    return d.toISOString().slice(0, 10);
+  };
+  const pickKind = (e) => {
+    const k = kinds?.find((x) => String(x.id) === e.target.value);
+    if (!k) return setF({ ...f, kind: '' });
+    setF({ ...f, kind: e.target.value, name: k.name, sessions: k.sessions, price: k.price, service_id: k.service_id ? String(k.service_id) : '',
+      valid_months: k.valid_months, expires: expiry(f.date, k.valid_months) });
+  };
+  const pickDate = (e) => setF({ ...f, date: e.target.value, expires: f.valid_months ? expiry(e.target.value, f.valid_months) : f.expires });
   return (
     <Modal title={pkg ? t('Edit package') : t('New package')} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
       {error && <div className="error-box">{error}</div>}
       <p className="hint" style={{ margin: 0 }}>{t(`A number of ${term('events')} paid for together. ${Term('events')} booked with it have no price of their own; bill the package itself with an invoice or receipt.`)}</p>
       <div className="form-grid">
+        {!pkg && kinds?.length > 0 && (
+          <label className="field full">{t('Package type')}
+            <Select value={f.kind || ''} onChange={pickKind}>
+              <option value="">{t('— a package of its own —')}</option>
+              {kinds.map((k) => <option key={k.id} value={k.id}>{k.name} · {money0(k.price)}</option>)}
+            </Select>
+          </label>
+        )}
         <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required /></label>
-        <label className="field">{t(`Number of ${term('events')}`)}<input type="number" min="1" step="1" value={f.sessions} onChange={set('sessions')} required /></label>
-        <label className="field">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
-        <label className="field">{t('Bought on')}<input type="date" value={f.date} onChange={set('date')} required /></label>
-        <label className="field">{t('Valid until')} <span className="hint">{t('(optional)')}</span><input type="date" value={f.expires || ''} onChange={set('expires')} /></label>
+        <label className="field half">{t(`Number of ${term('events')}`)}<input type="number" min="1" step="1" value={f.sessions} onChange={set('sessions')} required /></label>
+        <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
+        <label className="field full">{t('Only for the service')} <span className="hint">{t('(optional)')}</span>
+          <Select value={f.service_id ? String(f.service_id) : ''} onChange={set('service_id')}>
+            <option value="">{t('Any service')}</option>
+            {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </Select>
+        </label>
+        <label className="field half">{t('Bought on')}<input type="date" value={f.date} onChange={pickDate} required /></label>
+        <label className="field half">{t('Valid until')} <span className="hint">{t('(optional)')}</span><input type="date" value={f.expires || ''} onChange={set('expires')} /></label>
         <label className="field full">{t('Note')}<input value={f.note || ''} onChange={set('note')} /></label>
       </div>
     </Modal>

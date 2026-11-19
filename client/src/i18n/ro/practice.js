@@ -160,4 +160,13 @@ export default {
   'Two illness categories have the same name': 'Două categorii de afecțiuni au același nume',
   'Born between': 'Născut între', and: 'și', 'Born from': 'Născut de la', 'Born until': 'Născut până la', 'Born {date}': 'Născut {date}',
   'tap all that apply': 'alege toate care se potrivesc',
+  'Package types': 'Tipuri de pachete', 'Add package type': 'Adaugă tip de pachet', 'Package type': 'Tip de pachet',
+  'Ready-made packages of sessions: picked when selling a package to a patient': 'Pachete de ședințe gata făcute: se aleg când vinzi un pachet unui pacient',
+  "e.g. 10 sessions Kinetoterapie 50'": "ex. 10 ședințe Kinetoterapie 50'", 'Valid for (months)': 'Valabil (luni)', 'no expiry': 'fără expirare',
+  'valid {n} months': 'valabil {n} luni', 'Only for the service': 'Doar pentru serviciul', 'Any service': 'Orice serviciu',
+  'only {service}': 'doar {service}', '— a package of its own —': '— un pachet separat —',
+  'This package is for another service': 'Acest pachet este pentru alt serviciu',
+  'Sessions of another service already use this package': 'Pachetul e deja folosit de ședințe ale altui serviciu',
+  'Validity must be a whole number of months': 'Valabilitatea trebuie să fie un număr întreg de luni',
+  'This package type no longer exists': 'Acest tip de pachet nu mai există',
 };
