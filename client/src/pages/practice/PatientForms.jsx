@@ -5,6 +5,7 @@ import { api } from '../../api.js';
 import { useBusiness } from '../../business.js';
 import { CURRENCY } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
+import Select from '../../components/Select.jsx';
 import { localToday } from './common.jsx';
 
 function useForm(initial, send, onSaved) {
@@ -25,7 +26,8 @@ const footer = (onClose, saving) => <>
 </>;
 
 export function PatientForm({ patient, onClose, onSaved }) {
-  const { term } = useBusiness();
+  const { term, business } = useBusiness();
+  const entities = business?.entities || [];
   const { data: all } = useApi('/clients');
   const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const { f, set, error, saving, save } = useForm(
@@ -41,6 +43,14 @@ export function PatientForm({ patient, onClose, onSaved }) {
         <label className="field">Email<input type="email" value={f.email || ''} onChange={set('email')} /></label>
         <label className="field full">Address<input value={f.address || ''} onChange={set('address')} placeholder="Where the home visits are" /></label>
         <label className="field">Birth date<input type="date" value={f.birth_date || ''} onChange={set('birth_date')} /></label>
+        {(entities.length > 0 || f.entity) && (
+          <label className="field full">Legal entity <span className="hint">— who they are treated through</span>
+            <Select value={f.entity || ''} onChange={set('entity')} required>
+              <option value="">Choose…</option>
+              {[...new Set([...entities, ...(f.entity ? [f.entity] : [])])].map((e) => <option key={e} value={e}>{e}</option>)}
+            </Select>
+          </label>
+        )}
         <label className="field full">Association <span className="hint">— the sponsor they belong to, if any</span>
           <input value={f.association || ''} onChange={set('association')} list="associations" />
           <datalist id="associations">{associations.map((a) => <option key={a} value={a} />)}</datalist>

@@ -841,6 +841,8 @@ CREATE INDEX IF NOT EXISTS appointments_client ON appointments (client_id);
 
 // The association (sponsor) a patient belongs to, if any: free text, the form suggests the ones already used.
 if (!columns('clients').includes('association')) db.exec('ALTER TABLE clients ADD COLUMN association TEXT');
+// The legal entity they're treated through: one of the business's entities (Settings → Business).
+if (!columns('clients').includes('entity')) db.exec('ALTER TABLE clients ADD COLUMN entity TEXT');
 // A patient's first name and surname kept apart (name stays the full "First Last", which the lists and joins show),
 // and their tutor: the parent or guardian who brings them and pays. Existing patients: the first word of the name
 // became the first name, the rest the surname.

@@ -34,7 +34,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '' };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', entities: [] };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -91,6 +91,12 @@ export function readBusiness(body, current = {}) {
     try { new Intl.NumberFormat(loc, { style: 'currency', currency: cur }); } catch { return { error: 'Unknown currency or number format' }; }
     if (!/^[A-Z]{3}$/.test(cur)) return { error: 'The currency must be a 3-letter code, e.g. RON or EUR' };
     v.currency = cur; v.locale = loc;
+  }
+  // The legal entities a practice's patients are treated through (each patient picks one), e.g. the practice's
+  // own company and the therapist as a person. One per line in Settings.
+  if (body.entities !== undefined) {
+    const list = Array.isArray(body.entities) ? body.entities : String(body.entities).split('\n');
+    v.entities = [...new Set(list.map((e) => String(e).trim().slice(0, 80)).filter(Boolean))].slice(0, 20);
   }
   if (body.features !== undefined) {
     v.features = {};

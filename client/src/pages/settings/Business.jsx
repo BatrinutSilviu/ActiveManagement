@@ -32,6 +32,12 @@ export function Business() {
           <label className="field">Website<input type="url" value={v.website} onChange={set('website')} placeholder="https://…" /></label>
           <label className="field">Currency<input value={v.currency} onChange={set('currency')} required maxLength={3} placeholder="RON" /></label>
           <label className="field">Number format<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
+          {v.features.practice && (
+            <label className="field full">Legal entities <span className="hint">— one per line; each patient is treated through one of them</span>
+              <textarea rows={3} value={Array.isArray(v.entities) ? v.entities.join('\n') : v.entities || ''}
+                onChange={(e) => setF({ ...v, entities: e.target.value })} />
+            </label>
+          )}
         </div>
         <div>
           <div className="kpi-label" style={{ marginBottom: 6 }}>Parts of the app</div>

@@ -19,9 +19,11 @@ export default function Patients() {
   const [q, setQ] = useState('');
   const [archived, setArchived] = useState(false);
   const [assoc, setAssoc] = useState('');
+  const [entity, setEntity] = useState('');
+  const entities = [...new Set((data || []).map((c) => c.entity).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const associations = [...new Set((data || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const [creating, setCreating] = useState(false);
-  const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc)
+  const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc) && (!entity || c.entity === entity)
     && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
 
@@ -33,6 +35,12 @@ export default function Patients() {
       </div>
       <div className="filters">
         <input type="search" placeholder="Search name, tutor, phone, address…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {entities.length > 1 && (
+          <Select value={entity} onChange={(e) => setEntity(e.target.value)} aria-label="Legal entity">
+            <option value="">All legal entities</option>
+            {entities.map((e) => <option key={e} value={e}>{e}</option>)}
+          </Select>
+        )}
         {associations.length > 0 && (
           <Select value={assoc} onChange={(e) => setAssoc(e.target.value)} aria-label="Association">
             <option value="">All associations</option>
@@ -52,7 +60,7 @@ export default function Patients() {
               {list.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/patients/${c.id}`)}>
                   <td className="cell-wrap">
-                    <div className="row-title">{c.name}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">archived</span></>}</div>
+                    <div className="row-title">{c.name}{c.entity && entities.length > 1 && <> <span className="badge">{c.entity}</span></>}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">archived</span></>}</div>
                     {c.tutor_name && <div className="row-sub">Tutor: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
                     <div className="row-sub show-sm">{c.phone}{c.next_session ? ` · next ${date(c.next_session)}` : ''}</div>
