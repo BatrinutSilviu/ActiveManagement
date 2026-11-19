@@ -477,23 +477,35 @@ export function computeFounders(ym) {
   for (const p of people.values()) { p.points = r2(p.points); p.freePoints = r2(p.freePoints); p.pendingPoints = r2(p.pendingPoints); }
   for (const p of people.values()) p.pointsAmount = totalPoints ? r2((pools.points * p.points) / totalPoints) : 0;
   // What was already sent for this month; someone paid earlier but no longer due shows as overpaid.
-  const sent = db.prepare(`SELECT person_id, person_name, SUM(amount) AS amount, SUM(CASE WHEN to_fund = 1 THEN amount ELSE 0 END) AS to_fund,
-    MAX(paid_at) AS paid_at FROM payouts WHERE month = ? GROUP BY person_id, person_name`).all(ym);
+  // Awards (rows with `award`) are kept apart: they come off what's owed and off the person's points.
+  const sent = db.prepare(`SELECT id, person_id, person_name, amount, to_fund, paid_at, award, created_at FROM payouts
+    WHERE month = ? ORDER BY paid_at, id`).all(ym);
   for (const s of sent) if (!people.has(s.person_id)) person(s.person_id, s.person_name);
+  const perPoint = totalPoints ? pools.points / totalPoints : 0;
+  const payments = sent.filter((s) => !s.award);
+  const awards = sent.filter((s) => s.award).map((s) => ({
+    id: s.id, person_id: s.person_id, person_name: s.person_name, description: s.award, kind: s.to_fund ? 'benefit' : 'money',
+    amount: toRon(s.amount), date: s.paid_at, points: perPoint ? r2(toRon(s.amount) / perPoint) : null,
+  }));
   const rows = [...people.values()]
     .map((p) => {
       const total = r2(p.standard + p.pointsAmount);
-      const mine = sent.filter((s) => s.person_id === p.id);
-      const paid = toRon(mine.reduce((a, s) => a + s.amount, 0)), toFund = toRon(mine.reduce((a, s) => a + s.to_fund, 0));
-      return { ...p, total, paid, toFund, owed: r2(total - paid), founder: founders.some((f) => f.id === p.id) };
+      const mine = payments.filter((s) => s.person_id === p.id);
+      const paid = toRon(mine.reduce((a, s) => a + s.amount, 0)), toFund = toRon(mine.reduce((a, s) => a + (s.to_fund ? s.amount : 0), 0));
+      const awarded = sumBy(awards.filter((a) => a.person_id === p.id), (a) => a.amount);
+      const awardPoints = perPoint ? r2(awarded / perPoint) : 0;
+      const paidAt = mine.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
+      return { ...p, total, paid, toFund, awarded, awardPoints, netPoints: r2(p.points - awardPoints), paidAt,
+        owed: r2(total - paid - awarded), founder: founders.some((f) => f.id === p.id) };
     })
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  const paidAt = sent.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
+  const paidAt = payments.reduce((a, s) => (s.paid_at > a ? s.paid_at : a), '') || null;
   return {
     month: ym, split, profit, pools, pending, liveEvents: live.length, pendingPoints, events: done, live,
-    founders: founders.length, totalPoints, freePoints, nobodyPoints, people: rows, ledger,
+    founders: founders.length, totalPoints, freePoints, nobodyPoints, people: rows, ledger, awards, perPoint: r2(perPoint),
     payout: {
-      paidAt, due: sumBy(rows, (p) => p.total), paid: sumBy(rows, (p) => p.paid),
+      paidAt, due: sumBy(rows, (p) => p.total), paid: sumBy(rows, (p) => p.paid), awarded: sumBy(rows, (p) => p.awarded),
+      awardedMoney: sumBy(awards.filter((a) => a.kind === 'money'), (a) => a.amount),
       owed: sumBy(rows, (p) => p.owed), toFund: sumBy(rows, (p) => p.toFund),
     },
     unassignedPoints: totalPoints ? 0 : pools.points, // nobody earned points: the organisers' share is not paid out
@@ -588,7 +600,8 @@ export function computeCash(funds = computeFunds()) {
   const profit = sumBy(loadEvents("WHERE e.status = 'completed'"), (e) => e.profit);
   const topups = r2(funds.general.topups + funds.sportsTotal.topups);
   const reinvested = r2(funds.general.reinvested + funds.sportsTotal.reinvested);
-  const paid = r2(sum('paid') - sum('toFund')); // left to the fund: still in the account
+  // Left to the fund: still in the account. Cash awards left it; a benefit's value went to the general fund.
+  const paid = r2(sum('paid') - sum('toFund') + sum('awardedMoney'));
   const starting = r2(funds.general.starting + funds.sportsTotal.starting);
   // Vouchers given but not used yet: still in the account, but the funds will pay them out.
   const vouchers = openVouchers();
@@ -605,13 +618,15 @@ export function computeCash(funds = computeFunds()) {
 // `toFund`: what everyone is still owed goes to the general community fund instead of being sent.
 // `requestId`: the form's own random id. If rows with it exist, this is the same submission again (a double
 // click, a retry after a lost response): nothing more is recorded and the first result is returned.
-export function applyPayouts(ym, userId, { amounts, date, toFund = false, requestId = null } = {}) {
+// `personId` with `toFund`: only that person's remainder goes to the fund.
+export function applyPayouts(ym, userId, { amounts, date, toFund = false, personId = null, requestId = null } = {}) {
   if (requestId) {
     const done = db.prepare('SELECT COUNT(*) AS n FROM payouts WHERE request_id = ?').get(requestId).n;
     if (done) return done;
   }
   const r = computeFounders(ym);
-  const lines = toFund ? r.people.filter((p) => p.owed >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed })) : amounts
+  const lines = toFund && personId != null ? r.people.filter((p) => p.id === personId && p.owed >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }))
+    : toFund ? r.people.filter((p) => p.owed >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed })) : amounts
     ? Object.entries(amounts).map(([id, v]) => ({ id: Number(id), amount: Number(v) || 0 })).filter((l) => Math.abs(l.amount) >= 0.01)
       .map((l) => ({ ...l, name: r.people.find((p) => p.id === l.id)?.name || db.prepare('SELECT name FROM people WHERE id = ?').get(l.id)?.name }))
     : r.people.filter((p) => Math.abs(p.owed) >= 0.01).map((p) => ({ id: p.id, name: p.name, amount: p.owed }));
@@ -620,4 +635,17 @@ export function applyPayouts(ym, userId, { amounts, date, toFund = false, reques
     VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)`);
   for (const l of lines) ins.run(ym, l.id ?? null, l.name, toBani(l.amount), date || null, userId ?? null, toFund ? 1 : 0, requestId);
   return lines.length;
+}
+
+/**
+ * Gives `personId` an award for month `ym`: cash or a benefit worth `amount` RON. It comes off what they're owed
+ * for the month, and off their points at the month's money per point (see computeFounders).
+ */
+export function addAward(ym, userId, { personId, kind, description, amount, date }) {
+  const r = computeFounders(ym);
+  const name = r.people.find((p) => p.id === personId)?.name;
+  if (!name) throw httpError(400, 'Only someone on this month’s payouts can get an award');
+  return db.prepare(`INSERT INTO payouts (month, person_id, person_name, amount, paid_at, created_by, to_fund, award)
+    VALUES (?, ?, ?, ?, COALESCE(?, date('now')), ?, ?, ?)`)
+    .run(ym, personId, name, toBani(amount), date || null, userId ?? null, kind === 'benefit' ? 1 : 0, description).lastInsertRowid;
 }

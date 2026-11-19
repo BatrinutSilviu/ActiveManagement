@@ -9,6 +9,7 @@ import { TASK_LABELS } from '../points.js';
 import { Targets } from './payouts/Targets.jsx';
 import { ContributionForm } from './payouts/ContributionForm.jsx';
 import { PayForm } from './payouts/PayForm.jsx';
+import { AwardForm } from './payouts/AwardForm.jsx';
 import { PointsReview } from './payouts/PointsReview.jsx';
 import { PayoutHistory } from './payouts/PayoutHistory.jsx';
 
@@ -25,7 +26,8 @@ export default function Payouts() {
   const [version, setVersion] = useState(0);
   const reload = () => { reloadMonth(); setVersion((v) => v + 1); };
   const [form, setForm] = useState(null);
-  const [paying, setPaying] = useState(false);
+  const [paying, setPaying] = useState(null); // the person being marked as paid
+  const [awarding, setAwarding] = useState(false);
   const { canEdit } = usePermissions();
   if (!r) return null;
 
@@ -39,18 +41,24 @@ export default function Payouts() {
   const pay = r.payout;
   const paidAny = !!pay.paidAt;
   const owing = Math.abs(pay.owed) >= 0.01;
-  const markPaid = () => setPaying(true);
   const restToFund = async () => {
     const owed = r.people.filter((p) => p.owed >= 0.01);
     if (!window.confirm(`Give the rest to the general community fund instead of paying it?\n\n${owed.map((p) => `${p.name}: ${money(p.owed)}`).join('\n')}\n\n${money(owed.reduce((a, p) => a + p.owed, 0))} goes to the general fund and ${monthName(month)} counts as settled.`)) return;
     await api.post(`/payouts/${month}/to-fund`);
     reload();
   };
-  const undoPaid = async () => {
-    if (!window.confirm(`Undo the payouts recorded for ${monthName(month)}? The month will show as unpaid again.`)) return;
-    await api.del(`/payouts/${month}`);
+  const undoPaid = async (p) => {
+    if (!window.confirm(`Undo the payments recorded to ${p.name} for ${monthName(month)}? They’ll show as unpaid again (awards stay).`)) return;
+    await api.del(`/payouts/${month}?person=${p.id}`);
     reload();
   };
+  const delAward = async (a) => {
+    if (!confirmDelete(`the award “${a.description}” to ${a.person_name}`)) return;
+    await api.del(`/payouts/awards/${a.id}`);
+    reload();
+  };
+  // A column for what was paid / awarded once anything was, for anyone this month.
+  const showPaid = paidAny || pay.awarded >= 0.01;
   const delContribution = async (l) => {
     if (!confirmDelete(`${l.points} points for ${l.person_name}`)) return;
     await api.del(`/contributions/${l.id}`);
@@ -117,23 +125,19 @@ export default function Payouts() {
 
             <div className="card">
               <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-                <div><h2>To pay · {monthName(month)}</h2><p>Founders’ equal share + organisers’ share by points</p></div>
+                <div><h2>To pay · {monthName(month)}</h2><p>Founders’ equal share + organisers’ share by points, less awards · mark each person paid on their row</p></div>
                 <div className="payout-status">
                   <strong>{money(pay.due)}</strong>
-                  {paidAny && <span className="badge status-completed">Paid {date(pay.paidAt)}</span>}
-                  {canEdit && (!paidAny || pay.owed >= 0.01) && (
-                    <button className="btn btn-sm btn-primary" onClick={markPaid}>{paidAny ? `Pay the rest ${money(pay.owed)}` : 'Mark as paid'}</button>
-                  )}
+                  {pay.owed < 0.01 && paidAny && <span className="badge status-completed">All paid</span>}
                   {canEdit && pay.owed >= 0.01 && (
                     <button className="btn btn-sm" onClick={restToFund} title="Not paid to the founders / organisers: it goes to the general community fund">
                       {paidAny ? 'Rest' : 'All'} to community fund</button>
                   )}
-                  {canEdit && paidAny && <button className="btn btn-sm" onClick={undoPaid}>Undo</button>}
                 </div>
               </div>
               {paidAny && owing && (
                 <p className="hint" style={{ padding: '0 22px 12px', margin: 0 }}>
-                  {money(pay.paid)} was paid against {money(pay.due)} calculated, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} more was paid than calculated`}.
+                  {money(pay.paid)} was paid{pay.awarded >= 0.01 ? ` and ${money(pay.awarded)} given as awards` : ''} against {money(pay.due)} calculated, so {pay.owed > 0 ? `${money(pay.owed)} more is owed` : `${money(-pay.owed)} more was paid than calculated`}.
                 </p>
               )}
               {pay.toFund >= 0.01 && (
@@ -142,7 +146,7 @@ export default function Payouts() {
               <div className="table-wrap">
                 {r.people.length ? (
                   <table>
-                    <thead><tr><th>Person</th><th className="r hide-sm">Founder share</th><th className="r hide-sm">Points</th><th className="r hide-sm">Organiser share</th><th className="r">Total</th>{paidAny && <th className="r">Paid</th>}</tr></thead>
+                    <thead><tr><th>Person</th><th className="r hide-sm">Founder share</th><th className="r hide-sm">Points</th><th className="r hide-sm">Organiser share</th><th className="r">Total</th>{showPaid && <th className="r">Paid</th>}{canEdit && <th />}</tr></thead>
                     <tbody>
                       {r.people.map((p) => (
                         <tr key={p.id}>
@@ -155,16 +159,28 @@ export default function Payouts() {
                           <td className="r hide-sm">
                             {number(p.points)}
                             {r.totalPoints > 0 && <span className="muted"> · {Math.round((p.points / r.totalPoints) * 100)}%</span>}
+                            {p.awardPoints > 0 && <div className="row-sub">− {number(p.awardPoints)} for awards = {number(p.netPoints)}</div>}
                             {p.freePoints > 0 && <div className="row-sub">+ {number(p.freePoints)} done for free</div>}
                             {p.pendingPoints > 0 && <div className="row-sub">+ {number(p.pendingPoints)} from live events</div>}
                           </td>
                           <td className="r hide-sm">{money(p.pointsAmount)}</td>
-                          <td className="r"><strong>{money(p.total)}</strong></td>
-                          {paidAny && (
+                          <td className="r"><strong>{money(p.total)}</strong>
+                            {p.awarded >= 0.01 && <div className="row-sub">− {money(p.awarded)} awards</div>}</td>
+                          {showPaid && (
                             <td className="r">
                               {money(p.paid)}
+                              {p.paidAt && <div className="row-sub">{date(p.paidAt)}</div>}
                               {p.toFund >= 0.01 && <div className="row-sub">incl. {money(p.toFund)} to the fund</div>}
                               {Math.abs(p.owed) >= 0.01 && <div className={`row-sub ${p.owed < 0 ? 'neg' : ''}`}>{signedMoney(p.owed)} {p.owed > 0 ? 'owed' : 'overpaid'}</div>}
+                            </td>
+                          )}
+                          {canEdit && (
+                            <td className="r actions" style={{ whiteSpace: 'nowrap' }}>
+                              {p.owed >= 0.01 && (
+                                <button className="btn btn-sm btn-primary" onClick={() => setPaying(p)}>
+                                  {Math.abs(p.paid) >= 0.01 ? 'Pay rest' : 'Mark paid'}</button>
+                              )}
+                              {Math.abs(p.paid) >= 0.01 && <button className="btn btn-sm" style={{ marginLeft: 6 }} onClick={() => undoPaid(p)}>Undo</button>}
                             </td>
                           )}
                         </tr>
@@ -179,6 +195,34 @@ export default function Payouts() {
             </div>
           </div>
           <Targets month={month} split={s} onSaved={reload} />
+        </div>
+
+        <div className="card">
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}>
+            <div><h2>Awards · {monthName(month)}</h2>
+              <p>Money or benefits given to an organiser: the value comes off their payout and their points{r.perPoint > 0 ? ` (${money(r.perPoint)} a point)` : ''}</p></div>
+            {canEdit && r.people.length > 0 && <button className="btn btn-sm" onClick={() => setAwarding(true)}><IconPlus width="14" />Give award</button>}
+          </div>
+          <div className="table-wrap">
+            {r.awards.length ? (
+              <table>
+                <thead><tr><th className="hide-sm">Date</th><th>Person</th><th>Award</th><th className="r hide-sm">Points</th><th className="r">Worth</th>{canEdit && <th />}</tr></thead>
+                <tbody>
+                  {r.awards.map((a) => (
+                    <tr key={a.id}>
+                      <td className="hide-sm">{date(a.date)}</td>
+                      <td>{a.person_name}</td>
+                      <td className="cell-wrap">{a.description}<span className="badge" style={{ marginLeft: 6 }}>{a.kind === 'money' ? 'money' : 'benefit'}</span>
+                        <div className="row-sub show-sm">{date(a.date)}{a.points != null ? ` · −${number(a.points)} pts` : ''}</div></td>
+                      <td className="r secondary hide-sm">{a.points != null ? `−${number(a.points)}` : '—'}</td>
+                      <td className="r"><strong>{money(a.amount)}</strong></td>
+                      {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Delete" onClick={() => delAward(a)}><IconTrash /></button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <div className="empty">No awards this month.</div>}
+          </div>
         </div>
 
         <PointsReview key={month} month={month} onChanged={reload} />
@@ -226,7 +270,8 @@ export default function Payouts() {
         <PayoutHistory version={version} onOpen={(m) => { setMonth(m); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
       </div>
 
-      {paying && <PayForm month={month} r={r} onClose={() => setPaying(false)} onSaved={() => { setPaying(false); reload(); }} />}
+      {paying && <PayForm month={month} person={paying} onClose={() => setPaying(null)} onSaved={() => { setPaying(null); reload(); }} />}
+      {awarding && <AwardForm month={month} r={r} onClose={() => setAwarding(false)} onSaved={() => { setAwarding(false); reload(); }} />}
       {form && <ContributionForm month={month} item={form.item} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
     </div>
   );

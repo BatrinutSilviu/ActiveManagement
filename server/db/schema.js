@@ -659,6 +659,12 @@ if (!columns('payouts').includes('request_id')) {
     CREATE INDEX IF NOT EXISTS payouts_request ON payouts (request_id) WHERE request_id IS NOT NULL;`);
 }
 
+// Awards: money or a benefit (a racket, a free entry…) given to someone against their month, worth `amount`.
+// It comes off what they're owed for that month and off their points (at the month's money per point).
+// award = what it was (null on an ordinary payout). Cash awards (to_fund = 0) leave the account like a payout;
+// a benefit's value (to_fund = 1) goes to the general fund, which pays for the benefit.
+if (!columns('payouts').includes('award')) db.exec('ALTER TABLE payouts ADD COLUMN award TEXT');
+
 // Edit forms send a whole event / transaction back. `version` goes up on every change to what those forms
 // edit (by anyone: another admin, a push from the padel or hikes app, a script), so a form opened before that
 // change is refused (409) instead of silently writing the old values back over it. Triggers, so no writer can forget.
