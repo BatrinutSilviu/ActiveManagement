@@ -848,6 +848,8 @@ if (!columns('appointments').includes('venue'))
   db.exec("ALTER TABLE appointments ADD COLUMN venue TEXT NOT NULL DEFAULT 'home' CHECK (venue IN ('home', 'practice'))");
 // Which of the practice's locations (Settings → Business), for a session at the practice.
 if (!columns('appointments').includes('location')) db.exec('ALTER TABLE appointments ADD COLUMN location TEXT');
+// Why a session was cancelled.
+if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).
 if (!columns('clients').includes('entity')) db.exec('ALTER TABLE clients ADD COLUMN entity TEXT');
 // A patient's first name and surname kept apart (name stays the full "First Last", which the lists and joins show),

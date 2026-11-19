@@ -27,7 +27,11 @@ export default function Overview() {
   if (!o) return null;
   const thisMonth = o.year === today.slice(0, 4) ? o.months[Number(today.slice(5, 7)) - 1] : null;
   const total = (k) => o.months.reduce((s, m) => s + m[k], 0);
-  const status = (a, s) => run(() => api.put(`/appointments/${a.id}/status`, { status: s }));
+  const status = (a, s) => {
+    const cancel_reason = s === 'cancelled' ? window.prompt(t('Reason for cancelling (optional):')) : null;
+    if (cancel_reason === null && s === 'cancelled') return; // closed the prompt: not cancelled
+    run(() => api.put(`/appointments/${a.id}/status`, { status: s, cancel_reason }));
+  };
   // Not billed yet, per patient: one "Bill" for all of theirs.
   const owing = new Map();
   for (const x of [...o.unbilled.sessions, ...o.unbilled.packages]) {

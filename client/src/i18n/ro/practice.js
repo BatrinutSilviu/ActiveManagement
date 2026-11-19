@@ -146,4 +146,6 @@ export default {
   'Duration (min)': 'Durată (min)', '{name} duration': 'Durata {name}',
   'What you offer, how long each lasts, and the price a new session of each starts with': 'Ce oferi, cât durează fiecare și prețul cu care pornește o ședință nouă',
   'The duration must be a whole number of minutes': 'Durata trebuie să fie un număr întreg de minute',
+  'Reason for cancelling': 'Motivul anulării', 'Reason for cancelling (optional):': 'Motivul anulării (opțional):',
+  'e.g. the child is ill, the family is away…': 'ex. copilul e bolnav, familia e plecată…',
 };

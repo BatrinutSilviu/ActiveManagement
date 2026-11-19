@@ -83,6 +83,12 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
         ))}
       </div>
       <div className="form-grid">
+        {f.status === 'cancelled' && (
+          <label className="field full">{t('Reason for cancelling')}
+            <textarea value={f.cancel_reason || ''} onChange={set('cancel_reason')} rows={2} autoFocus
+              placeholder={t('e.g. the child is ill, the family is away…')} />
+          </label>
+        )}
         <label className="field full">{t(Term('person'))}
           <Select value={f.client_id ? String(f.client_id) : ''} onChange={(e) => setF({ ...f, client_id: e.target.value, package_id: '' })}
             onCreate={addClient} createLabel={t(`New ${term('person')}`)}>
