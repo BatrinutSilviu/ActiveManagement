@@ -52,6 +52,8 @@ export function PatientForm({ patient, onClose, onSaved }) {
             </Select>
           </label>
         )}
+        <label className="field">{t('Contract number')}<input value={f.contract_number || ''} onChange={set('contract_number')} /></label>
+        <label className="field">{t('Contract date')}<input type="date" value={f.contract_date || ''} onChange={set('contract_date')} /></label>
         <label className="field full">{t('Association')} <span className="hint">{t('— the sponsor they belong to, if any')}</span>
           <input value={f.association || ''} onChange={set('association')} list="associations" />
           <datalist id="associations">{associations.map((a) => <option key={a} value={a} />)}</datalist>

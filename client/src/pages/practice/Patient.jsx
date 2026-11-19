@@ -54,6 +54,7 @@ function Patient({ id }) {
             {c.address && <a href={mapsUrl(c.address)} target="_blank" rel="noreferrer">{c.address} ↗</a>}
             {a != null && <span>{tn(a, '{n} year old', '{n} years old')}</span>}
             {c.entity && <span className="badge">{c.entity}</span>}
+            {(c.contract_number || c.contract_date) && <span>{t('Contract')} {c.contract_number && `nr. ${c.contract_number}`}{c.contract_date && ` ${t('from {date}', { date: date(c.contract_date) })}`}</span>}
             {c.association && <span className="badge">{c.association}</span>}
           </p>
           {(c.tutor_name || c.tutor_phone || c.tutor_email) && (

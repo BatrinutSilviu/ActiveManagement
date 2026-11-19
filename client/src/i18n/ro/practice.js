@@ -152,4 +152,6 @@ export default {
   'What you offer, its colour on the timetable, how long each lasts, and the price a new session of each starts with': 'Ce oferi, culoarea în orar, cât durează fiecare și prețul cu care pornește o ședință nouă',
   Venues: 'Locații', Venue: 'Locație', 'Where sessions happen: at the patient’s home, or at one of the practice’s locations': 'Unde au loc ședințele: la domiciliul pacientului sau într-una din locațiile cabinetului',
   'the address on their page, or one given for the session': 'adresa de pe pagina lui sau una dată pentru ședință',
+  Contract: 'Contract', 'Contract number': 'Număr contract', 'Contract date': 'Data contractului', 'from {date}': 'din {date}',
+  "The contract date isn't a valid date": 'Data contractului nu e o dată validă',
 };

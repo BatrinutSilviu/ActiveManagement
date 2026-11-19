@@ -850,6 +850,9 @@ if (!columns('appointments').includes('venue'))
   db.exec("ALTER TABLE appointments ADD COLUMN venue TEXT NOT NULL DEFAULT 'home' CHECK (venue IN ('home', 'practice'))");
 // Which of the practice's locations (Settings → Business), for a session at the practice.
 if (!columns('appointments').includes('location')) db.exec('ALTER TABLE appointments ADD COLUMN location TEXT');
+// The patient's contract: its number and the date it was signed.
+if (!columns('clients').includes('contract_number'))
+  db.exec('ALTER TABLE clients ADD COLUMN contract_number TEXT; ALTER TABLE clients ADD COLUMN contract_date TEXT;');
 // Why a session was cancelled.
 if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).
