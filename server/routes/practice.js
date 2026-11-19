@@ -4,7 +4,8 @@
 //
 // Money is counted when it's paid: ticking an invoice or receipt paid adds an income transaction on the day it was
 // paid (shown in Transactions, counted in the account and the month), unticking removes it. What's owed:
-//   - not billed yet: sessions done that aren't in a package, and packages, with no invoice or receipt yet;
+//   - not billed yet: sessions done that aren't in a package, travel fees of home visits done (package or not), and
+//     packages, with no invoice or receipt yet;
 //   - billed, not paid: invoices and receipts without the paid tick.
 import express from 'express';
 import { db, tx } from '../db.js';
@@ -31,8 +32,8 @@ function getClient(id) {
 
 // What a patient still owes: sessions done (outside packages) and packages with no invoice yet, and invoices
 // not paid yet. In bani.
-const UNBILLED_SQL = `(SELECT COALESCE(SUM(a.price), 0) FROM appointments a WHERE a.client_id = c.id AND a.status = 'done'
-    AND a.package_id IS NULL AND a.invoice_id IS NULL)
+const UNBILLED_SQL = `(SELECT COALESCE(SUM(a.price + a.travel_fee), 0) FROM appointments a WHERE a.client_id = c.id AND a.status = 'done'
+    AND a.invoice_id IS NULL)
   + (SELECT COALESCE(SUM(p.price), 0) FROM packages p WHERE p.client_id = c.id AND p.invoice_id IS NULL)`;
 const UNPAID_SQL = '(SELECT COALESCE(SUM(i.amount), 0) FROM invoices i WHERE i.client_id = c.id AND i.paid = 0)';
 
@@ -51,7 +52,7 @@ router.get('/clients', (req, res) => {
 // First name and surname apart; `name` is kept as the full "First Last" the lists and joins show. A bare `name`
 // (the quick add in the session form) is split: first word the first name, the rest the surname.
 const CLIENT_FIELDS = ['first_name', 'last_name', 'name', 'phone', 'email', 'address', 'birth_date', 'about', 'archived',
-  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date'];
+  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email', 'association', 'entity', 'contract_number', 'contract_date', 'travel_fee'];
 // The legal entity they're treated through, one of the business's (Settings → Business). The patient form asks
 // for it; the quick add from a session doesn't, so it can be empty. One no longer listed is kept as it was.
 function readEntity(v) {
@@ -76,7 +77,7 @@ function saveConditions(id, list) {
   for (const c of list) add.run(id, c);
 }
 const CONDITIONS_SQL = "(SELECT json_group_array(name) FROM (SELECT name FROM client_conditions WHERE client_id = c.id ORDER BY name)) AS conditions";
-const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]') });
+const withConditions = (c) => ({ ...c, conditions: JSON.parse(c.conditions || '[]'), travel_fee: toRon(c.travel_fee) });
 function readClient(body) {
   let first = text(body.first_name, 60), last = text(body.last_name, 60);
   if (!first && !last && text(body.name, 120)) [first, last] = (([f, ...r]) => [f, r.join(' ') || null])(text(body.name, 120).split(/\s+/));
@@ -86,7 +87,7 @@ function readClient(body) {
     optDate(body.birth_date, 'The birth date'), text(body.about, 10000), body.archived ? 1 : 0,
     text(body.tutor_name, 120), text(body.tutor_relation, 60), text(body.tutor_phone, 60), text(body.tutor_email, 120),
     text(body.association, 120), readEntity(body.entity),
-    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date')];
+    text(body.contract_number, 60), optDate(body.contract_date, 'The contract date'), money(body.travel_fee, 'The travel fee')];
 }
 
 router.post('/clients', (req, res) => {
@@ -126,7 +127,7 @@ router.get('/clients/:id', (req, res) => {
   const c = getClient(id);
   const owed = db.prepare(`SELECT ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid, ${CONDITIONS_SQL} FROM clients c WHERE c.id = ?`).get(id);
   res.json({
-    ...c, conditions: JSON.parse(owed.conditions), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
+    ...c, conditions: JSON.parse(owed.conditions), travel_fee: toRon(c.travel_fee), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
     notes: db.prepare('SELECT * FROM client_notes WHERE client_id = ? ORDER BY date DESC, id DESC').all(id),
     packages: loadPackages('WHERE p.client_id = ?', [id]),
     appointments: loadAppointments('WHERE a.client_id = ?', [id], 'ORDER BY a.date DESC, a.start_time DESC'),
@@ -328,7 +329,7 @@ function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time'
     LEFT JOIN invoices i ON i.id = a.invoice_id
     ${where} ${order}`).all(...params)
     // At the practice: the address of its location (Settings → Business).
-    .map((a) => ({ ...a, price: toRon(a.price), place: a.venue === 'practice' ? locationAddress(a.location) : a.place }));
+    .map((a) => ({ ...a, price: toRon(a.price), travel_fee: toRon(a.travel_fee), amount: toRon(a.price + a.travel_fee), place: a.venue === 'practice' ? locationAddress(a.location) : a.place }));
 }
 
 const locationAddress = (name) => (getBusiness()?.locations || []).find((l) => l.name === name)?.address || null;
@@ -379,10 +380,11 @@ function readAppointment(body, id = null) {
     address: venue === 'home' ? text(body.address, 300) : null, location: venue === 'practice' ? readLocation(body.location, id) : null,
     status, price, package_id: packageId, note: text(body.note, 5000),
     cancel_reason: status === 'cancelled' ? text(body.cancel_reason, 2000) : null, // why it was cancelled
+    travel_fee: venue === 'home' ? money(body.travel_fee, 'The travel fee') : 0, // billed with it, package or not
   };
 }
 const APPOINTMENT_FIELDS = ['client_id', 'type_id', 'date', 'start_time', 'end_time', 'venue', 'address', 'location', 'status', 'price',
-  'package_id', 'note', 'cancel_reason'];
+  'package_id', 'note', 'cancel_reason', 'travel_fee'];
 
 router.get('/appointments', (req, res) => {
   const where = [], params = [];
@@ -413,7 +415,7 @@ router.put('/appointments/:id', (req, res) => {
 router.put('/appointments/:id/status', (req, res) => {
   const a = db.prepare('SELECT * FROM appointments WHERE id = ?').get(idParam(req));
   if (!a) throw httpError(404, 'This session no longer exists');
-  const v = readAppointment({ ...a, price: toRon(a.price), status: req.body.status, cancel_reason: req.body.cancel_reason }, a.id);
+  const v = readAppointment({ ...a, price: toRon(a.price), travel_fee: toRon(a.travel_fee), status: req.body.status, cancel_reason: req.body.cancel_reason }, a.id);
   db.prepare('UPDATE appointments SET status = ?, package_id = ?, cancel_reason = ? WHERE id = ?').run(v.status, v.package_id, v.cancel_reason, a.id);
   res.json({ ok: true });
 });
@@ -505,12 +507,13 @@ router.get('/invoices/next-number', (req, res) => {
   res.json({ number: m ? m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0') : '' });
 });
 
-// What can go on an invoice for this patient: sessions done outside packages, and packages, with no invoice yet
+// What can go on an invoice for this patient: sessions done with something to pay (their price outside a package, their
+// travel fee either way), and packages, with no invoice yet
 // (or already on invoice `invoice_id`, when editing it).
 router.get('/clients/:id/billable', (req, res) => {
   const id = idParam(req), inv = Number(req.query.invoice_id) || -1;
   res.json({
-    appointments: loadAppointments(`WHERE a.client_id = ? AND a.status = 'done' AND a.package_id IS NULL AND a.price > 0
+    appointments: loadAppointments(`WHERE a.client_id = ? AND a.status = 'done' AND a.price + a.travel_fee > 0
       AND (a.invoice_id IS NULL OR a.invoice_id = ?)`, [id, inv]),
     packages: loadPackages('WHERE p.client_id = ? AND p.price > 0 AND (p.invoice_id IS NULL OR p.invoice_id = ?)', [id, inv]),
   });
@@ -589,7 +592,7 @@ router.get('/practice/overview', (req, res) => {
     WHERE status = 'done' AND strftime('%Y', date) = ? GROUP BY m`).all(year)) months[a.m - 1].sessions = a.n;
   for (const m of months) m.profit = Math.round((m.income - m.expenses) * 100) / 100;
 
-  const unbilledSessions = loadAppointments(`WHERE a.status = 'done' AND a.package_id IS NULL AND a.price > 0 AND a.invoice_id IS NULL`, [],
+  const unbilledSessions = loadAppointments(`WHERE a.status = 'done' AND a.price + a.travel_fee > 0 AND a.invoice_id IS NULL`, [],
     'ORDER BY a.date');
   const unbilledPackages = loadPackages('WHERE p.price > 0 AND p.invoice_id IS NULL', []);
   const unpaid = loadInvoices('WHERE i.paid = 0', []).reverse(); // oldest first
@@ -599,7 +602,7 @@ router.get('/practice/overview', (req, res) => {
     year, months,
     years: [...new Set([...years, day.slice(0, 4)])].sort().reverse(),
     unbilled: { sessions: unbilledSessions, packages: unbilledPackages,
-      amount: Math.round((unbilledSessions.reduce((s, a) => s + a.price, 0) + unbilledPackages.reduce((s, p) => s + p.price, 0)) * 100) / 100 },
+      amount: Math.round((unbilledSessions.reduce((s, a) => s + a.amount, 0) + unbilledPackages.reduce((s, p) => s + p.price, 0)) * 100) / 100 },
     unpaid: { list: unpaid, amount: Math.round(unpaid.reduce((s, i) => s + i.amount, 0) * 100) / 100 },
     toConfirm: loadAppointments("WHERE a.status = 'scheduled' AND a.date < ?", [day]),
     upcoming: loadAppointments("WHERE a.status = 'scheduled' AND a.date BETWEEN ? AND ?", [day, addDays(day, 6)]),

@@ -25,13 +25,16 @@ export const dayMonth = (s) => new Date(`${s}T12:00:00`).toLocaleDateString(date
 
 export const timeLabel = (a) => (a.start_time ? `${a.start_time}${a.end_time ? `–${a.end_time}` : ''}` : '');
 
-/** What a session costs: its own price, or "package" when it's paid with one. */
-export const sessionPrice = (a) => (a.package_id ? <span className="muted">{a.package_name || t('package')}</span> : money0(a.price));
+/** What a session costs: its own price, or "package" when it's paid with one; plus its travel fee. */
+export const sessionPrice = (a) => <>
+  {a.package_id ? <span className="muted">{a.package_name || t('package')}</span> : money0(a.price)}
+  {a.travel_fee > 0 && <span className="muted"> + {t('{amount} travel', { amount: money0(a.travel_fee) })}</span>}
+</>;
 
 /** Where its money stands: on an invoice (paid or not), not billed yet, or nothing to bill. */
 export function Billing({ a }) {
   if (a.invoice_id) return <span className={`badge ${a.invoice_paid ? 'status-completed' : ''}`}>{docLabel(a)} · {a.invoice_paid ? t('paid') : t('not paid')}</span>;
-  if (a.status === 'done' && !a.package_id && a.price > 0) return <span className="badge badge-warn">{t('Not billed')}</span>;
+  if (a.status === 'done' && (a.amount ?? a.price) > 0) return <span className="badge badge-warn">{t('Not billed')}</span>;
   return null;
 }
 

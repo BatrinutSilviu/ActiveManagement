@@ -17,7 +17,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
-    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '',
+    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '', travel_fee: '',
     status: 'scheduled', price: '', package_id: '', note: '',
     ...(session || {}),
   }));
@@ -38,6 +38,10 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   }, [packages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const client = clients?.find((c) => String(c.id) === String(f.client_id));
+  // A new home visit for a patient chosen beforehand (from their page) starts with their usual travel fee.
+  useEffect(() => {
+    if (!session && client && f.venue === 'home' && f.travel_fee === '' && client.travel_fee) setF((x) => ({ ...x, travel_fee: client.travel_fee }));
+  }, [client?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Packages it can use: with sessions left, or the one it's already in.
   // Places a package still has for a service: its own part plus the general ones (left_for, from the server).
   const placesFor = (p, typeId) => (typeId && p.left_for?.[typeId] != null ? p.left_for[typeId] : p.left_for?.any ?? 0);
@@ -99,7 +103,10 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           </label>
         )}
         <label className="field full">{t(Term('person'))}
-          <Select value={f.client_id ? String(f.client_id) : ''} onChange={(e) => setF({ ...f, client_id: e.target.value, package_id: '' })}
+          <Select value={f.client_id ? String(f.client_id) : ''} onChange={(e) => {
+            const c = clients?.find((x) => String(x.id) === e.target.value);
+            setF({ ...f, client_id: e.target.value, package_id: '', travel_fee: f.venue === 'home' ? c?.travel_fee || '' : f.travel_fee });
+          }}
             onCreate={addClient} createLabel={t(`New ${term('person')}`)}>
             <option value="">{t('— choose —')}</option>
             {clients?.filter((c) => !c.archived || String(c.id) === String(f.client_id)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -116,7 +123,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
         <label className="field half">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
         <label className="field full">{t('Venue')}
           <Select value={f.venue === 'practice' ? `practice:${f.location || ''}` : 'home'} required
-            onChange={(e) => { const [venue, ...name] = e.target.value.split(':'); setF({ ...f, venue, location: name.join(':') }); }}>
+            onChange={(e) => { const [venue, ...name] = e.target.value.split(':'); setF({ ...f, venue, location: name.join(':'), travel_fee: venue === 'home' && !f.travel_fee ? client?.travel_fee || '' : f.travel_fee }); }}>
             <option value="home">{t(VENUES.home)}</option>
             {places.map((l) => <option key={l.name} value={`practice:${l.name}`}>{l.name}{l.address ? ` · ${l.address}` : ''}</option>)}
             {!locations.length && <option value="practice:">{t(VENUES.practice)}</option>}
@@ -125,6 +132,11 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
         {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />
         </label>}
+        {f.venue === 'home' && (
+          <label className="field">{t('Travel fee ({currency})', { currency: CURRENCY })}
+            <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" />
+          </label>
+        )}
         {f.client_id && (
           <label className="field">{t('Paid with')}
             <Select value={f.package_id ? String(f.package_id) : ''} onChange={set('package_id')}>

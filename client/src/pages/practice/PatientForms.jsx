@@ -44,6 +44,8 @@ export function PatientForm({ patient, onClose, onSaved }) {
         <label className="field">{t('Phone')}<input type="tel" value={f.phone || ''} onChange={set('phone')} /></label>
         <label className="field">{t('Email')}<input type="email" value={f.email || ''} onChange={set('email')} /></label>
         <label className="field full">{t('Address')}<input value={f.address || ''} onChange={set('address')} placeholder={t('Where the home visits are')} /></label>
+        <label className="field full">{t('Travel fee ({currency})', { currency: CURRENCY })} <span className="hint">— {t('usual cost of driving to them; filled in on home visits')}</span>
+          <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" /></label>
         <label className="field">{t('Birth date')}<input type="date" value={f.birth_date || ''} onChange={set('birth_date')} /></label>
         {(entities.length > 0 || f.entity) && (
           <label className="field full">{t('Legal entity')} <span className="hint">{t('— who they are treated through')}</span>

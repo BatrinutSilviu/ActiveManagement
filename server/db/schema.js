@@ -895,6 +895,10 @@ if (!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'package_items'").get(
     INSERT INTO package_type_items (package_type_id, service_id, sessions) SELECT id, service_id, sessions FROM package_types;
     UPDATE packages SET service_id = NULL; UPDATE package_types SET service_id = NULL;`);
 }
+// Travel: what driving to a patient's home costs. The patient has a usual fee; a home visit has its own (filled in from
+// theirs). It's billed with the session, also when a package pays for the session itself. In bani.
+if (!columns('clients').includes('travel_fee')) db.exec('ALTER TABLE clients ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
+if (!columns('appointments').includes('travel_fee')) db.exec('ALTER TABLE appointments ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
 // Why a session was cancelled.
 if (!columns('appointments').includes('cancel_reason')) db.exec('ALTER TABLE appointments ADD COLUMN cancel_reason TEXT');
 // The legal entity they're treated through: one of the business's entities (Settings → Business).

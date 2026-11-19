@@ -50,7 +50,7 @@ export default function InvoiceForm({ invoiceId, clientId, select, onClose, onSa
   const items = billable ? [
     ...billable.packages.map((p) => ({ key: `p${p.id}`, list: 'package_ids', id: p.id, label: t('{name} (package, {date})', { name: p.name, date: date(p.date) }), amount: p.price })),
     ...billable.appointments.map((a) => ({ key: `a${a.id}`, list: 'appointment_ids', id: a.id,
-      label: `${date(a.date)}${a.start_time ? ` ${timeLabel(a)}` : ''}${a.type_name ? ` · ${a.type_name}` : ''}`, amount: a.price })),
+      label: `${date(a.date)}${a.start_time ? ` ${timeLabel(a)}` : ''}${a.type_name ? ` · ${a.type_name}` : ''}${a.travel_fee > 0 ? ` · ${t(a.package_id ? 'travel' : 'with travel')}` : ''}`, amount: a.amount ?? a.price })),
   ] : [];
   const ticked = (it) => f[it.list].includes(it.id);
   const itemsTotal = r2(items.filter(ticked).reduce((s, it) => s + it.amount, 0));

@@ -179,4 +179,6 @@ export default {
   'Add at least one service with a number of sessions': 'Adaugă cel puțin un serviciu cu un număr de ședințe',
   'A package can have at most 500 sessions': 'Un pachet poate avea cel mult 500 de ședințe',
   'The sessions already booked with this package wouldn’t fit in it any more': 'Ședințele deja programate cu acest pachet nu ar mai încăpea în el',
+  'Travel fee ({currency})': 'Taxă de deplasare ({currency})', 'usual cost of driving to them; filled in on home visits': 'cât costă de obicei drumul până la ei; se completează la vizitele la domiciliu',
+  '{amount} travel': '{amount} deplasare', travel: 'deplasare', 'with travel': 'cu deplasare', "The travel fee can't be negative": 'Taxa de deplasare nu poate fi negativă',
 };
