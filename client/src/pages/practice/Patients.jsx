@@ -19,7 +19,7 @@ export default function Patients() {
   const [archived, setArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const list = (data || []).filter((c) => (archived || !c.archived)
-    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''}`).includes(fold(q))));
+    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
 
   return (
@@ -29,7 +29,7 @@ export default function Patients() {
         {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New {term('person')}</button>}
       </div>
       <div className="filters">
-        <input type="search" placeholder="Search name, phone, address…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" placeholder="Search name, tutor, phone, address…" value={q} onChange={(e) => setQ(e.target.value)} />
         {nArchived > 0 && <label className="check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />Show archived ({nArchived})</label>}
       </div>
       <div className="card table-wrap">
@@ -44,10 +44,11 @@ export default function Patients() {
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/patients/${c.id}`)}>
                   <td className="cell-wrap">
                     <div className="row-title">{c.name}{!!c.archived && <> <span className="badge">archived</span></>}</div>
+                    {c.tutor_name && <div className="row-sub">Tutor: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
                     <div className="row-sub show-sm">{c.phone}{c.next_session ? ` · next ${date(c.next_session)}` : ''}</div>
                   </td>
-                  <td className="hide-sm">{c.phone || <span className="muted">—</span>}</td>
+                  <td className="hide-sm">{c.phone || c.tutor_phone || <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.last_session ? date(c.last_session) : <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.next_session ? date(c.next_session) : <span className="muted">—</span>}</td>
                   <td className="r hide-sm">{c.sessions_done}</td>

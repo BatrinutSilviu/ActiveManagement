@@ -26,17 +26,23 @@ const footer = (onClose, saving) => <>
 export function PatientForm({ patient, onClose, onSaved }) {
   const { term } = useBusiness();
   const { f, set, error, saving, save } = useForm(
-    { name: '', phone: '', email: '', address: '', birth_date: '', about: '', ...(patient || {}), archived: !!patient?.archived },
+    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', ...(patient || {}), archived: !!patient?.archived },
     (v) => (patient ? api.put(`/clients/${patient.id}`, v) : api.post('/clients', v)), onSaved);
   return (
     <Modal title={patient ? `Edit ${term('person')}` : `New ${term('person')}`} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
       {error && <div className="error-box">{error}</div>}
       <div className="form-grid">
-        <label className="field full">Name<input value={f.name} onChange={set('name')} required autoFocus /></label>
+        <label className="field">First name<input value={f.first_name || ''} onChange={set('first_name')} required autoFocus /></label>
+        <label className="field">Surname<input value={f.last_name || ''} onChange={set('last_name')} required /></label>
         <label className="field">Phone<input type="tel" value={f.phone || ''} onChange={set('phone')} /></label>
         <label className="field">Email<input type="email" value={f.email || ''} onChange={set('email')} /></label>
         <label className="field full">Address<input value={f.address || ''} onChange={set('address')} placeholder="Where the home visits are" /></label>
         <label className="field">Birth date<input type="date" value={f.birth_date || ''} onChange={set('birth_date')} /></label>
+        <div className="field full"><strong>Tutor</strong> <span className="hint">— the parent or guardian</span></div>
+        <label className="field">Name<input value={f.tutor_name || ''} onChange={set('tutor_name')} /></label>
+        <label className="field">Relation<input value={f.tutor_relation || ''} onChange={set('tutor_relation')} placeholder="Mother, father, grandparent…" /></label>
+        <label className="field">Phone<input type="tel" value={f.tutor_phone || ''} onChange={set('tutor_phone')} /></label>
+        <label className="field">Email<input type="email" value={f.tutor_email || ''} onChange={set('tutor_email')} /></label>
         <label className="field full">About <span className="hint">— what to keep in mind: condition, history, what works…</span>
           <textarea value={f.about || ''} onChange={set('about')} rows={4} />
         </label>

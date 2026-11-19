@@ -53,6 +53,13 @@ function Patient({ id }) {
             {c.address && <a href={mapsUrl(c.address)} target="_blank" rel="noreferrer">{c.address} ↗</a>}
             {a != null && <span>{a} years old</span>}
           </p>
+          {(c.tutor_name || c.tutor_phone || c.tutor_email) && (
+            <p style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <span>Tutor: {c.tutor_name || '—'}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</span>
+              {c.tutor_phone && <a href={`tel:${c.tutor_phone.replace(/\s+/g, '')}`}>{c.tutor_phone}</a>}
+              {c.tutor_email && <a href={`mailto:${c.tutor_email}`}>{c.tutor_email}</a>}
+            </p>
+          )}
         </div>
         {canEdit && <div className="page-actions">
           <button className="btn btn-primary" onClick={() => setForm({ kind: 'session' })}><IconPlus width="16" />New {term('event')}</button>

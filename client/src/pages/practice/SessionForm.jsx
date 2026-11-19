@@ -42,7 +42,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
     setF({ ...f, type_id: e.target.value, price: t?.default_fee ? String(t.default_fee) : f.price });
   };
   const addClient = async (name) => {
-    const n = name || window.prompt(`Name of the new ${term('person')}:`);
+    const n = name || window.prompt(`First name and surname of the new ${term('person')}:`);
     if (!n?.trim()) return;
     const { id } = await api.post('/clients', { name: n.trim() });
     await reloadClients();

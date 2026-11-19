@@ -838,4 +838,21 @@ CREATE TABLE IF NOT EXISTS appointments (
 CREATE INDEX IF NOT EXISTS appointments_date ON appointments (date, start_time);
 CREATE INDEX IF NOT EXISTS appointments_client ON appointments (client_id);
 `);
+
+// A patient's first name and surname kept apart (name stays the full "First Last", which the lists and joins show),
+// and their tutor: the parent or guardian who brings them and pays. Existing patients: the first word of the name
+// became the first name, the rest the surname.
+if (!columns('clients').includes('first_name')) {
+  db.exec(`ALTER TABLE clients ADD COLUMN first_name TEXT;
+    ALTER TABLE clients ADD COLUMN last_name TEXT;
+    ALTER TABLE clients ADD COLUMN tutor_name TEXT;
+    ALTER TABLE clients ADD COLUMN tutor_relation TEXT;
+    ALTER TABLE clients ADD COLUMN tutor_phone TEXT;
+    ALTER TABLE clients ADD COLUMN tutor_email TEXT;`);
+  const set = db.prepare('UPDATE clients SET first_name = ?, last_name = ? WHERE id = ?');
+  for (const c of db.prepare('SELECT id, name FROM clients').all()) {
+    const [first, ...rest] = c.name.trim().split(/\s+/);
+    set.run(first, rest.join(' ') || null, c.id);
+  }
+}
 }

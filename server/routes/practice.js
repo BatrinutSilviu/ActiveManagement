@@ -43,26 +43,33 @@ router.get('/clients', (req, res) => {
       (SELECT MAX(a.date) FROM appointments a WHERE a.client_id = c.id AND a.status = 'done') AS last_session,
       (SELECT MIN(a.date) FROM appointments a WHERE a.client_id = c.id AND a.status = 'scheduled' AND a.date >= ?) AS next_session,
       ${UNBILLED_SQL} AS unbilled, ${UNPAID_SQL} AS unpaid
-    FROM clients c ORDER BY c.archived, c.name`).all(day);
+    FROM clients c ORDER BY c.archived, c.last_name, c.first_name`).all(day);
   res.json(rows.map((c) => ({ ...c, unbilled: toRon(c.unbilled), unpaid: toRon(c.unpaid) })));
 });
 
+// First name and surname apart; `name` is kept as the full "First Last" the lists and joins show. A bare `name`
+// (the quick add in the session form) is split: first word the first name, the rest the surname.
+const CLIENT_FIELDS = ['first_name', 'last_name', 'name', 'phone', 'email', 'address', 'birth_date', 'about', 'archived',
+  'tutor_name', 'tutor_relation', 'tutor_phone', 'tutor_email'];
 function readClient(body) {
-  const name = text(body.name, 120);
-  need(name, 'The name is required');
-  return [name, text(body.phone, 60), text(body.email, 120), text(body.address, 300), optDate(body.birth_date, 'The birth date'),
-    text(body.about, 10000), body.archived ? 1 : 0];
+  let first = text(body.first_name, 60), last = text(body.last_name, 60);
+  if (!first && !last && text(body.name, 120)) [first, last] = (([f, ...r]) => [f, r.join(' ') || null])(text(body.name, 120).split(/\s+/));
+  need(first, 'The first name is required');
+  need(last, 'The surname is required');
+  return [first, last, `${first} ${last}`, text(body.phone, 60), text(body.email, 120), text(body.address, 300),
+    optDate(body.birth_date, 'The birth date'), text(body.about, 10000), body.archived ? 1 : 0,
+    text(body.tutor_name, 120), text(body.tutor_relation, 60), text(body.tutor_phone, 60), text(body.tutor_email, 120)];
 }
 
 router.post('/clients', (req, res) => {
-  const { lastInsertRowid } = db.prepare(`INSERT INTO clients (name, phone, email, address, birth_date, about, archived)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(...readClient(req.body));
+  const { lastInsertRowid } = db.prepare(`INSERT INTO clients (${CLIENT_FIELDS.join(', ')})
+    VALUES (${CLIENT_FIELDS.map(() => '?').join(', ')})`).run(...readClient(req.body));
   res.json({ id: Number(lastInsertRowid) });
 });
 
 router.put('/clients/:id', (req, res) => {
   getClient(idParam(req));
-  db.prepare('UPDATE clients SET name = ?, phone = ?, email = ?, address = ?, birth_date = ?, about = ?, archived = ? WHERE id = ?')
+  db.prepare(`UPDATE clients SET ${CLIENT_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`)
     .run(...readClient(req.body), idParam(req));
   res.json({ ok: true });
 });
