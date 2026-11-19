@@ -169,4 +169,8 @@ export default {
   'Sessions of another service already use this package': 'Pachetul e deja folosit de ședințe ale altui serviciu',
   'Validity must be a whole number of months': 'Valabilitatea trebuie să fie un număr întreg de luni',
   'This package type no longer exists': 'Acest tip de pachet nu mai există',
+  // schedule views
+  Day: 'Zi', Week: 'Săptămână', List: 'Listă', View: 'Vizualizare', Today: 'Azi', 'This month': 'Luna aceasta',
+  'From today': 'De azi', Previous: 'Înapoi', 'Go to date': 'Mergi la data',
+  'No sessions in these {n} days.': 'Nicio ședință în aceste {n} zile.',
 };
