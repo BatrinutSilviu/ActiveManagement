@@ -1,5 +1,5 @@
 // Settings for a practice: the services offered, each with how long it lasts and the price a new session starts with.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { useAction, useApi } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
@@ -20,16 +20,20 @@ export function Services() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>{t(Term('sports'))}</h2><p>{t(`What you offer, how long each lasts, and the price a new ${term('event')} of each starts with`)}</p></div></div>
+      <div className="card-head"><div><h2>{t(Term('sports'))}</h2><p>{t(`What you offer, its colour on the timetable, how long each lasts, and the price a new ${term('event')} of each starts with`)}</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       {data?.length ? (
         <div className="table-wrap" style={{ marginBottom: 12 }}>
           <table>
-            <thead><tr><th style={{ width: '100%' }}>{t(Term('sport'))}</th><th className="r">{t('Duration (min)')}</th><th className="r">{t('Price ({currency})', { currency: CURRENCY })}</th><th /></tr></thead>
+            <thead><tr><th style={{ width: '100%' }}>{t(Term('sport'))}</th><th>{t('Colour')}</th><th className="r">{t('Duration (min)')}</th><th className="r">{t('Price ({currency})', { currency: CURRENCY })}</th><th /></tr></thead>
             <tbody>
               {data.map((x) => (
-                <tr key={`${x.id}-${x.default_fee}-${x.duration}`}>
+                <tr key={`${x.id}-${x.default_fee}-${x.duration}-${x.color}`}>
                   <td>{x.name}</td>
+                  <td>
+                    <ColorPick value={x.color} label={t('{name} colour', { name: x.name })}
+                      onPick={(color) => run(() => api.put(`/event-types/${x.id}`, { color }))} />
+                  </td>
                   <td className="r">
                     <input className="select-sm num-input" type="number" min="1" max="1440" step="1" defaultValue={x.duration || ''} placeholder="—"
                       aria-label={t('{name} duration', { name: x.name })} style={{ width: 80 }}
@@ -56,4 +60,17 @@ export function Services() {
       </form>
     </div>
   );
+}
+
+/** A colour picker that saves once a colour is chosen (the native change event), not on every move while choosing. */
+function ColorPick({ value, label, onPick }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    const picked = () => { if (el.value !== value) onPick(el.value); };
+    el.addEventListener('change', picked);
+    return () => el.removeEventListener('change', picked);
+  });
+  return <input ref={ref} type="color" defaultValue={value || '#2a78d6'} aria-label={label} title={t('Its colour on the timetable')}
+    style={{ width: 40, height: 30, padding: 2 }} />;
 }

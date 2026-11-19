@@ -756,6 +756,7 @@ tr.row-picked td { background: var(--accent-soft); }
 .session-card:hover { background: var(--surface-2); }
 .session-card.status-done { border-left-color: var(--good); background: var(--surface); color: inherit; }
 .session-card.status-cancelled { border-left-color: var(--muted); opacity: .6; background: var(--surface); color: inherit; }
+.session-card.has-color { border-left-color: var(--svc); background: color-mix(in srgb, var(--svc) 9%, var(--surface)); }
 .session-top, .session-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
 .session-who { font-weight: 600; }
 .side-item { padding: 10px 0; border-top: 1px solid var(--border); }

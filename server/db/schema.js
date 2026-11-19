@@ -389,6 +389,8 @@ if (!columns('event_types').includes('default_fee'))
     ALTER TABLE event_types ADD COLUMN default_venue_fee INTEGER NOT NULL DEFAULT 0;            -- bani per person`);
 // How long a session of this service lasts, in minutes (a practice's services); fills in a session's end time.
 if (!columns('event_types').includes('duration')) db.exec('ALTER TABLE event_types ADD COLUMN duration INTEGER');
+// Its colour on the practice's timetable (#rrggbb).
+if (!columns('event_types').includes('color')) db.exec('ALTER TABLE event_types ADD COLUMN color TEXT');
 if (!columns('events').includes('venue_fee'))
   db.exec('ALTER TABLE events ADD COLUMN venue_fee INTEGER NOT NULL DEFAULT 0'); // bani per person, paid on to the venue
 if (!columns('event_discounts').includes('member'))

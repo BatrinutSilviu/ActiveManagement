@@ -187,7 +187,7 @@ router.delete('/packages/:id', (req, res) => {
 function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time') {
   return db.prepare(`
     SELECT a.*, c.name AS client_name, c.phone AS client_phone, CASE WHEN a.venue = 'practice' THEN NULL ELSE COALESCE(a.address, c.address) END AS place,
-      et.name AS type_name, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid
+      et.name AS type_name, et.color AS type_color, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid
     FROM appointments a JOIN clients c ON c.id = a.client_id
     LEFT JOIN event_types et ON et.id = a.type_id
     LEFT JOIN packages p ON p.id = a.package_id

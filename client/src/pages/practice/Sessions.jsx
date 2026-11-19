@@ -64,7 +64,8 @@ export default function Sessions() {
 
 export function SessionCard({ a, canEdit, onOpen, onDone, showDate }) {
   return (
-    <div className={`session-card status-${a.status}`} onClick={onOpen} role={canEdit ? 'button' : undefined}>
+    <div className={`session-card status-${a.status}${a.type_color ? ' has-color' : ''}`} onClick={onOpen} role={canEdit ? 'button' : undefined}
+      style={a.type_color ? { '--svc': a.type_color } : undefined}>
       <div className="session-top">
         <strong>{showDate ? `${dayMonth(a.date)} ` : ''}{timeLabel(a) || t('No time set')}</strong>
         {a.status !== 'scheduled' ? <SessionStatus status={a.status} />

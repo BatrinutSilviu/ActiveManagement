@@ -148,4 +148,6 @@ export default {
   'The duration must be a whole number of minutes': 'Durata trebuie să fie un număr întreg de minute',
   'Reason for cancelling': 'Motivul anulării', 'Reason for cancelling (optional):': 'Motivul anulării (opțional):',
   'e.g. the child is ill, the family is away…': 'ex. copilul e bolnav, familia e plecată…',
+  '{name} colour': 'Culoarea {name}', 'Its colour on the timetable': 'Culoarea în orar',
+  'What you offer, its colour on the timetable, how long each lasts, and the price a new session of each starts with': 'Ce oferi, culoarea în orar, cât durează fiecare și prețul cu care pornește o ședință nouă',
 };
