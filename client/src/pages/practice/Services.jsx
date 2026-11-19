@@ -25,22 +25,22 @@ export function Services() {
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       {data?.length ? (
         <div className="table-wrap" style={{ marginBottom: 12 }}>
-          <table>
+          <table className="services-table">
             <thead><tr><th style={{ width: '100%' }}>{t(Term('sport'))}</th><th>{t('Colour')}</th><th className="r">{t('Duration (min)')}</th><th className="r">{t('Price ({currency})', { currency: CURRENCY })}</th><th /></tr></thead>
             <tbody>
               {data.map((x) => (
                 <tr key={`${x.id}-${x.default_fee}-${x.duration}-${x.color}`}>
                   <td>{x.name}</td>
-                  <td>
+                  <td data-label={t('Colour')}>
                     <ColorPick value={x.color} label={t('{name} colour', { name: x.name })}
                       onPick={(color) => run(() => api.put(`/event-types/${x.id}`, { color }))} />
                   </td>
-                  <td className="r">
+                  <td className="r" data-label={t('Duration (min)')}>
                     <input className="select-sm num-input" type="number" min="1" max="1440" step="1" defaultValue={x.duration || ''} placeholder="—"
                       aria-label={t('{name} duration', { name: x.name })} style={{ width: 80 }}
                       onBlur={(e) => (Number(e.target.value) || null) !== x.duration && run(() => api.put(`/event-types/${x.id}`, { duration: e.target.value }))} />
                   </td>
-                  <td className="r">
+                  <td className="r" data-label={t('Price ({currency})', { currency: CURRENCY })}>
                     <input className="select-sm num-input" type="number" min="0" step="0.01" defaultValue={x.default_fee || ''} placeholder="0"
                       aria-label={t('{name} price', { name: x.name })} style={{ width: 100 }}
                       onBlur={(e) => Number(e.target.value || 0) !== x.default_fee && run(() => api.put(`/event-types/${x.id}`, { default_fee: Number(e.target.value || 0), default_venue_fee: 0 }))} />

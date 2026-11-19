@@ -338,7 +338,16 @@ label.field, div.field { display: flex; flex-direction: column; gap: 6px; font-s
 label.check { display: flex; gap: 9px; align-items: center; font-size: 13px; color: var(--text-2); cursor: pointer; }
 .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
-@media (max-width: 560px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Phones: one field per row, except pairs marked .half (from–to times, contract number and date). */
+@media (max-width: 560px) {
+  .form-grid > * { grid-column: 1 / -1; }
+  .form-grid > .half { grid-column: auto; }
+}
+/* Phones and tablets: 16px text in fields so iOS doesn't zoom in on every tap, and taller fields to tap. */
+@media (max-width: 900px) {
+  input, .select, textarea { font-size: 16px; }
+  input:not([type='checkbox']):not([type='color']), .select { height: 42px; }
+}
 
 .filters {
   display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px;
@@ -766,3 +775,14 @@ tr.row-picked td { background: var(--accent-soft); }
 .note-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
 .note-actions { display: flex; gap: 2px; }
 .note p { margin: 4px 0 0; white-space: pre-wrap; }
+
+/* The practice's services on a phone: each one a small card (name, then colour, duration, price and actions). */
+@media (max-width: 560px) {
+  .services-table thead { display: none; }
+  .services-table tr { display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .services-table td { padding: 0; border: 0; }
+  .services-table td:first-child { grid-column: 1 / -1; font-weight: 600; }
+  .services-table td.r { text-align: left; }
+  .services-table td input.num-input { width: 100% !important; }
+  .services-table td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--muted); }
+}

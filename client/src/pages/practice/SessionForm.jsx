@@ -105,8 +105,8 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           </Select>
         </label>
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
-        <label className="field">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
-        <label className="field">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
+        <label className="field half">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
+        <label className="field half">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
         <label className="field full">{t('Venue')}
           <Select value={f.venue === 'practice' ? `practice:${f.location || ''}` : 'home'} required
             onChange={(e) => { const [venue, ...name] = e.target.value.split(':'); setF({ ...f, venue, location: name.join(':') }); }}>

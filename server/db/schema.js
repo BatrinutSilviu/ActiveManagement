@@ -85,8 +85,7 @@ export function seedBusiness(type) {
         sport_id) VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities),
         (SELECT id FROM event_types WHERE name = 'Social'))`).run();
     } else {
-      // A practice's services aren't sports: no sport funds, everything goes to the one (general) fund.
-      for (const s of ['Home visit', 'Session at the practice']) type_.run(s, 0);
+      // A practice adds its own services in Settings (where a session happens is its venue, not a service).
       addCategories(PRACTICE_CATEGORIES);
     }
   });
