@@ -21,10 +21,16 @@ export default function Patients() {
   const [archived, setArchived] = useState(false);
   const [assoc, setAssoc] = useState('');
   const [entity, setEntity] = useState('');
+  const [condition, setCondition] = useState('');
+  const [bornFrom, setBornFrom] = useState('');
+  const [bornTo, setBornTo] = useState('');
+  const conditions = [...new Set((data || []).map((c) => c.condition).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const entities = [...new Set((data || []).map((c) => c.entity).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const associations = [...new Set((data || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const [creating, setCreating] = useState(false);
   const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc) && (!entity || c.entity === entity)
+    && (!condition || c.condition === condition)
+    && (!bornFrom || (c.birth_date && c.birth_date >= bornFrom)) && (!bornTo || (c.birth_date && c.birth_date <= bornTo))
     && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
 
@@ -36,12 +42,23 @@ export default function Patients() {
       </div>
       <div className="filters">
         <input type="search" placeholder={t('Search name, tutor, phone, address…')} value={q} onChange={(e) => setQ(e.target.value)} />
-        {entities.length > 1 && (
+        {entities.length > 0 && (
           <Select value={entity} onChange={(e) => setEntity(e.target.value)} aria-label={t('Legal entity')}>
             <option value="">{t('All legal entities')}</option>
             {entities.map((e) => <option key={e} value={e}>{e}</option>)}
           </Select>
         )}
+        {conditions.length > 0 && (
+          <Select value={condition} onChange={(e) => setCondition(e.target.value)} aria-label={t('Illness category')}>
+            <option value="">{t('All illness categories')}</option>
+            {conditions.map((x) => <option key={x} value={x}>{x}</option>)}
+          </Select>
+        )}
+        <label className="check born-filter"><span className="born-label">{t('Born between')}</span>
+          <input type="date" value={bornFrom} onChange={(e) => setBornFrom(e.target.value)} aria-label={t('Born from')} />
+          <span>{t('and')}</span>
+          <input type="date" value={bornTo} onChange={(e) => setBornTo(e.target.value)} aria-label={t('Born until')} />
+        </label>
         {associations.length > 0 && (
           <Select value={assoc} onChange={(e) => setAssoc(e.target.value)} aria-label={t('Association')}>
             <option value="">{t('All associations')}</option>
@@ -54,18 +71,21 @@ export default function Patients() {
         {list.length ? (
           <table>
             <thead><tr>
-              <th>{t('Name')}</th><th className="hide-sm">{t('Phone')}</th><th className="hide-sm">{t(`Last ${term('event')}`)}</th><th className="hide-sm">{t('Next')}</th>
+              <th>{t('Name')}</th><th className="hide-sm">{t('Legal entity')}</th><th className="hide-sm">{t('Phone')}</th><th className="hide-sm">{t(`Last ${term('event')}`)}</th><th className="hide-sm">{t('Next')}</th>
               <th className="r hide-sm">{t('Done')}</th><th className="r">{t('Owes')}</th>
             </tr></thead>
             <tbody>
               {list.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/patients/${c.id}`)}>
                   <td className="cell-wrap">
-                    <div className="row-title">{c.name}{c.entity && entities.length > 1 && <> <span className="badge">{c.entity}</span></>}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">{t('archived')}</span></>}</div>
+                    <div className="row-title">{c.name}{c.condition && <> <span className="badge">{c.condition}</span></>}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">{t('archived')}</span></>}</div>
                     {c.tutor_name && <div className="row-sub">{t('Tutor')}: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
+                    {c.entity && <div className="row-sub show-sm">{t('Legal entity')}: {c.entity}</div>}
+                    {c.birth_date && <div className="row-sub">{t('Born {date}', { date: date(c.birth_date) })}</div>}
                     <div className="row-sub show-sm">{c.phone}{c.next_session ? ` · ${t('next {date}', { date: date(c.next_session) })}` : ''}</div>
                   </td>
+                  <td className="hide-sm cell-wrap">{c.entity || <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.phone || c.tutor_phone || <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.last_session ? date(c.last_session) : <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.next_session ? date(c.next_session) : <span className="muted">—</span>}</td>

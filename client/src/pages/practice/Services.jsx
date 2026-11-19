@@ -119,3 +119,45 @@ export function Venues() {
     </div>
   );
 }
+
+/** The illness categories a patient can be put in (business.conditions), picked in the patient form. */
+export function Conditions() {
+  const { business } = useBusiness();
+  const { isAdmin } = usePermissions();
+  const saved = business?.conditions || [];
+  const [list, setList] = useState(null); // being edited: [{ name, was }]
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const rows = list ?? saved.map((name) => ({ name, was: name }));
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const conditionRenames = Object.fromEntries(rows.filter((r) => r.was && r.was !== r.name.trim()).map((r) => [r.was, r.name.trim()]));
+      await api.put('/business', { conditions: rows.map((r) => r.name), conditionRenames });
+      setList(null); setError(null);
+      window.dispatchEvent(new Event('am:business'));
+    } catch (err) { setError(err.message); }
+    setSaving(false);
+  };
+  return (
+    <div className="card card-pad">
+      <div className="card-head"><div><h2>{t('Illness categories')}</h2><p>{t('What a patient can be treated for; picked in the patient form')}</p></div></div>
+      {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
+      <form onSubmit={save} className="stack" style={{ gap: 6 }}>
+        {!rows.length && <p className="muted" style={{ margin: 0 }}>{t('None yet.')}</p>}
+        {rows.map((r, i) => (isAdmin ? (
+          <div key={i} style={{ display: 'flex', gap: 6 }}>
+            <input value={r.name} onChange={(e) => setList(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} maxLength={80} required style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm" onClick={() => setList(rows.filter((_, j) => j !== i))}>{t('Remove')}</button>
+          </div>
+        ) : <div key={i}>{r.name}</div>))}
+        {isAdmin && <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-sm" onClick={() => setList([...rows, { name: '' }])}>{t('Add category')}</button>
+          {list && <button className="btn btn-primary btn-sm" disabled={saving}>{t('Save')}</button>}
+          {list && <button type="button" className="btn btn-sm" onClick={() => { setList(null); setError(null); }}>{t('Cancel')}</button>}
+        </div>}
+      </form>
+    </div>
+  );
+}

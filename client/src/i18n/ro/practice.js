@@ -154,4 +154,9 @@ export default {
   'the address on their page, or one given for the session': 'adresa de pe pagina lui sau una dată pentru ședință',
   Contract: 'Contract', 'Contract number': 'Număr contract', 'Contract date': 'Data contractului', 'from {date}': 'din {date}',
   "The contract date isn't a valid date": 'Data contractului nu e o dată validă',
+  'Illness category': 'Categoria de afecțiune', 'Illness categories': 'Categorii de afecțiuni', 'All illness categories': 'Toate categoriile de afecțiuni',
+  'What a patient can be treated for; picked in the patient form': 'Pentru ce poate fi tratat un pacient; se alege în fișa pacientului',
+  'Add category': 'Adaugă categorie', 'Unknown illness category': 'Categorie de afecțiune necunoscută',
+  'Two illness categories have the same name': 'Două categorii de afecțiuni au același nume',
+  'Born between': 'Născut între', and: 'și', 'Born from': 'Născut de la', 'Born until': 'Născut până la', 'Born {date}': 'Născut {date}',
 };

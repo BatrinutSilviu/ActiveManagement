@@ -29,6 +29,7 @@ const footer = (onClose, saving) => <>
 export function PatientForm({ patient, onClose, onSaved }) {
   const { term, business } = useBusiness();
   const entities = business?.entities || [];
+  const conditions = business?.conditions || [];
   const { data: all } = useApi('/clients');
   const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const { f, set, error, saving, save } = useForm(
@@ -49,6 +50,14 @@ export function PatientForm({ patient, onClose, onSaved }) {
             <Select value={f.entity || ''} onChange={set('entity')} required>
               <option value="">{t('Choose…')}</option>
               {[...new Set([...entities, ...(f.entity ? [f.entity] : [])])].map((e) => <option key={e} value={e}>{e}</option>)}
+            </Select>
+          </label>
+        )}
+        {(conditions.length > 0 || f.condition) && (
+          <label className="field full">{t('Illness category')}
+            <Select value={f.condition || ''} onChange={set('condition')}>
+              <option value="">—</option>
+              {[...new Set([...conditions, ...(f.condition ? [f.condition] : [])])].map((x) => <option key={x} value={x}>{x}</option>)}
             </Select>
           </label>
         )}

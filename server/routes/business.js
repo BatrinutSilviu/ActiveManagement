@@ -16,13 +16,16 @@ publicRouter.get('/business', (req, res) => {
 export const router = express.Router({ caseSensitive: true });
 
 router.put('/business', (req, res) => {
-  const { type, renames, ...body } = req.body;
+  const { type, renames, conditionRenames, ...body } = req.body;
   const { value, error } = readBusiness(body, getBusiness());
   need(!error, error);
   // A practice location renamed in Settings → Services ({ old: new }): its sessions follow it.
   res.json(tx(() => {
     const move = db.prepare('UPDATE appointments SET location = ? WHERE location = ?');
     for (const [from, to] of Object.entries(renames ?? {})) if (from !== to && value.locations?.some((l) => l.name === to)) move.run(to, from);
+    // An illness category renamed: its patients follow it.
+    const recat = db.prepare('UPDATE clients SET condition = ? WHERE condition = ?');
+    for (const [from, to] of Object.entries(conditionRenames ?? {})) if (from !== to && value.conditions?.includes(to)) recat.run(to, from);
     return setBusiness(value);
   }));
 });

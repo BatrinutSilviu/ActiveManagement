@@ -34,7 +34,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', locations: [], entities: [], language: 'en' };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', locations: [], entities: [], conditions: [], language: 'en' };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -110,6 +110,12 @@ export function readBusiness(body, current = {}) {
   if (body.entities !== undefined) {
     const list = Array.isArray(body.entities) ? body.entities : String(body.entities).split('\n');
     v.entities = [...new Set(list.map((e) => String(e).trim().slice(0, 80)).filter(Boolean))].slice(0, 20);
+  }
+  // The illness categories a patient can be put in (Settings → Services), e.g. "Tulburări neuromotorii".
+  if (body.conditions !== undefined) {
+    const list = (Array.isArray(body.conditions) ? body.conditions : []).map((e) => String(e).trim().slice(0, 80)).filter(Boolean);
+    if (new Set(list.map((x) => x.toLowerCase())).size < list.length) return { error: 'Two illness categories have the same name' };
+    v.conditions = list.slice(0, 100);
   }
   if (body.features !== undefined) {
     v.features = {};
