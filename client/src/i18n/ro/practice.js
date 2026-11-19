@@ -183,4 +183,6 @@ export default {
   '{amount} travel': '{amount} deplasare', travel: 'deplasare', 'with travel': 'cu deplasare', "The travel fee can't be negative": 'Taxa de deplasare nu poate fi negativă',
   'No package (paid separately)': 'Fără pachet (plătită separat)', 'no place for this service': 'fără loc pentru acest serviciu',
   '{n} left after this one': 'Rămân {n} după aceasta', 'This patient has no package with sessions left.': 'Pacientul nu are niciun pachet cu ședințe rămase.',
+  '{n} left for {services}': '{n} rămase pentru {services}',
+  'The service was changed to {service}, which this package covers.': 'Serviciul a fost schimbat în {service}, pe care îl acoperă acest pachet.',
 };

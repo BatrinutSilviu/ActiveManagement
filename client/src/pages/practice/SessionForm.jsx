@@ -52,11 +52,14 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   const chosen = offered.find((p) => String(p.id) === String(f.package_id));
   // Editing a session already in the chosen package: its place is already counted in what's left.
   const alreadyIn = session && String(session.package_id) === String(f.package_id) && session.status !== 'cancelled';
-  // Picking a package with no service chosen yet: the first service it still has places for.
+  // Picking a package with no room for the chosen service (or none chosen yet): the service becomes the first one it
+  // still has places for (unless it has general places, which any service can take).
+  const [switched, setSwitched] = useState(null); // the service picking a package switched to, to say so
   const pickPackage = (e) => {
     const p = offered.find((x) => String(x.id) === e.target.value);
-    const part = !f.type_id && p?.items.find((it) => it.service_id && it.left > 0);
+    const part = p && !fits(p, f.type_id) && p.items.find((it) => it.service_id && it.left > 0);
     const ty = part ? typeOf(part.service_id) : null;
+    setSwitched(ty && f.type_id ? ty.name : null);
     setF({ ...f, package_id: e.target.value, ...(ty ? { type_id: String(ty.id), end_time: endFor(f.start_time, ty) ?? f.end_time } : {}) });
   };
   const openPackage = (typeId) => (packages || []).find((p) => (!p.expires || p.expires >= f.date) && fits(p, typeId));
@@ -71,6 +74,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   const typeOf = (id) => types?.find((x) => String(x.id) === String(id));
   const pickStart = (e) => setF({ ...f, start_time: e.target.value, end_time: endFor(e.target.value, typeOf(f.type_id)) ?? f.end_time });
   const pickType = (e) => {
+    setSwitched(null);
     const ty = typeOf(e.target.value);
     // The package follows: kept if it fits the new service, else the patient's open package that does (new sessions).
     const current = (packages || []).find((p) => String(p.id) === String(f.package_id));
@@ -137,12 +141,14 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
                 <option value="">{t('No package (paid separately)')}</option>
                 {offered.map((p) => {
                   const ok = fits(p, f.type_id) || String(p.id) === String(session?.package_id);
-                  return <option key={p.id} value={p.id} disabled={!ok}>
-                    {p.name} · {ok ? t('{n} left', { n: placesFor(p, f.type_id) }) : t('no place for this service')}
+                  const only = p.items.filter((it) => it.service_id && it.left > 0).map((it) => it.service_name).join(', ');
+                  return <option key={p.id} value={p.id}>
+                    {p.name} · {ok ? t('{n} left', { n: placesFor(p, f.type_id) }) : t('{n} left for {services}', { n: p.left, services: only })}
                   </option>;
                 })}
               </Select>
             </label>
+            {chosen && switched && <span className="hint">{t('The service was changed to {service}, which this package covers.', { service: switched })}</span>}
             {chosen && <div className="package-hint">
               <strong>{t('{n} left after this one', { n: Math.max(0, placesFor(chosen, f.type_id) - (alreadyIn ? 0 : 1)) })}</strong>
               <span>{chosen.items.map((it) => `${it.service_name || t('Any service')}: ${it.left}/${it.sessions}`).join(' · ')}</span>
