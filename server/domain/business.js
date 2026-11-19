@@ -34,7 +34,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', address: '', entities: [], language: 'en' };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', locations: [], entities: [], language: 'en' };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -78,7 +78,7 @@ export function readBusiness(body, current = {}) {
     if (!TYPES[body.type]) return { error: 'Unknown business type' };
     v.type = body.type;
   }
-  text('name', 60); text('tagline', 60); text('website', 200); text('address', 300);
+  text('name', 60); text('tagline', 60); text('website', 200);
   if (!v.name) return { error: 'The business needs a name' };
   if (v.website && !/^https?:\/\/\S+$/i.test(v.website)) return { error: 'The website must start with http:// or https://' };
   if (body.color !== undefined) {
@@ -95,6 +95,15 @@ export function readBusiness(body, current = {}) {
   if (body.language !== undefined) {
     if (!['en', 'ro'].includes(body.language)) return { error: 'Unknown language' };
     v.language = body.language;
+  }
+  // The practice's locations, where sessions "at the practice" happen: each a name and an address.
+  if (body.locations !== undefined) {
+    const list = (Array.isArray(body.locations) ? body.locations : [])
+      .map((l) => ({ name: String(l?.name ?? '').trim().slice(0, 60), address: String(l?.address ?? '').trim().slice(0, 300) }))
+      .filter((l) => l.name || l.address);
+    if (list.some((l) => !l.name)) return { error: 'Each location needs a name' };
+    if (new Set(list.map((l) => l.name.toLowerCase())).size < list.length) return { error: 'Two locations have the same name' };
+    v.locations = list.slice(0, 20);
   }
   // The legal entities a practice's patients are treated through (each patient picks one), e.g. the practice's
   // own company and the therapist as a person. One per line in Settings.

@@ -193,8 +193,19 @@ function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time'
     LEFT JOIN packages p ON p.id = a.package_id
     LEFT JOIN invoices i ON i.id = a.invoice_id
     ${where} ${order}`).all(...params)
-    // At the practice: its address (Settings → Business).
-    .map((a) => ({ ...a, price: toRon(a.price), place: a.venue === 'practice' ? getBusiness()?.address || null : a.place }));
+    // At the practice: the address of its location (Settings → Business).
+    .map((a) => ({ ...a, price: toRon(a.price), place: a.venue === 'practice' ? locationAddress(a.location) : a.place }));
+}
+
+const locationAddress = (name) => (getBusiness()?.locations || []).find((l) => l.name === name)?.address || null;
+
+// One of the practice's locations; required when it has any. One no longer listed is kept as it was.
+function readLocation(v) {
+  const name = text(v, 60);
+  const list = getBusiness()?.locations || [];
+  need(name || !list.length, 'Choose which location');
+  need(!name || list.some((l) => l.name === name) || db.prepare('SELECT 1 FROM appointments WHERE location = ?').get(name), 'Unknown location');
+  return name;
 }
 
 const STATUSES = ['scheduled', 'done', 'cancelled'];
@@ -225,7 +236,8 @@ function readAppointment(body, id = null) {
   if (status === 'cancelled' && packageId) packageId = null; // a cancelled session gives its place in the package back
   // In a package: paid with the package, so it has no price of its own.
   const price = packageId ? 0 : money(body.price, 'The price');
-  return [clientId, typeId, body.date, start, end, venue, venue === 'home' ? text(body.address, 300) : null, status, price, packageId, text(body.note, 5000)];
+  return [clientId, typeId, body.date, start, end, venue, venue === 'home' ? text(body.address, 300) : null,
+    venue === 'practice' ? readLocation(body.location) : null, status, price, packageId, text(body.note, 5000)];
 }
 
 router.get('/appointments', (req, res) => {
@@ -238,15 +250,15 @@ router.get('/appointments', (req, res) => {
 });
 
 router.post('/appointments', (req, res) => {
-  const { lastInsertRowid } = db.prepare(`INSERT INTO appointments (client_id, type_id, date, start_time, end_time, venue, address, status, price,
-    package_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readAppointment(req.body));
+  const { lastInsertRowid } = db.prepare(`INSERT INTO appointments (client_id, type_id, date, start_time, end_time, venue, address, location, status, price,
+    package_id, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...readAppointment(req.body));
   res.json({ id: Number(lastInsertRowid) });
 });
 
 router.put('/appointments/:id', (req, res) => {
   const id = idParam(req);
   need(db.prepare('SELECT 1 FROM appointments WHERE id = ?').get(id), 'This session no longer exists');
-  db.prepare(`UPDATE appointments SET client_id = ?, type_id = ?, date = ?, start_time = ?, end_time = ?, venue = ?, address = ?, status = ?, price = ?,
+  db.prepare(`UPDATE appointments SET client_id = ?, type_id = ?, date = ?, start_time = ?, end_time = ?, venue = ?, address = ?, location = ?, status = ?, price = ?,
     package_id = ?, note = ? WHERE id = ?`).run(...readAppointment(req.body, id), id);
   res.json({ ok: true });
 });

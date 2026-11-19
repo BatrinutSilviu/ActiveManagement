@@ -97,7 +97,7 @@ export default function Overview() {
                 {o.toConfirm.map((a) => (
                   <div key={a.id} className="side-item" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 160 }}><Link to={`/patients/${a.client_id}`}>{a.client_name}</Link>
-                      <div className="row-sub">{date(a.date)}{a.start_time ? ` · ${a.start_time}` : ''}{a.type_name ? ` · ${a.type_name}` : ''}{a.venue === 'practice' ? ` · ${t(VENUES.practice)}` : ''}</div></div>
+                      <div className="row-sub">{date(a.date)}{a.start_time ? ` · ${a.start_time}` : ''}{a.type_name ? ` · ${a.type_name}` : ''}{a.venue === 'practice' ? ` · ${a.location || t(VENUES.practice)}` : ''}</div></div>
                     {canEdit && <>
                       <button className="btn btn-sm" onClick={() => status(a, 'done')}>{t('Done')}</button>
                       <button className="btn btn-sm" onClick={() => status(a, 'cancelled')}>{t('Cancelled')}</button>

@@ -39,11 +39,7 @@ export function Business() {
             </Select>
           </label>
           <label className="field">{t('Number format')}<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
-          {v.features.practice && (
-            <label className="field full">{t('Practice address')} <span className="hint">— {t('where sessions “at the practice” happen')}</span>
-              <input value={v.address || ''} onChange={set('address')} maxLength={300} />
-            </label>
-          )}
+          {v.features.practice && <Locations list={v.locations || []} onChange={(locations) => setF({ ...v, locations })} />}
           {v.features.practice && (
             <label className="field full">{t('Legal entities')} <span className="hint">— {t('one per line; each patient is treated through one of them')}</span>
               <textarea rows={3} value={Array.isArray(v.entities) ? v.entities.join('\n') : v.entities || ''}
@@ -61,6 +57,25 @@ export function Business() {
         </div>
         <div><button className="btn btn-primary" disabled={!f}>{t('Save')}</button></div>
       </form>
+    </div>
+  );
+}
+
+/** The practice's locations: where sessions "at the practice" happen, each a name and an address. */
+function Locations({ list, onChange }) {
+  const change = (i, k) => (e) => onChange(list.map((l, j) => (j === i ? { ...l, [k]: e.target.value } : l)));
+  return (
+    <div className="field full">{t('Practice locations')} <span className="hint">— {t('where sessions “at the practice” happen')}</span>
+      <div className="stack" style={{ gap: 6 }}>
+        {list.map((l, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={l.name} onChange={change(i, 'name')} placeholder={t('Name, e.g. Sânandrei')} maxLength={60} required style={{ flex: '1 1 140px' }} />
+            <input value={l.address} onChange={change(i, 'address')} placeholder={t('Address')} maxLength={300} style={{ flex: '3 1 240px' }} />
+            <button type="button" className="btn btn-sm" onClick={() => onChange(list.filter((_, j) => j !== i))}>{t('Remove')}</button>
+          </div>
+        ))}
+        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...list, { name: '', address: '' }])}>{t('Add location')}</button></div>
+      </div>
     </div>
   );
 }

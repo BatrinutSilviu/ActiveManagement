@@ -11,10 +11,11 @@ import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
 
 export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
   const { term, Term, business } = useBusiness();
+  const locations = business?.locations || [];
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
-    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '',
+    client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '',
     status: 'scheduled', price: '', package_id: '', note: '',
     ...(session || {}),
   }));
@@ -93,11 +94,19 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           <div className="segmented" role="radiogroup" aria-label={t('Where')}>
             {Object.entries(VENUES).map(([k, label]) => (
               <button type="button" key={k} className={f.venue === k ? 'on' : ''} role="radio" aria-checked={f.venue === k}
-                onClick={() => setF({ ...f, venue: k })}>{t(label)}</button>
+                onClick={() => setF({ ...f, venue: k, location: k === 'practice' && !f.location && locations.length === 1 ? locations[0].name : f.location })}>{t(label)}</button>
             ))}
           </div>
-          {f.venue === 'practice' && <span className="hint">{business?.address || t('No practice address yet: set it in Settings → Business')}</span>}
         </div>
+        {f.venue === 'practice' && (locations.length ? (
+          <label className="field full">{t('Location')}
+            <Select value={f.location || ''} onChange={set('location')} required>
+              <option value="">{t('— choose —')}</option>
+              {[...locations, ...(f.location && !locations.some((l) => l.name === f.location) ? [{ name: f.location }] : [])]
+                .map((l) => <option key={l.name} value={l.name}>{l.name}{l.address ? ` · ${l.address}` : ''}</option>)}
+            </Select>
+          </label>
+        ) : <span className="hint field full">{t('No practice locations yet: add them in Settings → Business')}</span>)}
         {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />
         </label>}

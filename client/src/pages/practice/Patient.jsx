@@ -167,7 +167,7 @@ function Sessions({ c, run, onEdit }) {
               {c.appointments.map((a) => (
                 <tr key={a.id}>
                   <td>{date(a.date)}<div className="row-sub">{timeLabel(a)}</div></td>
-                  <td className="hide-sm">{a.type_name || <span className="muted">—</span>}<div className="row-sub">{t(VENUES[a.venue] || VENUES.home)}{a.place && <> · <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer">{a.place} ↗</a></>}</div>{a.note && <div className="row-sub cell-wrap">{a.note}</div>}</td>
+                  <td className="hide-sm">{a.type_name || <span className="muted">—</span>}<div className="row-sub">{t(VENUES[a.venue] || VENUES.home)}{a.location && ` · ${a.location}`}{a.place && <> · <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer">{a.place} ↗</a></>}</div>{a.note && <div className="row-sub cell-wrap">{a.note}</div>}</td>
                   <td><SessionStatus status={a.status} /></td>
                   <td className="r">{sessionPrice(a)}</td>
                   <td className="hide-sm"><Billing a={a} /></td>

@@ -71,7 +71,7 @@ export function SessionCard({ a, canEdit, onOpen, onDone, showDate }) {
           : canEdit && a.date <= localToday() && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDone(); }}><IconCheck width="13" />{t('Done')}</button>}
       </div>
       <Link to={`/patients/${a.client_id}`} onClick={(e) => e.stopPropagation()} className="session-who">{a.client_name}</Link>
-      <div className="row-sub">{[a.type_name, a.venue === 'practice' ? t(VENUES.practice) : null, a.place].filter(Boolean).join(' · ')}
+      <div className="row-sub">{[a.type_name, a.venue === 'practice' ? a.location || t(VENUES.practice) : null, a.place].filter(Boolean).join(' · ')}
         {a.place && <> <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{t('map')} ↗</a></>}</div>
       <div className="session-foot"><span>{sessionPrice(a)}</span><Billing a={a} /></div>
     </div>
