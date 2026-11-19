@@ -39,9 +39,18 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   // Packages it can use: with sessions left, or the one it's already in.
   const usable = (packages || []).filter((p) => p.left > 0 || String(p.id) === String(session?.package_id));
 
+  // The end time follows the start and the service's duration.
+  const endFor = (start, type) => {
+    if (!start || !type?.duration) return null;
+    const [h, m] = start.split(':').map(Number);
+    const end = Math.min(h * 60 + m + type.duration, 23 * 60 + 59);
+    return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+  };
+  const typeOf = (id) => types?.find((x) => String(x.id) === String(id));
+  const pickStart = (e) => setF({ ...f, start_time: e.target.value, end_time: endFor(e.target.value, typeOf(f.type_id)) ?? f.end_time });
   const pickType = (e) => {
-    const ty = types?.find((x) => String(x.id) === e.target.value);
-    setF({ ...f, type_id: e.target.value, price: ty?.default_fee ? String(ty.default_fee) : f.price });
+    const ty = typeOf(e.target.value);
+    setF({ ...f, type_id: e.target.value, price: ty?.default_fee ? String(ty.default_fee) : f.price, end_time: endFor(f.start_time, ty) ?? f.end_time });
   };
   const addClient = async (name) => {
     const n = name || window.prompt(t(`First name and surname of the new ${term('person')}:`));
@@ -88,7 +97,7 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
           </Select>
         </label>
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
-        <label className="field">{t('From')}<input type="time" value={f.start_time || ''} onChange={set('start_time')} /></label>
+        <label className="field">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
         <label className="field">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
         <div className="field full">{t('Where')}
           <div className="segmented" role="radiogroup" aria-label={t('Where')}>

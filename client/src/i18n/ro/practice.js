@@ -143,4 +143,7 @@ export default {
   'No practice locations yet: add them in Settings → Business': 'Cabinetul nu are încă locații: adaugă-le în Setări → Afacere',
   'Choose which location': 'Alege locația', 'Unknown location': 'Locație necunoscută',
   'Each location needs a name': 'Fiecare locație are nevoie de un nume', 'Two locations have the same name': 'Două locații au același nume',
+  'Duration (min)': 'Durată (min)', '{name} duration': 'Durata {name}',
+  'What you offer, how long each lasts, and the price a new session of each starts with': 'Ce oferi, cât durează fiecare și prețul cu care pornește o ședință nouă',
+  'The duration must be a whole number of minutes': 'Durata trebuie să fie un număr întreg de minute',
 };

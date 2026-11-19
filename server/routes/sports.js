@@ -10,7 +10,7 @@ export const router = express.Router({ caseSensitive: true });
 
 router.get('/event-types', (req, res) => {
   res.json(db.prepare(`
-    SELECT et.id, et.name, et.is_sport, et.points_factor, et.default_fee, et.default_venue_fee, COUNT(e.id) AS events FROM event_types et
+    SELECT et.id, et.name, et.is_sport, et.points_factor, et.default_fee, et.default_venue_fee, et.duration, COUNT(e.id) AS events FROM event_types et
     LEFT JOIN events e ON e.type_id = et.id GROUP BY et.id ORDER BY et.name`).all()
     .map((t) => ({ ...t, default_fee: toRon(t.default_fee), default_venue_fee: toRon(t.default_venue_fee) })));
 });
@@ -32,13 +32,15 @@ router.put('/event-types/:id', (req, res) => {
   if (!t) throw httpError(404, 'Sport not found');
   const { name = t.name, default_fee = toRon(t.default_fee), default_venue_fee = toRon(t.default_venue_fee), is_sport = t.is_sport,
     points_factor = t.points_factor } = req.body;
+  const duration = req.body.duration === undefined ? t.duration : req.body.duration === '' || req.body.duration == null ? null : Number(req.body.duration);
+  need(duration == null || (Number.isInteger(duration) && duration > 0 && duration <= 1440), 'The duration must be a whole number of minutes');
   need(Number(points_factor) > 0, 'The points multiplier must be more than 0');
   need(String(name).trim(), 'Name is required');
   need(Number(default_fee) >= 0 && Number(default_venue_fee) >= 0, 'Prices can’t be negative');
   need(Number(default_venue_fee) <= Number(default_fee), 'The venue’s part can’t be more than the full price');
   tx(() => {
-    db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ?, is_sport = ?, points_factor = ? WHERE id = ?')
-      .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), is_sport ? 1 : 0, Number(points_factor), idParam(req));
+    db.prepare('UPDATE event_types SET name = ?, default_fee = ?, default_venue_fee = ?, is_sport = ?, points_factor = ?, duration = ? WHERE id = ?')
+      .run(String(name).trim(), toBani(default_fee), toBani(default_venue_fee), is_sport ? 1 : 0, Number(points_factor), duration, idParam(req));
     if (Number(points_factor) !== t.points_factor) recalcClosedMonths(req.user.id);
   });
   res.json({ ok: true });
