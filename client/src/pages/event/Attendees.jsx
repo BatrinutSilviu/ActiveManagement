@@ -6,6 +6,7 @@ import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
 import NameInput from '../../components/NameInput.jsx';
 import { fold } from '../../util.js';
+import { t } from '../../i18n/index.js';
 
 /** Optional list of who came, with a tick for who has paid. */
 export default function Attendees({ e, reload }) {
@@ -29,27 +30,27 @@ export default function Attendees({ e, reload }) {
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
         <div>
-          <h2>Attendees</h2>
+          <h2>{t('Attendees')}</h2>
           <p>{e.attendees.length
-            ? `${paid.length} of ${e.attendees.length} paid${toCollect > 0 ? ` · ${money(toCollect)} still to collect` : ''}`
-            : 'Optional — list who came and tick who has paid'}</p>
+            ? `${t('{paid} of {n} paid', { paid: paid.length, n: e.attendees.length })}${toCollect > 0 ? ` · ${t('{amount} still to collect', { amount: money(toCollect) })}` : ''}`
+            : t('Optional — list who came and tick who has paid')}</p>
         </div>
       </div>
       <CardError error={error} />
       {e.attendees.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th style={{ width: 44 }}>Paid</th><th>Person</th><th className="r">Pays</th>{canEdit && <th />}</tr></thead>
+            <thead><tr><th style={{ width: 44 }}>{t('Paid')}</th><th>{t('Person')}</th><th className="r">{t('Pays')}</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.attendees.map((a) => (
                 <tr key={a.id}>
                   <td>
-                    <input type="checkbox" checked={!!a.paid} disabled={!canEdit} aria-label={`${a.name} paid`}
+                    <input type="checkbox" checked={!!a.paid} disabled={!canEdit} aria-label={t('{name} paid', { name: a.name })}
                       onChange={(ev) => run(() => api.put(`/event-attendees/${a.id}`, { paid: ev.target.checked }))} />
                   </td>
-                  <td>{a.name}{a.is_member ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>Member</span> : null}</td>
+                  <td>{a.name}{a.is_member ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>{t('Member')}</span> : null}</td>
                   <td className={`r ${a.paid ? 'secondary' : ''}`}>{money(owes(a))}</td>
-                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label="Remove" onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button></td>}
+                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button></td>}
                 </tr>
               ))}
             </tbody>
@@ -58,15 +59,15 @@ export default function Attendees({ e, reload }) {
       )}
       {e.attendees.length > 0 && e.attendees.length !== e.participants && (
         <p className="hint" style={{ padding: '10px 22px 0', margin: 0 }}>
-          The list has {e.attendees.length} people but the event counts {e.participants} participants — the money uses the count (Edit to change it).
+          {t('The list has {n} people but the event counts {count} participants — the money uses the count (Edit to change it).', { n: e.attendees.length, count: e.participants })}
         </p>
       )}
       {canEdit && <form className="inline-form" onSubmit={add}>
         <div style={{ flex: '1 1 200px' }}>
           <NameInput people={people} value={name} onChange={setName} exclude={(p) => listed.has(fold(p.name))}
-            className="select-sm" placeholder="Name" required ariaLabel="Attendee name" />
+            className="select-sm" placeholder={t('Name')} required ariaLabel={t('Attendee name')} />
         </div>
-        <button className="btn btn-sm">Add</button>
+        <button className="btn btn-sm">{t('Add')}</button>
       </form>}
     </div>
   );

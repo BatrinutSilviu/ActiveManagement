@@ -6,6 +6,7 @@ import { money0 } from '../../format.js';
 import { IconPlus } from '../../components/Icons.jsx';
 import { VoucherForm, VoucherTable } from '../Vouchers.jsx';
 import { NOT_COUNTED, PrizeForm, PrizeTable } from '../Partners.jsx';
+import { t } from '../../i18n/index.js';
 
 /** Vouchers won at this event (e.g. padel court time); their cost is paid from the sport's fund when used. */
 export function EventVouchers({ e }) {
@@ -17,8 +18,8 @@ export function EventVouchers({ e }) {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Vouchers given</h2><p>Won here, used later — paid from the {e.is_sport ? `${e.type_name} fund` : 'general fund'} when used, not from this event. <Link to="/vouchers">All vouchers →</Link></p></div>
-        {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Give a voucher</button>}
+        <div><h2>{t('Vouchers given')}</h2><p>{e.is_sport ? t('Won here, used later — paid from the {sport} fund when used, not from this event.', { sport: e.type_name }) : t('Won here, used later — paid from the general fund when used, not from this event.')} <Link to="/vouchers">{t('All vouchers →')}</Link></p></div>
+        {canEdit && <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />{t('Give a voucher')}</button>}
       </div>
       {data.length > 0 && <VoucherTable list={data} reload={reload} showEvent={false} setForm={setForm} />}
       {form && <VoucherForm voucher={form.voucher} event={e} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
@@ -33,11 +34,11 @@ export function OurPrizes({ e }) {
   try { prizes = JSON.parse(e.prizes || '[]'); } catch { /* not a list */ }
   const ours = prizes.filter((p) => !p.partner);
   if (!ours.length) return null;
-  const place = (n) => `${n}${['st', 'nd', 'rd'][n - 1] || 'th'}`;
+  const place = (n) => t(['{n}st', '{n}nd', '{n}rd'][n - 1] || '{n}th', { n });
   return (
     <div className="card">
       <div className="card-pad">
-        <div className="card-head"><div><h2>Our prizes</h2><p>Offered by us, as advertised in the {e.source} app. Add their cost as vouchers, stock or an expense.</p></div></div>
+        <div className="card-head"><div><h2>{t('Our prizes')}</h2><p>{t('Offered by us, as advertised in the {app} app. Add their cost as vouchers, stock or an expense.', { app: e.source })}</p></div></div>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           {ours.map((p) => <li key={p.place}><strong>{p.label || place(p.place)}:</strong> {p.prize}</li>)}
         </ul>
@@ -57,8 +58,8 @@ export function PartnerPrizes({ e }) {
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
-        <div><h2>Partner prizes</h2><p>{NOT_COUNTED}. <Link to="/partners">All partners →</Link></p></div>
-        {canEdit ? <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />Partner prize</button>
+        <div><h2>{t('Partner prizes')}</h2><p>{t(NOT_COUNTED)}. <Link to="/partners">{t('All partners →')}</Link></p></div>
+        {canEdit ? <button className="btn btn-sm" onClick={() => setForm({})}><IconPlus width="14" />{t('Partner prize')}</button>
           : value > 0 && <span className="muted">≈ {money0(value)}</span>}
       </div>
       {data.length > 0 && <PrizeTable list={data} reload={reload} showEvent={false} setForm={setForm} />}

@@ -9,20 +9,21 @@ import { BarList, CumulativeChart, EventProfitList, IncomeExpenseChart, Legend, 
 import { IconArrowDown, IconArrowUp, IconCalendar, IconPlus, IconTrend, IconUsers } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
 import { useBusiness } from '../business.js';
+import { t, tn } from '../i18n/index.js';
 
 export function PeriodFilters({ year, setYear, type, setType, allowAll = true }) {
   const { data: years } = useApi('/stats/years');
   const { data: types } = useApi('/event-types');
   return (
     <div className="filters">
-      <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
-        {allowAll && <option value="">All years</option>}
+      <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label={t('Year')}>
+        {allowAll && <option value="">{t('All years')}</option>}
         {years?.map((y) => <option key={y} value={y}>{y}</option>)}
       </Select>
       {setType && (
-        <Select value={type} onChange={(e) => setType(e.target.value)} aria-label="Sport">
-          <option value="">All sports</option>
-          {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        <Select value={type} onChange={(e) => setType(e.target.value)} aria-label={t('Sport')}>
+          <option value="">{t('All sports')}</option>
+          {types?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </Select>
       )}
     </div>
@@ -36,18 +37,18 @@ function AccountSection() {
   if (!f) return null;
   const c = f.cash;
   const parts = [
-    { label: 'In the funds', value: c.funds, hint: 'general + sport funds, to reinvest', to: on('funds') ? '/sports' : null },
+    { label: t('In the funds'), value: c.funds, hint: t('general + sport funds, to reinvest'), to: on('funds') ? '/sports' : null },
     c.owed >= 0
-      ? { label: 'Still to pay out', value: c.owed, hint: 'founders’ and organisers’ payouts not sent yet', to: '/payouts' }
-      : { label: 'Paid out beyond the calculated payouts', value: c.owed, hint: 'more was sent than the profit split gives', to: '/payouts' },
-    { label: 'Organisers’ share with no points', value: c.unassigned, hint: 'nobody earned points in those months', to: '/payouts' },
+      ? { label: t('Still to pay out'), value: c.owed, hint: t('founders’ and organisers’ payouts not sent yet'), to: '/payouts' }
+      : { label: t('Paid out beyond the calculated payouts'), value: c.owed, hint: t('more was sent than the profit split gives'), to: '/payouts' },
+    { label: t('Organisers’ share with no points'), value: c.unassigned, hint: t('nobody earned points in those months'), to: '/payouts' },
   ].filter((p) => Math.abs(p.value) >= 0.01).map((p) => (p.to === '/payouts' && !on('payouts') ? { ...p, to: null } : p));
   return (
     <section className="card card-pad account-card">
       <div className="account-main">
-        <span className="kpi-label">Money in the account</span>
+        <span className="kpi-label">{t('Money in the account')}</span>
         <strong className={`account-value ${c.balance < 0 ? 'neg' : ''}`}>{money(c.balance)}</strong>
-        <span className="muted">Starting balance + finalized events’ profit + donations − reinvested − payouts sent. Compare it with the bank statement now and then.</span>
+        <span className="muted">{t('Starting balance + finalized events’ profit + donations − reinvested − payouts sent. Compare it with the bank statement now and then.')}</span>
       </div>
       <div className="account-parts">
         {parts.map((p) => {
@@ -56,7 +57,7 @@ function AccountSection() {
         })}
         {on('vouchers') && c.openVouchers.n > 0 && (
           <Link to="/vouchers" className="account-part note">
-            <span>Unused vouchers<small>already in the funds above; paid when they’re used{c.openVouchers.pct ? ` · plus ${c.openVouchers.pct} % off, valued when used` : ''}</small></span>
+            <span>{t('Unused vouchers')}<small>{t('already in the funds above; paid when they’re used')}{c.openVouchers.pct ? ` · ${t('plus {pct} % off, valued when used', { pct: c.openVouchers.pct })}` : ''}</small></span>
             <strong>{money0(c.openVouchers.value)}</strong>
           </Link>
         )}
@@ -74,33 +75,32 @@ function FundsSection() {
   const s = f.split;
   const community = 100 - s.foundersStandard - s.foundersPoints;
   const items = [...f.sports].filter((x) => x.starting || x.allocated || x.reinvested || x.topups).sort((a, b) => b.balance - a.balance)
-    .map((x) => ({ id: x.id, name: x.name, value: x.balance, sub: `${money0(x.allocated)} allocated · ${money0(x.reinvested)} reinvested` }));
+    .map((x) => ({ id: x.id, name: x.name, value: x.balance, sub: t('{allocated} allocated · {reinvested} reinvested', { allocated: money0(x.allocated), reinvested: money0(x.reinvested) }) }));
   const pending = f.general.pending + f.sportsTotal.pending;
 
   return (
     <section className="stack">
       <div className="section-head">
-        <h2>Reinvestment funds <span className="live-dot">live</span> <Link to="/sports/general" className="section-link">General fund details →</Link></h2>
-        <p>{pctLabel(community)} of every finalized event’s profit goes to the community:
-          {' '}{pctLabel(s.generalShare)} of that to the general fund, the rest to the sport’s own fund.</p>
+        <h2>{t('Reinvestment funds')} <span className="live-dot">{t('live')}</span> <Link to="/sports/general" className="section-link">{t('General fund details →')}</Link></h2>
+        <p>{t('{pct} of every finalized event’s profit goes to the community: {general} of that to the general fund, the rest to the sport’s own fund.', { pct: pctLabel(community), general: pctLabel(s.generalShare) })}</p>
       </div>
       <div className="grid grid-kpi">
-        <Kpi label="General community fund" hero value={money0(f.general.balance)}
-          sub={`${f.general.starting ? `${money0(f.general.starting)} starting · ` : ''}${money0(f.general.allocated)} from events${f.general.topups ? ` · +${money0(f.general.topups)} donations` : ''} · −${money0(f.general.reinvested)} spent${f.general.discounts ? ` (incl. ${money0(f.general.discounts)} event discounts)` : ''}`} />
-        <Kpi label="All sport funds" icon={IconTrend} tone="profit" value={money0(f.sportsTotal.balance)}
-          sub={`${f.sportsTotal.starting ? `${money0(f.sportsTotal.starting)} starting · ` : ''}${money0(f.sportsTotal.allocated)} allocated · −${money0(f.sportsTotal.reinvested)} reinvested`} />
-        <Kpi label="Reinvested to date" value={money0(f.general.reinvested + f.sportsTotal.reinvested)}
-          sub={`${money0(f.sportsTotal.reinvested)} in sports · ${money0(f.general.reinvested)} general`} />
-        <Kpi label="Pending from live events" value={signedMoney(pending)}
-          sub="added when those events are finalized" />
+        <Kpi label={t('General community fund')} hero value={money0(f.general.balance)}
+          sub={`${f.general.starting ? `${t('{amount} starting', { amount: money0(f.general.starting) })} · ` : ''}${t('{amount} from events', { amount: money0(f.general.allocated) })}${f.general.topups ? ` · ${t('+{amount} donations', { amount: money0(f.general.topups) })}` : ''} · ${t('−{amount} spent', { amount: money0(f.general.reinvested) })}${f.general.discounts ? ` (${t('incl. {amount} event discounts', { amount: money0(f.general.discounts) })})` : ''}`} />
+        <Kpi label={t('All sport funds')} icon={IconTrend} tone="profit" value={money0(f.sportsTotal.balance)}
+          sub={`${f.sportsTotal.starting ? `${t('{amount} starting', { amount: money0(f.sportsTotal.starting) })} · ` : ''}${t('{allocated} allocated · −{reinvested} reinvested', { allocated: money0(f.sportsTotal.allocated), reinvested: money0(f.sportsTotal.reinvested) })}`} />
+        <Kpi label={t('Reinvested to date')} value={money0(f.general.reinvested + f.sportsTotal.reinvested)}
+          sub={t('{sports} in sports · {general} general', { sports: money0(f.sportsTotal.reinvested), general: money0(f.general.reinvested) })} />
+        <Kpi label={t('Pending from live events')} value={signedMoney(pending)}
+          sub={t('added when those events are finalized')} />
       </div>
       <div className="card card-pad">
         <div className="card-head">
-          <div><h2>Fund balance per sport</h2><p>What each sport has left to reinvest · click a sport for its history</p></div>
-          <Legend items={[{ name: 'Available', color: c.sportfund }, { name: 'Overspent', color: c.neg }]} />
+          <div><h2>{t('Fund balance per sport')}</h2><p>{t('What each sport has left to reinvest · click a sport for its history')}</p></div>
+          <Legend items={[{ name: t('Available'), color: c.sportfund }, { name: t('Overspent'), color: c.neg }]} />
         </div>
         <SignedBarList items={items} color={c.sportfund} onOpen={(it) => navigate(`/sports/${it.id}`)}
-          empty="No finalized events yet" />
+          empty={t('No finalized events yet')} />
       </div>
     </section>
   );
@@ -120,62 +120,61 @@ function FoundersSection() {
     <section className={`stack ${loading ? 'loading' : ''}`}>
       <div className="section-head row">
         <div>
-          <h2>Payouts · {monthName(month)} <Link to="/payouts" className="section-link">Open payouts →</Link></h2>
-          <p>{pctLabel(s.foundersStandard)} of the month’s profit is split equally between founders,
-            {' '}{pctLabel(s.foundersPoints)} between organisers by points{s.custom ? ' (targets set for this month)' : ''}.</p>
+          <h2>{t('Payouts')} · {monthName(month)} <Link to="/payouts" className="section-link">{t('Open payouts →')}</Link></h2>
+          <p>{t('{founders} of the month’s profit is split equally between founders, {organisers} between organisers by points', { founders: pctLabel(s.foundersStandard), organisers: pctLabel(s.foundersPoints) })}{s.custom ? ` (${t('targets set for this month')})` : ''}.</p>
         </div>
-        <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="Month" style={{ width: 'auto' }} />
+        <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label={t('Month')} style={{ width: 'auto' }} />
       </div>
       <div className="grid grid-2">
         <div className="card card-pad">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
             <div className="mini-stat">
-              <span className="mini-label"><i style={{ background: c.founders }} />Founders ({pctLabel(s.foundersStandard)})</span>
+              <span className="mini-label"><i style={{ background: c.founders }} />{t('Founders')} ({pctLabel(s.foundersStandard)})</span>
               <strong>{money0(r.pools.standard)}</strong>
-              <span className="muted">{r.founders ? `${money0(r.pools.standard / r.founders)} each · ${r.founders} founders` : 'no founders set'}</span>
+              <span className="muted">{r.founders ? t('{amount} each · {n} founders', { amount: money0(r.pools.standard / r.founders), n: r.founders }) : t('no founders set')}</span>
             </div>
             <div className="mini-stat">
-              <span className="mini-label"><i style={{ background: c.general }} />Organisers ({pctLabel(s.foundersPoints)})</span>
+              <span className="mini-label"><i style={{ background: c.general }} />{t('Organisers')} ({pctLabel(s.foundersPoints)})</span>
               <strong>{money0(r.pools.points)}</strong>
-              <span className="muted">{r.totalPoints ? `${number(r.totalPoints)} points · ${money0(r.pools.points / r.totalPoints)} per point` : 'no points recorded'}</span>
+              <span className="muted">{r.totalPoints ? t('{n} points · {amount} per point', { n: number(r.totalPoints), amount: money0(r.pools.points / r.totalPoints) }) : t('no points recorded')}</span>
             </div>
             <div className="mini-stat">
-              <span className="mini-label">Profit this month</span>
+              <span className="mini-label">{t('Profit this month')}</span>
               <strong className={r.profit < 0 ? 'neg' : ''}>{signedMoney(r.profit)}</strong>
-              <span className="muted">{r.events.length} finalized{r.liveEvents ? ` · ${r.liveEvents} still live` : ''}</span>
+              <span className="muted">{t('{n} finalized', { n: r.events.length })}{r.liveEvents ? ` · ${t('{n} still live', { n: r.liveEvents })}` : ''}</span>
             </div>
           </div>
-          <div className="split-bar" role="img" aria-label={`Standard ${money0(r.pools.standard)}, points ${money0(r.pools.points)}`}>
+          <div className="split-bar" role="img" aria-label={t('Standard {standard}, points {points}', { standard: money0(r.pools.standard), points: money0(r.pools.points) })}>
             <div style={{ width: `${stdW}%`, background: c.founders }} />
             <div style={{ width: `${100 - stdW}%`, background: c.general }} />
           </div>
           {r.liveEvents > 0 && (
             <p className="muted" style={{ margin: '12px 0 0' }}>
-              {signedMoney(r.pending.founders)} more once the {r.liveEvents} live event{r.liveEvents > 1 ? 's are' : ' is'} finalized.
+              {tn(r.liveEvents, '{amount} more once the live event is finalized.', '{amount} more once the {n} live events are finalized.', { amount: signedMoney(r.pending.founders) })}
             </p>
           )}
         </div>
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Per person</h2></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Per person')}</h2></div>
           <div className="table-wrap">
             {r.people.length ? (
               <table>
-                <thead><tr><th>Person</th><th className="r hide-sm">Founder</th><th className="r hide-sm">Organiser</th><th className="r">Total</th></tr></thead>
+                <thead><tr><th>{t('Person')}</th><th className="r hide-sm">{t('Founder')}</th><th className="r hide-sm">{t('Organiser')}</th><th className="r">{t('Total')}</th></tr></thead>
                 <tbody>
                   {r.people.map((p) => (
                     <tr key={p.id}>
                       <td>
-                        {p.name}{p.founder && <span className="badge hide-sm" style={{ marginLeft: 6 }}>Founder</span>}
-                        <div className="row-sub show-sm">{money0(p.standard)} founder · {money0(p.pointsAmount)} organiser ({number(p.points)}p)</div>
+                        {p.name}{p.founder && <span className="badge hide-sm" style={{ marginLeft: 6 }}>{t('Founder')}</span>}
+                        <div className="row-sub show-sm">{t('{standard} founder · {points} organiser', { standard: money0(p.standard), points: money0(p.pointsAmount) })} ({number(p.points)}p)</div>
                       </td>
                       <td className="r hide-sm">{money0(p.standard)}</td>
-                      <td className="r hide-sm" title={`${number(p.points)} points`}>{money0(p.pointsAmount)} <span className="muted">· {number(p.points)}p</span></td>
+                      <td className="r hide-sm" title={t('{n} points', { n: number(p.points) })}>{money0(p.pointsAmount)} <span className="muted">· {number(p.points)}p</span></td>
                       <td className="r"><strong>{money0(p.total)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : <div className="empty">Add founders in Settings → People, and organisers on events.</div>}
+            ) : <div className="empty">{t('Add founders in Settings → People, and organisers on events.')}</div>}
           </div>
         </div>
       </div>
@@ -195,9 +194,8 @@ function YearOverview() {
 
   const { totals, previous, kpis } = s;
   const hasPrev = previous && (previous.income || previous.expenses);
-  const prevLabel = year ? `vs ${Number(year) - 1}` : '';
+  const prevLabel = year ? t('vs {year}', { year: Number(year) - 1 }) : '';
   const xFormat = year ? (m) => MONTHS[Number(m) - 1] : undefined;
-  const periodWord = year ? 'month' : 'year';
   const completed = s.events.filter((e) => e.status === 'completed');
   const ranked = [...completed].sort((a, b) => b.profit - a.profit);
   const top = ranked.slice(0, 5);
@@ -208,48 +206,48 @@ function YearOverview() {
     <section className={`stack ${loading ? 'loading' : ''}`}>
       <div className="section-head row">
         <div>
-          <h2>{year ? `${year} overview` : 'All-time overview'}</h2>
-          <p>Finalized events only{type ? ' · one sport' : ''}</p>
+          <h2>{year ? t('{year} overview', { year }) : t('All-time overview')}</h2>
+          <p>{t('Finalized events only')}{type ? ` · ${t('one sport')}` : ''}</p>
         </div>
         <PeriodFilters year={year} setYear={setYear} type={type} setType={setType} />
       </div>
 
       <div className="grid grid-kpi">
-        <Kpi label="Income" icon={IconArrowUp} tone="income" value={money0(totals.income)}
+        <Kpi label={t('Income')} icon={IconArrowUp} tone="income" value={money0(totals.income)}
           delta={hasPrev ? change(totals.income, previous.income) : null} sub={hasPrev ? prevLabel : null} />
-        <Kpi label="Expenses" icon={IconArrowDown} tone="expense" value={money0(totals.expenses)} goodWhenUp={false}
+        <Kpi label={t('Expenses')} icon={IconArrowDown} tone="expense" value={money0(totals.expenses)} goodWhenUp={false}
           delta={hasPrev ? change(totals.expenses, previous.expenses) : null}
-          sub={`${money0(s.costs.organizing)} organizing · ${money0(s.costs.benefits)} benefits`} />
-        <Kpi label="Net profit" icon={IconTrend} tone="profit" value={<span className={totals.profit >= 0 ? '' : 'neg'}>{signedMoney(totals.profit)}</span>}
-          delta={hasPrev ? change(totals.profit, previous.profit) : null} sub={`margin ${pct(kpis.margin)}`} />
-        <Kpi label="Events" icon={IconCalendar} value={number(kpis.completed)}
-          sub={`finalized${kpis.planned ? ` · ${kpis.planned} live` : ''} · ${kpis.profitable} profitable`} />
-        <Kpi label="Participants" icon={IconUsers} value={number(kpis.participants)}
-          sub={kpis.avgParticipants ? `${number(kpis.avgParticipants)} per event · ${money0(kpis.incomePerParticipant)} each` : null} />
+          sub={t('{organizing} organizing · {benefits} benefits', { organizing: money0(s.costs.organizing), benefits: money0(s.costs.benefits) })} />
+        <Kpi label={t('Net profit')} icon={IconTrend} tone="profit" value={<span className={totals.profit >= 0 ? '' : 'neg'}>{signedMoney(totals.profit)}</span>}
+          delta={hasPrev ? change(totals.profit, previous.profit) : null} sub={t('margin {pct}', { pct: pct(kpis.margin) })} />
+        <Kpi label={t('Events')} icon={IconCalendar} value={number(kpis.completed)}
+          sub={`${t('finalized')}${kpis.planned ? ` · ${t('{n} live', { n: kpis.planned })}` : ''} · ${t('{n} profitable', { n: kpis.profitable })}`} />
+        <Kpi label={t('Participants')} icon={IconUsers} value={number(kpis.participants)}
+          sub={kpis.avgParticipants ? t('{n} per event · {amount} each', { n: number(kpis.avgParticipants), amount: money0(kpis.incomePerParticipant) }) : null} />
       </div>
 
       <div className="card card-pad">
-        <div className="card-head"><div><h2>Where the profit went</h2><p>Split of the {signedMoney(totals.profit)} profit</p></div></div>
+        <div className="card-head"><div><h2>{t('Where the profit went')}</h2><p>{t('Split of the {amount} profit', { amount: signedMoney(totals.profit) })}</p></div></div>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
-          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.founders }} />Founders & organisers</span><strong>{money0(s.split.founders)}</strong></div>
-          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.sportfund }} />Sport funds</span><strong>{money0(s.split.sport)}</strong></div>
-          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.general }} />General fund</span><strong>{money0(s.split.general)}</strong></div>
+          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.founders }} />{t('Founders & organisers')}</span><strong>{money0(s.split.founders)}</strong></div>
+          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.sportfund }} />{t('Sport funds')}</span><strong>{money0(s.split.sport)}</strong></div>
+          <div className="mini-stat"><span className="mini-label"><i style={{ background: c.general }} />{t('General fund')}</span><strong>{money0(s.split.general)}</strong></div>
         </div>
       </div>
 
       <div className="card card-pad">
-        <div className="card-head"><div><h2>Income vs. expenses per {periodWord}</h2><p>Counted in the month the event took place</p></div></div>
-        {s.periods.length ? <IncomeExpenseChart data={s.periods} xKey="period" xFormat={xFormat} /> : <div className="empty">No finalized events yet</div>}
+        <div className="card-head"><div><h2>{t(year ? 'Income vs. expenses per month' : 'Income vs. expenses per year')}</h2><p>{t('Counted in the month the event took place')}</p></div></div>
+        {s.periods.length ? <IncomeExpenseChart data={s.periods} xKey="period" xFormat={xFormat} /> : <div className="empty">{t('No finalized events yet')}</div>}
       </div>
 
       <div className="grid grid-2">
         <div className="card card-pad">
           <div className="card-head">
             <div>
-              <h2>Profit per {periodWord}</h2>
+              <h2>{t(year ? 'Profit per month' : 'Profit per year')}</h2>
               {best.length > 0 && (
-                <p>Best: {xFormat ? xFormat(best[0].period) : best[0].period} ({signedMoney(best[0].profit)}) ·
-                  Worst: {xFormat ? xFormat(best.at(-1).period) : best.at(-1).period} ({signedMoney(best.at(-1).profit)})</p>
+                <p>{t('Best:')} {xFormat ? xFormat(best[0].period) : best[0].period} ({signedMoney(best[0].profit)}) ·
+                  {t('Worst:')} {xFormat ? xFormat(best.at(-1).period) : best.at(-1).period} ({signedMoney(best.at(-1).profit)})</p>
               )}
             </div>
           </div>
@@ -257,8 +255,8 @@ function YearOverview() {
         </div>
         <div className="card card-pad">
           <div className="card-head">
-            <div><h2>Cumulative profit</h2>
-              <p>Running total: {signedMoney(s.periods.filter((p) => p.cumulative != null).at(-1)?.cumulative ?? 0)}</p></div>
+            <div><h2>{t('Cumulative profit')}</h2>
+              <p>{t('Running total:')} {signedMoney(s.periods.filter((p) => p.cumulative != null).at(-1)?.cumulative ?? 0)}</p></div>
           </div>
           <CumulativeChart data={s.periods} xKey="period" xFormat={xFormat} />
         </div>
@@ -266,18 +264,18 @@ function YearOverview() {
 
       <div className="grid grid-2">
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Results by sport</h2><Link to="/sports">Sports →</Link></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Results by sport')}</h2><Link to="/sports">{t('Sports')} →</Link></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Sport</th><th className="r hide-sm">Events</th><th className="r hide-sm">Income</th><th className="r">Profit</th><th className="r hide-sm">Per event</th></tr></thead>
+              <thead><tr><th>{t('Sport')}</th><th className="r hide-sm">{t('Events')}</th><th className="r hide-sm">{t('Income')}</th><th className="r">{t('Profit')}</th><th className="r hide-sm">{t('Per event')}</th></tr></thead>
               <tbody>
-                {s.byType.filter((t) => t.events).sort((a, b) => b.profit - a.profit).map((t) => (
-                  <tr key={t.id} className="clickable" onClick={() => navigate(`/sports/${t.id}`)}>
-                    <td>{t.name}<div className="row-sub show-sm">{t.events} events · {money0(t.income)} income · {signedMoney(t.profit / t.events)} each</div></td>
-                    <td className="r hide-sm">{t.events}</td>
-                    <td className="r hide-sm">{money0(t.income)}</td>
-                    <td className={`r ${t.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(t.profit)}</td>
-                    <td className="r hide-sm">{signedMoney(t.profit / t.events)}</td>
+                {s.byType.filter((x) => x.events).sort((a, b) => b.profit - a.profit).map((x) => (
+                  <tr key={x.id} className="clickable" onClick={() => navigate(`/sports/${x.id}`)}>
+                    <td>{x.name}<div className="row-sub show-sm">{t('{n} events · {income} income · {each} each', { n: x.events, income: money0(x.income), each: signedMoney(x.profit / x.events) })}</div></td>
+                    <td className="r hide-sm">{x.events}</td>
+                    <td className="r hide-sm">{money0(x.income)}</td>
+                    <td className={`r ${x.profit >= 0 ? 'pos' : 'neg'}`}>{signedMoney(x.profit)}</td>
+                    <td className="r hide-sm">{signedMoney(x.profit / x.events)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -285,11 +283,11 @@ function YearOverview() {
           </div>
         </div>
         <div className="card">
-          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>Live events</h2><Link to="/events">All events →</Link></div>
+          <div className="card-pad card-head" style={{ marginBottom: 0 }}><h2>{t('Live events')}</h2><Link to="/events">{t('All events →')}</Link></div>
           {s.live.length ? (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Event</th><th className="r">Profit so far</th></tr></thead>
+                <thead><tr><th>{t('Date')}</th><th>{t('Event')}</th><th className="r">{t('Profit so far')}</th></tr></thead>
                 <tbody>
                   {s.live.map((e) => (
                     <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
@@ -301,28 +299,28 @@ function YearOverview() {
                 </tbody>
               </table>
             </div>
-          ) : <div className="empty">No live events</div>}
+          ) : <div className="empty">{t('No live events')}</div>}
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card card-pad">
-          <div className="card-head"><h2>Where the money goes</h2><span className="muted">{money0(totals.expenses)} total</span></div>
+          <div className="card-head"><h2>{t('Where the money goes')}</h2><span className="muted">{t('{amount} total', { amount: money0(totals.expenses) })}</span></div>
           <BarList items={s.expenseByCategory.map((x) => ({ name: x.name, value: x.total }))} color={c.expense} />
         </div>
         <div className="card card-pad">
-          <div className="card-head"><h2>Where the money comes from</h2><span className="muted">{money0(totals.income)} total</span></div>
+          <div className="card-head"><h2>{t('Where the money comes from')}</h2><span className="muted">{t('{amount} total', { amount: money0(totals.income) })}</span></div>
           <BarList items={s.incomeByCategory.map((x) => ({ name: x.name, value: x.total }))} color={c.income} />
         </div>
       </div>
 
       <div className="grid grid-2">
         <div className="card card-pad">
-          <div className="card-head"><h2>Most profitable events</h2></div>
+          <div className="card-head"><h2>{t('Most profitable events')}</h2></div>
           <EventProfitList events={top} onOpen={(e) => navigate(`/events/${e.id}`)} />
         </div>
         <div className="card card-pad">
-          <div className="card-head"><h2>Least profitable events</h2></div>
+          <div className="card-head"><h2>{t('Least profitable events')}</h2></div>
           <EventProfitList events={bottom} onOpen={(e) => navigate(`/events/${e.id}`)} />
         </div>
       </div>
@@ -339,10 +337,10 @@ export default function Dashboard() {
     <div>
       <div className="page-head">
         <div>
-          <h1>Dashboard</h1>
-          <p>{on('payouts') ? 'Funds, founders’ remuneration and how the community is doing.' : 'Money in the account and how the business is doing.'}</p>
+          <h1>{t('Dashboard')}</h1>
+          <p>{t(on('payouts') ? 'Funds, founders’ remuneration and how the community is doing.' : 'Money in the account and how the business is doing.')}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New {term('event')}</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
       </div>
       <div className="stack" style={{ gap: 40 }}>
         <AccountSection />

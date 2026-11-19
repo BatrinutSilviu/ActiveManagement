@@ -6,8 +6,12 @@ import { useApi } from '../hooks.js';
 import { useBusiness } from '../business.js';
 import { CURRENCY, money, number, today } from '../format.js';
 import Select from './Select.jsx';
+import { t, tn } from '../i18n/index.js';
 
-export const STATUS_LABELS = { planned: 'Live', completed: 'Finalized', cancelled: 'Cancelled' };
+// Getters, so the labels follow the language wherever they're read (StatusBadge too).
+export const STATUS_LABELS = {
+  get planned() { return t('Live'); }, get completed() { return t('Finalized'); }, get cancelled() { return t('Cancelled'); },
+};
 
 // Create or edit an event and its points; who did which task, costs and stock are managed on the event page.
 // Price per person = venue part + community part. Fill in the two parts and the total follows, or fill in
@@ -69,7 +73,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const sportId = f.type_id || types?.[0]?.id;
   // Choosing a sport takes its default prices (e.g. Hyrox: 50 RON, 40 of it to the venue) and its usual kind of event.
   const changeSport = (e) => {
-    const sport = types?.find((t) => String(t.id) === e.target.value);
+    const sport = types?.find((x) => String(x.id) === e.target.value);
     const prices = sport?.default_fee ? { participation_fee: sport.default_fee, venue_fee: sport.default_venue_fee || '' } : {};
     const usual = activities?.find((a) => String(a.sport_id) === e.target.value);
     const next = { ...f, ...prices, type_id: e.target.value, activity_id: usual ? usual.id : f.activity_id };
@@ -77,7 +81,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
     setF(linkPrices(next, sport?.default_fee ? 'total' : from, !shareTouched));
   };
   // Points for the time the event takes come from its kind of event; the profit adds more once costs are in.
-  const factor = types?.find((t) => String(t.id) === String(sportId))?.points_factor ?? 1;
+  const factor = types?.find((x) => String(x.id) === String(sportId))?.points_factor ?? 1;
   const activity = activities?.find((a) => String(a.id) === String(f.activity_id));
   const timePoints = (activity?.organizer_points || 0) * factor;
   const people = Number(f.participants) || 0, fee = Number(f.participation_fee) || 0, venue = Number(f.venue_fee) || 0;
@@ -107,132 +111,132 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   };
 
   return (
-    <Modal title={event ? 'Edit event' : copyOf ? 'Duplicate event' : 'New event'} onClose={onClose} onSubmit={save}
+    <Modal title={t(event ? 'Edit event' : copyOf ? 'Duplicate event' : 'New event')} onClose={onClose} onSubmit={save}
       footer={<>
-        <button type="button" className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={saving}>{event ? 'Save changes' : copyOf ? 'Create copy' : 'Create event'}</button>
+        <button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button>
+        <button className="btn btn-primary" disabled={saving}>{t(event ? 'Save changes' : copyOf ? 'Create copy' : 'Create event')}</button>
       </>}>
       {error && <div className="error-box">{error}</div>}
-      {copyOf && <p className="hint" style={{ margin: 0 }}>A new event with the setup of “{copyOf.name}” — pick its date. People, attendees, discounts and stock start empty.</p>}
+      {copyOf && <p className="hint" style={{ margin: 0 }}>{t('A new event with the setup of “{name}” — pick its date. People, attendees, discounts and stock start empty.', { name: copyOf.name })}</p>}
       <div className="form-grid">
-        <label className="field full">Event name
-          <input value={f.name} onChange={set('name')} placeholder="e.g. Saturday padel meetup" autoFocus required />
+        <label className="field full">{t('Event name')}
+          <input value={f.name} onChange={set('name')} placeholder={t('e.g. Saturday padel meetup')} autoFocus required />
         </label>
-        <label className="field">Sport
+        <label className="field">{t('Sport')}
           <Select value={sportId || ''} onChange={changeSport}>
-            {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {types?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </Select>
         </label>
-        <label className="field">Date
+        <label className="field">{t('Date')}
           <input type="date" value={f.date} onChange={set('date')} required />
-          <span className="hint">The event counts in this month’s statistics</span>
+          <span className="hint">{t('The event counts in this month’s statistics')}</span>
         </label>
-        <label className="field">Venue cost
+        <label className="field">{t('Venue cost')}
           <Select value={f.venue_mode} onChange={set('venue_mode')}>
-            <option value="per_person">Per participant</option>
-            <option value="fixed">Fixed total for the event</option>
+            <option value="per_person">{t('Per participant')}</option>
+            <option value="fixed">{t('Fixed total for the event')}</option>
           </Select>
-          <span className="hint">{fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant'}</span>
+          <span className="hint">{t(fixedVenue ? 'The same amount however many people come' : 'Paid on to the venue for each participant')}</span>
         </label>
         {fixedVenue ? (
-          <label className="field">Venue total ({CURRENCY})
+          <label className="field">{t('Venue total')} ({CURRENCY})
             <input type="number" min="0" step="0.01" value={f.venue_total} onChange={set('venue_total')} placeholder="0" />
-            <span className="hint">Or leave 0 and add the venue as a cost on the event page</span>
+            <span className="hint">{t('Or leave 0 and add the venue as a cost on the event page')}</span>
           </label>
         ) : <div className="hide-sm" />}
-        <label className="field">Number of people
+        <label className="field">{t('Number of people')}
           <input type="number" min="0" value={f.participants} onChange={set('participants')} placeholder="0" />
         </label>
         <div className="full price-parts">
-          <span className="form-section" style={{ margin: 0 }}>Price per person <span className="hint">— fill in the two parts, or the total</span></span>
+          <span className="form-section" style={{ margin: 0 }}>{t('Price per person')} <span className="hint">— {t('fill in the two parts, or the total')}</span></span>
           <div className="price-grid">
-            <label className="field">{fixedVenue ? 'Venue part' : 'Venue part'} ({CURRENCY})
+            <label className="field">{t('Venue part')} ({CURRENCY})
               <input type="number" min="0" step="0.01" value={f.venue_fee} onChange={set('venue_fee')} placeholder="0" />
               <span className="hint">{fixedVenue
                 ? (shareTouched
-                  ? <>Set by hand{share(f) && share(f) !== String(f.venue_fee) ? <> · <button type="button" className="link-btn" onClick={() => { setShareTouched(false); setF(linkPrices({ ...f, venue_fee: share(f) }, from, true)); }}>use {money(Number(share(f)))}</button></> : null}</>
-                  : people && Number(f.venue_total) ? `${money(Number(f.venue_total))} ÷ ${people} people` : 'Venue total ÷ people')
-                : 'Paid on to the venue · members pay only this'}</span>
+                  ? <>{t('Set by hand')}{share(f) && share(f) !== String(f.venue_fee) ? <> · <button type="button" className="link-btn" onClick={() => { setShareTouched(false); setF(linkPrices({ ...f, venue_fee: share(f) }, from, true)); }}>{t('use {amount}', { amount: money(Number(share(f))) })}</button></> : null}</>
+                  : people && Number(f.venue_total) ? t('{total} ÷ {n} people', { total: money(Number(f.venue_total)), n: people }) : t('Venue total ÷ people'))
+                : t('Paid on to the venue · members pay only this')}</span>
             </label>
             <span className="price-op" aria-hidden="true">+</span>
-            <label className="field">Community part ({CURRENCY})
+            <label className="field">{t('Community part')} ({CURRENCY})
               <input type="number" step="0.01" value={f.community} onChange={set('community')} placeholder="0" />
-              <span className={`hint ${Number(f.community) < 0 ? 'neg' : ''}`}>{Number(f.community) < 0 ? 'Less than the venue part — the price doesn’t cover it' : 'What the community keeps'}</span>
+              <span className={`hint ${Number(f.community) < 0 ? 'neg' : ''}`}>{t(Number(f.community) < 0 ? 'Less than the venue part — the price doesn’t cover it' : 'What the community keeps')}</span>
             </label>
             <span className="price-op" aria-hidden="true">=</span>
-            <label className="field">Total price ({CURRENCY})
+            <label className="field">{t('Total price')} ({CURRENCY})
               <input type="number" min="0" step="0.01" value={f.participation_fee} onChange={set('participation_fee')} placeholder="0" />
               <span className="hint">{from === 'parts'
-                ? (fixedVenue ? 'Venue part + community part · the profit counts the community part × people exactly' : 'Venue part + community part')
-                : 'What each person pays'}</span>
+                ? t(fixedVenue ? 'Venue part + community part · the profit counts the community part × people exactly' : 'Venue part + community part')
+                : t('What each person pays')}</span>
             </label>
           </div>
         </div>
         <div className="full fee-preview">
-          Income from fees: <strong>{money(feeIncome)}</strong>
+          {t('Income from fees:')} <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({people} × {money(fee)})</span>
-          {venueCost > 0 && <> · venue: <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ' (fixed)' : ` (${people} × ${money(venue)})`}</span></>}
+          {venueCost > 0 && <> · {t('venue:')} <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ` (${t('fixed')})` : ` (${people} × ${money(venue)})`}</span></>}
           <span className="muted">{event?.member_discounts || event?.fund_paid
-            ? `${event.member_discounts ? ` · − ${money(event.member_discounts)} member prices` : ''}${event.fund_paid ? ` · ${money(event.fund_paid)} discounts paid by the general fund` : ''}`
-            : ' · members and discounts are added on the event page'}</span>
+            ? `${event.member_discounts ? ` · − ${t('{amount} member prices', { amount: money(event.member_discounts) })}` : ''}${event.fund_paid ? ` · ${t('{amount} discounts paid by the general fund', { amount: money(event.fund_paid) })}` : ''}`
+            : ` · ${t('members and discounts are added on the event page')}`}</span>
         </div>
-        <label className="field">Starts at <span className="hint">(optional)</span>
+        <label className="field">{t('Starts at')} <span className="hint">{t('(optional)')}</span>
           <input type="time" value={f.start_time || ''} onChange={set('start_time')} />
         </label>
-        <label className="field">Ends at <span className="hint">(optional)</span>
+        <label className="field">{t('Ends at')} <span className="hint">{t('(optional)')}</span>
           <input type="time" value={f.end_time || ''} onChange={set('end_time')} />
         </label>
-        <label className="field">Location
-          <input value={f.location || ''} onChange={set('location')} placeholder="Venue" />
+        <label className="field">{t('Location')}
+          <input value={f.location || ''} onChange={set('location')} placeholder={t('Venue')} />
         </label>
-        <label className="field">Budget for costs (optional)
+        <label className="field">{t('Budget for costs (optional)')}
           <input type="number" min="0" step="0.01" value={f.budget} onChange={set('budget')} placeholder="0" />
         </label>
         {event && (
-          <label className="field">Status
+          <label className="field">{t('Status')}
             <Select value={f.status} onChange={set('status')}>
               {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </Select>
           </label>
         )}
         {event && (
-          <label className="field">End date <span className="hint">(multi-day events)</span>
+          <label className="field">{t('End date')} <span className="hint">{t('(multi-day events)')}</span>
             <input type="date" value={f.end_date || ''} min={f.date} onChange={set('end_date')} />
           </label>
         )}
         {on('payouts') && <>
-        <div className="full form-section">Points <span className="hint">— shared between the event’s tasks</span></div>
-        <label className="field full">Kind of event
+        <div className="full form-section">{t('Points')} <span className="hint">— {t('shared between the event’s tasks')}</span></div>
+        <label className="field full">{t('Kind of event')}
           <Select value={f.activity_id || ''} onChange={set('activity_id')}>
-            <option value="">— not in the points table —</option>
-            {activities?.map((a) => <option key={a.id} value={a.id}>{a.name} · {number(a.organizer_points)} pts</option>)}
+            <option value="">— {t('not in the points table')} —</option>
+            {activities?.map((a) => <option key={a.id} value={a.id}>{a.name} · {t('{n} pts', { n: number(a.organizer_points) })}</option>)}
           </Select>
-          <span className="hint">Its points (from the points table in Settings) are what the time it takes is worth</span>
+          <span className="hint">{t('Its points (from the points table in Settings) are what the time it takes is worth')}</span>
         </label>
-        {rates && <p className="hint full" style={{ margin: 0 }}>{number(Math.round(timePoints * 100) / 100)} points for the time
-          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${number(rates.moneyPoints * factor)} per ${number(rates.moneyStep)} ${CURRENCY} of profit` : ''}{factor !== 1 ? ` (× ${number(factor)} for this kind of event)` : ''}{event?.points_manual ? ' · this event’s points are set by hand on its page' : ''}</p>}
+        {rates && <p className="hint full" style={{ margin: 0 }}>{t('{n} points for the time', { n: number(Math.round(timePoints * 100) / 100) })}
+          {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${t('{n} per {step} {currency} of profit', { n: number(rates.moneyPoints * factor), step: number(rates.moneyStep), currency: CURRENCY })}` : ''}{factor !== 1 ? ` (${t('× {n} for this kind of event', { n: number(factor) })})` : ''}{event?.points_manual ? ` · ${t('this event’s points are set by hand on its page')}` : ''}</p>}
         {!event && (
-          <label className="field">Organiser
+          <label className="field">{t('Organiser')}
             <Select value={lead} onChange={(e) => setLead(e.target.value)}>
-              <option value="">— none yet —</option>
+              <option value="">— {t('none yet')} —</option>
               {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Select>
-            <span className="hint">Put on every task; change who did what on the event page</span>
+            <span className="hint">{t('Put on every task; change who did what on the event page')}</span>
           </label>
         )}
-        {!event && allPeople && !active.length && <p className="hint full">Add people in Settings → People to pick organisers.</p>}
+        {!event && allPeople && !active.length && <p className="hint full">{t('Add people in Settings → People to pick organisers.')}</p>}
         </>}
-        <label className="field full">Notes
-          <textarea value={f.notes || ''} onChange={set('notes')} placeholder="Logistics, contacts, reminders…" />
+        <label className="field full">{t('Notes')}
+          <textarea value={f.notes || ''} onChange={set('notes')} placeholder={t('Logistics, contacts, reminders…')} />
         </label>
         {copyOf && copyCosts > 0 && (
           <label className="field full check-field">
             <input type="checkbox" checked={withCosts} onChange={(e) => setWithCosts(e.target.checked)} />
-            <span>Also copy its costs &amp; extra income <span className="hint">— {copyCosts} {copyCosts === 1 ? 'line' : 'lines'}, dated on the new event’s day; change the amounts after</span></span>
+            <span>{t('Also copy its costs & extra income')} <span className="hint">— {tn(copyCosts, '{n} line, dated on the new event’s day; change the amounts after', '{n} lines, dated on the new event’s day; change the amounts after')}</span></span>
           </label>
         )}
       </div>
-      {!event && <p className="hint" style={{ margin: 0 }}>The event starts as <b>Live</b>. Add costs and products from stock on its page, then finalize it.</p>}
+      {!event && <p className="hint" style={{ margin: 0 }}>{t('The event starts as')} <b>{t('Live')}</b>. {t('Add costs and products from stock on its page, then finalize it.')}</p>}
     </Modal>
   );
 }

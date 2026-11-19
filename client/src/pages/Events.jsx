@@ -8,6 +8,7 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import { IconEdit, IconPlus } from '../components/Icons.jsx';
 import Select from '../components/Select.jsx';
 import { useBusiness } from '../business.js';
+import { t } from '../i18n/index.js';
 
 export default function Events() {
   const navigate = useNavigate();
@@ -32,27 +33,27 @@ export default function Events() {
     <div className={loading ? 'loading' : ''}>
       <div className="page-head">
         <div>
-          <h1>{Term('events')}</h1>
-          <p>Every {term('event')} with its fees, costs and profit. Live {term('events')} don’t count in the money until finalized.</p>
+          <h1>{t(Term('events'))}</h1>
+          <p>{t(`Every ${term('event')} with its fees, costs and profit. Live ${term('events')} don’t count in the money until finalized.`)}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />New {term('event')}</button>}
+        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
       </div>
 
       <div className="filters">
-        <input type="search" placeholder="Search name, sport, location…" value={filters.q} onChange={set('q')} />
-        <Select value={filters.year} onChange={set('year')} aria-label="Year">
-          <option value="">All years</option>
+        <input type="search" placeholder={t('Search name, sport, location…')} value={filters.q} onChange={set('q')} />
+        <Select value={filters.year} onChange={set('year')} aria-label={t('Year')}>
+          <option value="">{t('All years')}</option>
           {years?.map((y) => <option key={y}>{y}</option>)}
         </Select>
-        <Select value={filters.type} onChange={set('type')} aria-label="Sport">
-          <option value="">All sports</option>
-          {types?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        <Select value={filters.type} onChange={set('type')} aria-label={t('Sport')}>
+          <option value="">{t('All sports')}</option>
+          {types?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </Select>
-        <Select value={filters.status} onChange={set('status')} aria-label="Status">
-          <option value="">Any status</option>
-          <option value="planned">Live</option>
-          <option value="completed">Finalized</option>
-          <option value="cancelled">Cancelled</option>
+        <Select value={filters.status} onChange={set('status')} aria-label={t('Status')}>
+          <option value="">{t('Any status')}</option>
+          <option value="planned">{t('Live')}</option>
+          <option value="completed">{t('Finalized')}</option>
+          <option value="cancelled">{t('Cancelled')}</option>
         </Select>
       </div>
 
@@ -61,8 +62,8 @@ export default function Events() {
           <table>
             <thead>
               <tr>
-                <th className="hide-sm">Date</th><th>Event</th><th className="hide-sm">Sport</th><th className="hide-sm">Status</th><th className="r hide-sm">People</th>
-                <th className="r hide-sm">Income</th><th className="r hide-sm">Costs</th><th className="r">Profit</th><th className="r hide-sm">Sport fund</th>{canEdit && <th />}
+                <th className="hide-sm">{t('Date')}</th><th>{t('Event')}</th><th className="hide-sm">{t('Sport')}</th><th className="hide-sm">{t('Status')}</th><th className="r hide-sm">{t('People')}</th>
+                <th className="r hide-sm">{t('Income')}</th><th className="r hide-sm">{t('Costs')}</th><th className="r">{t('Profit')}</th><th className="r hide-sm">{t('Sport fund')}</th>{canEdit && <th />}
               </tr>
             </thead>
             <tbody>
@@ -70,7 +71,7 @@ export default function Events() {
                 <tr key={e.id} className="clickable" onClick={() => navigate(`/events/${e.id}`)}>
                   <td className="hide-sm">{date(e.date)}</td>
                   <td className="cell-wrap">
-                    <div className="row-title">{e.name}{!!e.training && <> <span className="badge badge-training">Training</span></>}</div>
+                    <div className="row-title">{e.name}{!!e.training && <> <span className="badge badge-training">{t('Training')}</span></>}</div>
                     <div className="row-sub hide-sm">{e.location}</div>
                     <div className="row-sub show-sm">{date(e.date)} · {e.type_name}{e.status !== 'completed' && <> · <StatusBadge status={e.status} /></>}</div>
                   </td>
@@ -81,14 +82,14 @@ export default function Events() {
                   <td className="r hide-sm">{money0(e.expenses)}</td>
                   <td className={`r ${e.profit > 0 ? 'pos' : e.profit < 0 ? 'neg' : ''}`}>{signedMoney(e.profit)}</td>
                   <td className="r secondary hide-sm">{e.status === 'cancelled' || !e.is_sport ? '—' : signedMoney(e.split.sport)}</td>
-                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label={`Edit ${e.name}`} title="Edit" onClick={(ev) => edit(ev, e.id)}><IconEdit /></button></td>}
+                  {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Edit {name}', { name: e.name })} title={t('Edit')} onClick={(ev) => edit(ev, e.id)}><IconEdit /></button></td>}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4} className="hide-sm">{list.length} events</td>
-                <td className="show-sm">{list.length} events</td>
+                <td colSpan={4} className="hide-sm">{t('{n} events', { n: list.length })}</td>
+                <td className="show-sm">{t('{n} events', { n: list.length })}</td>
                 <td className="r hide-sm">{number(sum('participants'))}</td>
                 <td className="r hide-sm">{money0(sum('income'))}</td>
                 <td className="r hide-sm">{money0(sum('expenses'))}</td>
@@ -99,7 +100,7 @@ export default function Events() {
             </tfoot>
           </table>
         ) : (
-          <div className="empty">{loading ? 'Loading…' : 'No events match these filters.'}</div>
+          <div className="empty">{t(loading ? 'Loading…' : 'No events match these filters.')}</div>
         )}
       </div>
 
