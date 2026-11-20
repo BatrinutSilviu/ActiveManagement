@@ -769,6 +769,7 @@ tr.row-picked td { background: var(--accent-soft); }
 .born-filter input[type='date'] { width: auto; }
 .other-therapy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .other-therapy > button { grid-column: 3; grid-row: 1 / span 2; }
+.diagnosis-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .package-item { display: grid; grid-template-columns: minmax(0, 1fr) 84px auto; gap: 6px; align-items: center; }
 .package-hint { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; font-weight: 450; color: var(--text-2);
   background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }

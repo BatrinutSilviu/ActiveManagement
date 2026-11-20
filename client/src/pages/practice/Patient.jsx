@@ -58,6 +58,7 @@ function Patient({ id }) {
             {(c.contract_number || c.contract_date) && <span>{t('Contract')} {c.contract_number && `nr. ${c.contract_number}`}{c.contract_date && ` ${t('from {date}', { date: date(c.contract_date) })}`}</span>}
             {c.association && <span className="badge">{c.association}</span>}
           </p>
+          {c.diagnoses?.length > 0 && <p><strong>{t(c.diagnoses.length > 1 ? 'Diagnoses' : 'Diagnosis')}:</strong> {c.diagnoses.join('; ')}</p>}
           {(c.tutor_name || c.tutor_phone || c.tutor_email) && (
             <p style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <span>{t('Tutor')}: {c.tutor_name || '—'}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</span>

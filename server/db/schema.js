@@ -968,4 +968,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS series (
 )`);
 if (!columns('appointments').includes('series_id'))
   db.exec('ALTER TABLE appointments ADD COLUMN series_id INTEGER REFERENCES series(id) ON DELETE SET NULL');
+// A patient's diagnoses: JSON ["…", …], free text, as many as they have.
+if (!columns('clients').includes('diagnoses')) db.exec('ALTER TABLE clients ADD COLUMN diagnoses TEXT');
 }

@@ -31,7 +31,7 @@ export default function Patients() {
   const list = (data || []).filter((c) => (archived || !c.archived) && (!assoc || c.association === assoc) && (!entity || c.entity === entity)
     && (!condition || c.conditions?.includes(condition))
     && (!bornFrom || (c.birth_date && c.birth_date >= bornFrom)) && (!bornTo || (c.birth_date && c.birth_date <= bornTo))
-    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''}`).includes(fold(q))));
+    && (!q || fold(`${c.name} ${c.phone || ''} ${c.address || ''} ${c.tutor_name || ''} ${c.tutor_phone || ''} ${c.association || ''} ${(c.diagnoses || []).join(' ')}`).includes(fold(q))));
   const nArchived = (data || []).filter((c) => c.archived).length;
 
   return (
