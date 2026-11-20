@@ -221,4 +221,7 @@ export default {
   // therapists (Settings → Services, session form)
   Therapists: 'Terapeuți', 'Who does the sessions; picked in the session form': 'Cine face ședințele; se alege în formularul ședinței',
   'Add therapist': 'Adaugă terapeut', 'Two therapists have the same name': 'Doi terapeuți au același nume', 'Unknown therapist': 'Terapeut necunoscut',
+  // duplicating a session
+  Duplicate: 'Duplică', 'A new session like this one, a week later': 'O ședință nouă ca aceasta, cu o săptămână mai târziu',
+  'A copy of the one on {date}, a week later: check the date and time.': 'O copie a celei din {date}, cu o săptămână mai târziu: verifică data și ora.',
 };

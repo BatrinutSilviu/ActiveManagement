@@ -6,10 +6,14 @@ import { useBusiness } from '../../business.js';
 import { CURRENCY, money0 } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
+import { IconCopy } from '../../components/Icons.jsx';
 import { t } from '../../i18n/index.js';
-import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
+import { addDays, dayMonth, localToday, SESSION_STATUS, VENUES } from './common.jsx';
 
-export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
+export default function SessionForm({ session: given, clientId, date, onClose, onSaved }) {
+  // The session being changed; null for a new one (also after Duplicate, which turns the form into a new session).
+  const [session, setSession] = useState(given);
+  const [copiedFrom, setCopiedFrom] = useState(null); // the date of the session duplicated, to say so
   const { term, Term, business } = useBusiness();
   const locations = business?.locations || [];
   // The therapists (Settings → Services), plus one the session has that has since been removed.
@@ -91,6 +95,22 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
     setF((x) => ({ ...x, client_id: String(id), package_id: '' }));
   };
 
+  // Duplicate: the same session (patient, service, therapist, times, place, price) as a new one a week later, scheduled.
+  // Its package stays if it still has a place for it, else the patient's open package, if any.
+  const duplicate = () => {
+    const keep = (packages || []).find((p) => String(p.id) === String(f.package_id) && p.left > 0 && fits(p, f.type_id));
+    const next = addDays(f.date, 7);
+    const pkg = keep || (packages || []).find((p) => (!p.expires || p.expires >= next) && fits(p, f.type_id));
+    const { id, invoice_id, invoice_number, invoice_kind, invoice_paid, cancel_reason, ...rest } = f;
+    setCopiedFrom(f.date);
+    setSession(null);
+    setSwitched(null); setError(null);
+    setF({ ...rest, date: next, status: 'scheduled', note: '', package_id: pkg ? String(pkg.id) : '',
+      therapist: rest.therapist || (therapists.length === 1 ? therapists[0] : '') });
+    // Back to the top, where it says it's a copy.
+    requestAnimationFrame(() => document.querySelectorAll('.modal, .modal-body').forEach((el) => el.scrollTo?.(0, 0)));
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -103,10 +123,13 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
   return (
     <Modal title={session ? t(`Edit ${term('event')}`) : t(`New ${term('event')}`)} onClose={onClose} onSubmit={save}
       footer={<>
+        {session && <button type="button" className="btn" onClick={duplicate} style={{ marginRight: 'auto' }} title={t(`A new ${term('event')} like this one, a week later`)}>
+          <IconCopy width="15" />{t('Duplicate')}</button>}
         <button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button>
         <button className="btn btn-primary" disabled={saving}>{t('Save')}</button>
       </>}>
       {error && <div className="error-box">{error}</div>}
+      {copiedFrom && <div className="package-hint">{t('A copy of the one on {date}, a week later: check the date and time.', { date: dayMonth(copiedFrom) })}</div>}
       <div className="segmented" role="radiogroup" aria-label={t('Status')}>
         {Object.entries(SESSION_STATUS).map(([k, label]) => (
           <button type="button" key={k} className={f.status === k ? 'on' : ''} role="radio" aria-checked={f.status === k}
