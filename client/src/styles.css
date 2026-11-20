@@ -874,3 +874,17 @@ a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 .repeat-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; gap: 8px; }
 .repeat-box .segmented { align-self: flex-start; flex-wrap: wrap; }
 .repeat-icon { opacity: .7; margin-left: 4px; vertical-align: -2px; }
+
+/* names still used but no longer listed (Settings → Services lists) */
+.orphans { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.orphans p { margin: 0; }
+.orphan-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 8px; align-items: center; font-size: 13.5px; }
+
+/* practice statistics */
+.stat-row { display: flex; flex-direction: column; gap: 4px; }
+.stat-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.stat-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.stat-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.stats-matrix th, .stats-matrix td { white-space: nowrap; }
+.stats-matrix tbody th, .stats-matrix tfoot th { text-align: left; font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13.5px; color: var(--text); }
+.stats-matrix tfoot td, .stats-matrix tfoot th, .stats-matrix td:last-child { background: var(--surface-2); }

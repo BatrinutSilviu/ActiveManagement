@@ -235,4 +235,17 @@ export default {
   'this session and the following ones of the series': 'această ședință și următoarele din serie', 'this session': 'această ședință',
   'Choose until when it repeats': 'Alege până când se repetă', 'It has to repeat until a date after the first session': 'Trebuie să se repete până la o dată după prima ședință',
   'A session can repeat for at most a year': 'O ședință se poate repeta cel mult un an',
+  // statistics, legal entities list
+  Statistics: 'Statistici', 'Last month': 'Luna trecută', 'This year': 'Anul acesta', 'Include scheduled': 'Include programatele',
+  'Hours worked, by legal entity and by service. A session’s time runs from its start to its end, else its service’s duration.':
+    'Orele lucrate, pe entitate juridică și pe serviciu. Durata unei ședințe e de la ora de început la cea de final, altfel durata serviciului.',
+  'Hours worked': 'Ore lucrate', 'Hours (done and scheduled)': 'Ore (efectuate și programate)', 'Without a duration': 'Fără durată',
+  'not counted in the hours: give them an end time, or the service a duration': 'nu sunt incluse în ore: pune-le ora de final sau dă serviciului o durată',
+  'No sessions done in this period.': 'Nicio ședință efectuată în această perioadă.',
+  'By legal entity': 'Pe entitate juridică', 'By service': 'Pe serviciu', 'No legal entity': 'Fără entitate juridică', 'No service': 'Fără serviciu',
+  'Legal entity × service': 'Entitate juridică × serviciu', 'Hours, and the number of sessions under them': 'Ore și, dedesubt, numărul de ședințe',
+  'Who a patient is treated through; picked in the patient form': 'Prin cine este tratat un pacient; se alege în fișa pacientului',
+  'Add legal entity': 'Adaugă entitate juridică',
+  'Still in use, but no longer in the list: replace each with one from the list.': 'Încă folosite, dar care nu mai sunt în listă: înlocuiește-le cu unele din listă.',
+  'Replace with…': 'Înlocuiește cu…', 'Replace {name} with': 'Înlocuiește {name} cu',
 };

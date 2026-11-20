@@ -9,7 +9,7 @@ import { ProfitSplit, StartingBalance } from './settings/Money.jsx';
 import { People } from './settings/People.jsx';
 import { Activities, PointsRates, TaskShares } from './settings/Points.jsx';
 import { Categories, Sports } from './settings/Sports.jsx';
-import { Conditions, PackageTypes, Services, Therapists, Venues } from './practice/Services.jsx';
+import { Conditions, Entities, PackageTypes, Services, Therapists, Venues } from './practice/Services.jsx';
 
 export default function Settings({ user }) {
   const { canEdit, isAdmin } = usePermissions();
@@ -46,7 +46,7 @@ export default function Settings({ user }) {
             {on('payouts') && <ProfitSplit />}
             <Sports />
           </div>
-        ) : <><Services /><PackageTypes /><Venues /><Therapists /><Conditions /></>}
+        ) : <><Services /><PackageTypes /><Venues /><Entities /><Therapists /><Conditions /></>}
         <StartingBalance />
         <Categories />
         {isAdmin && <Accounts user={user} />}

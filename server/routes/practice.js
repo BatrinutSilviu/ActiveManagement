@@ -674,6 +674,37 @@ router.delete('/invoices/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Time worked between two dates, by the patients' legal entity and by service (and both together). A session's time is
+// from its start to its end, else its service's duration; sessions with neither are counted apart (no_time). Done
+// sessions only, or also the scheduled ones (?scheduled=1: planned time).
+const minutesOf = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+router.get('/practice/stats', (req, res) => {
+  need(isDate(req.query.from) && isDate(req.query.to), 'A valid date is required');
+  const statuses = req.query.scheduled === '1' ? ['done', 'scheduled'] : ['done'];
+  const rows = db.prepare(`SELECT a.start_time, a.end_time, a.therapist, c.entity, et.name AS service, et.duration
+    FROM appointments a JOIN clients c ON c.id = a.client_id LEFT JOIN event_types et ON et.id = a.type_id
+    WHERE a.date BETWEEN ? AND ? AND a.status IN (${statuses.map(() => '?').join(', ')})`).all(req.query.from, req.query.to, ...statuses);
+  const cells = new Map(); // "entity\tservice" -> { entity, service, sessions, minutes, no_time }
+  for (const r of rows) {
+    const k = `${r.entity ?? ''}\t${r.service ?? ''}`;
+    const c = cells.get(k) ?? cells.set(k, { entity: r.entity, service: r.service, sessions: 0, minutes: 0, no_time: 0 }).get(k);
+    const min = r.start_time && r.end_time ? minutesOf(r.end_time) - minutesOf(r.start_time) : r.duration || null;
+    c.sessions += 1;
+    if (min > 0) c.minutes += min; else c.no_time += 1;
+  }
+  res.json({ from: req.query.from, to: req.query.to, cells: [...cells.values()] });
+});
+
+// Names the patients and sessions use, to spot ones no longer in the business's lists (Settings → Services).
+router.get('/practice/names-in-use', (req, res) => {
+  const col = (sql) => db.prepare(sql).all().map((r) => r.v);
+  res.json({
+    entities: col('SELECT DISTINCT entity AS v FROM clients WHERE entity IS NOT NULL'),
+    conditions: col('SELECT DISTINCT name AS v FROM client_conditions'),
+    therapists: col('SELECT DISTINCT therapist AS v FROM appointments WHERE therapist IS NOT NULL'),
+  });
+});
+
 /* ---------------------------------------------------------------------------------------------- overview */
 
 // The dashboard: the month and the year in money (income = money received), what's owed, and the sessions to see to.

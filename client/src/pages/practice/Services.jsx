@@ -6,6 +6,7 @@ import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
 import { CURRENCY, money0 } from '../../format.js';
 import { confirmDelete } from '../../components/Modal.jsx';
+import Select from '../../components/Select.jsx';
 import { IconEdit, IconTrash } from '../../components/Icons.jsx';
 import { t, tn } from '../../i18n/index.js';
 import { rename } from '../settings/rename.js';
@@ -125,6 +126,10 @@ export function Venues() {
 export const Conditions = () => <NameList field="conditions" renamesField="conditionRenames" title="Illness categories"
   about="What a patient can be treated for; picked in the patient form" addLabel="Add category" />;
 
+/** The legal entities a patient is treated through (business.entities), picked in the patient form. */
+export const Entities = () => <NameList field="entities" renamesField="entityRenames" title="Legal entities"
+  about="Who a patient is treated through; picked in the patient form" addLabel="Add legal entity" />;
+
 /** The therapists who do the sessions (business.therapists), picked in the session form. */
 export const Therapists = () => <NameList field="therapists" renamesField="therapistRenames" title="Therapists"
   about="Who does the sessions; picked in the session form" addLabel="Add therapist" />;
@@ -138,17 +143,26 @@ function NameList({ field, renamesField, title, about, addLabel }) {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const rows = list ?? saved.map((name) => ({ name, was: name }));
-  const save = async (e) => {
-    e.preventDefault();
+  // Names still used (by patients or sessions) that aren't in the list any more, e.g. renamed before renames carried over.
+  const { data: inUse, reload: reloadInUse } = useApi('/practice/names-in-use');
+  const orphans = (inUse?.[field] || []).filter((n) => !saved.includes(n));
+  const send = async (body) => {
     setSaving(true);
     try {
-      const renames = Object.fromEntries(rows.filter((r) => r.was && r.was !== r.name.trim()).map((r) => [r.was, r.name.trim()]));
-      await api.put('/business', { [field]: rows.map((r) => r.name), [renamesField]: renames });
+      await api.put('/business', body);
       setList(null); setError(null);
       window.dispatchEvent(new Event('am:business'));
+      reloadInUse();
     } catch (err) { setError(err.message); }
     setSaving(false);
   };
+  const save = (e) => {
+    e.preventDefault();
+    const renames = Object.fromEntries(rows.filter((r) => r.was && r.was !== r.name.trim()).map((r) => [r.was, r.name.trim()]));
+    send({ [field]: rows.map((r) => r.name), [renamesField]: renames });
+  };
+  // An old name replaced by one in the list: everything using it moves over.
+  const replace = (from, to) => to && send({ [field]: saved, [renamesField]: { [from]: to } });
   return (
     <div className="card card-pad">
       <div className="card-head"><div><h2>{t(title)}</h2><p>{t(about)}</p></div></div>
@@ -167,6 +181,20 @@ function NameList({ field, renamesField, title, about, addLabel }) {
           {list && <button type="button" className="btn btn-sm" onClick={() => { setList(null); setError(null); }}>{t('Cancel')}</button>}
         </div>}
       </form>
+      {isAdmin && orphans.length > 0 && saved.length > 0 && (
+        <div className="orphans">
+          <p className="hint warn">{t('Still in use, but no longer in the list: replace each with one from the list.')}</p>
+          {orphans.map((n) => (
+            <div key={n} className="orphan-row">
+              <span>{n}</span>
+              <Select value="" onChange={(e) => replace(n, e.target.value)} aria-label={t('Replace {name} with', { name: n })} disabled={saving}>
+                <option value="">{t('Replace with…')}</option>
+                {saved.map((x) => <option key={x} value={x}>{x}</option>)}
+              </Select>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

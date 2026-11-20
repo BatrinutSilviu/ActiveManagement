@@ -16,7 +16,7 @@ export function Business() {
   const save = async (e) => {
     e.preventDefault();
     try {
-      const { locations, conditions, therapists, ...rest } = v; // edited in Settings → Services (venues, illness categories, therapists)
+      const { locations, conditions, therapists, entities, ...rest } = v; // edited in their own cards (venues, illness categories, therapists, legal entities)
       await api.put('/business', rest);
       setMsg({ ok: true, text: t('Saved.') }); setF(null); reload();
       window.dispatchEvent(new Event('am:business')); // the menu, colours and money format follow
@@ -40,12 +40,6 @@ export function Business() {
             </Select>
           </label>
           <label className="field">{t('Number format')}<input value={v.locale} onChange={set('locale')} required placeholder="ro-RO" /></label>
-          {v.features.practice && (
-            <label className="field full">{t('Legal entities')} <span className="hint">— {t('one per line; each patient is treated through one of them')}</span>
-              <textarea rows={3} value={Array.isArray(v.entities) ? v.entities.join('\n') : v.entities || ''}
-                onChange={(e) => setF({ ...v, entities: e.target.value })} />
-            </label>
-          )}
         </div>
         <div>
           <div className="kpi-label" style={{ marginBottom: 6 }}>{t('Parts of the app')}</div>
