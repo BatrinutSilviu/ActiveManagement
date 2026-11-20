@@ -198,6 +198,12 @@ another one. Nothing is shared between copies, and every copy runs the same code
   profit and sessions done; what's **not billed yet** (sessions done outside a package, and packages, with no
   invoice or receipt) and **billed but not paid**; past sessions still marked scheduled; and packages nearly used up.
 - Settings → Services sets each service's default price; Transactions holds the other income and costs.
+- **Kilometres** (its own switch, *trips*): for each working day, the road from a start address through the day's
+  visits (its sessions in time order: the patient's address, or the practice location's) to a finish address, and the
+  km driven, worked out from the map. The day's stops can be changed before saving; start and finish addresses can be
+  saved and picked with one tap, and a day starts from the last day's. Addresses are found with OpenStreetMap's
+  geocoder (Nominatim, one request a second, each address kept so it's asked for once) and the road distance comes
+  from OSRM's public server; only addresses are sent, never names. `GEOCODER_URL` / `ROUTER_URL` point them elsewhere.
 
 **Setting up a new copy** (with Docker + Traefik, as for Active):
 

@@ -188,4 +188,34 @@ export default {
   'Other therapies': 'Alte terapii', 'with other therapists (optional)': 'cu alți terapeuți (opțional)', 'Therapy, e.g. speech therapy': 'Terapia, ex. logopedie',
   Therapist: 'Terapeut', 'Add therapy': 'Adaugă terapie', 'Each other therapy needs a name': 'Fiecare terapie trebuie să aibă un nume',
   'How often, e.g. 2× a week': 'Cât de des, ex. de 2× pe săptămână',
+  // kilometre log (Trips.jsx, TripForm.jsx, server/routes/trips.js, server/domain/routing.js)
+  Kilometres: 'Kilometri', Km: 'Km', Route: 'Traseu', Start: 'Plecare', Finish: 'Sosire', Driven: 'Parcurși',
+  'The road driven each working day: from the start, through the day’s visits, to the finish. The km come from the map.':
+    'Drumul făcut în fiecare zi de lucru: de la plecare, pe la vizitele zilei, până la sosire. Kilometrii sunt calculați pe hartă.',
+  'Today’s km': 'Km de azi', 'Km this day': 'Km în ziua asta', 'Driven this month': 'Parcurși luna aceasta',
+  'Days with home visits not logged': 'Zile cu vizite la domiciliu neînregistrate', 'Not logged': 'Neînregistrat',
+  'map: {km}': 'hartă: {km}', 'No sessions this month.': 'Nicio ședință luna aceasta.',
+  '{n} day': '{n} zi', '{n} days': '{n de} zile', '{n} at home': '{n} la domiciliu', '{n} stop': '{n} oprire', '{n} stops': '{n de} opriri',
+  'Saved addresses': 'Adrese salvate',
+  'Picked with one tap as a day’s start or finish. The practice’s locations are offered too.':
+    'Se aleg dintr-o atingere ca plecare sau sosire. Sunt oferite și locațiile cabinetului.',
+  'None yet. Add your home, or save an address straight from a day’s start or finish.':
+    'Niciuna încă. Adaugă adresa de acasă sau salvează o adresă direct de la plecarea sau sosirea unei zile.',
+  'Edit address': 'Editează adresa', 'New address': 'Adresă nouă', 'e.g. Home': 'ex. Acasă', 'Street, number, town': 'Stradă, număr, localitate',
+  'the km of this day': 'kilometrii acestei zile', 'A name for this address, e.g. Home': 'Un nume pentru această adresă, ex. Acasă',
+  'Km on {day}': 'Km {day}', 'Working out the km…': 'Se calculează km…', 'Work out the km and save': 'Calculează km și salvează',
+  '(the map says {km})': '(harta spune {km})',
+  'Only the town was found for: {list}. Write these addresses more fully for an exact distance.':
+    'Doar localitatea a fost găsită pentru: {list}. Scrie aceste adrese mai complet pentru o distanță exactă.',
+  'Take them from the day’s sessions again': 'Ia-le din nou din ședințele zilei',
+  'No address for: {list}. Add it to the patient (or the session) to have it here.':
+    'Fără adresă: {list}. Adaug-o la pacient (sau la ședință) ca să apară aici.',
+  'Address of stop {n}': 'Adresa opririi {n}', Earlier: 'Mai devreme', Later: 'Mai târziu', 'Remove stop': 'Scoate oprirea', 'Add a stop': 'Adaugă o oprire',
+  'Same as the start': 'La fel ca plecarea', 'Km, if different': 'Km, dacă diferă', '— your own figure, e.g. from the odometer': '— cifra ta, ex. de la bord',
+  'Save this address': 'Salvează adresa',
+  'Write where the day started': 'Scrie de unde ai plecat', 'Write where the day ended': 'Scrie unde ai ajuns la final',
+  'The km must be a number': 'Km trebuie să fie un număr', 'Give the place a name, e.g. Home': 'Dă-i adresei un nume, ex. Acasă',
+  'Write the address': 'Scrie adresa', 'This place no longer exists': 'Această adresă nu mai există',
+  'Couldn’t find “{address}” on the map: write it with the street, number and town': 'Nu am găsit „{address}” pe hartă: scrie-o cu stradă, număr și localitate',
+  'The map service didn’t answer: try again in a minute': 'Serviciul de hărți nu a răspuns: încearcă din nou peste un minut',
 };

@@ -5,7 +5,7 @@ import { money0 } from './format.js';
 import { ROLE_LABELS, UserContext, useApi } from './hooks.js';
 import { applyBusiness, BusinessContext } from './business.js';
 import { t } from './i18n/index.js';
-import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReceipt, IconReport, IconSettings, IconTicket, IconTrophy, IconUpload, IconUsers, IconWallet } from './components/Icons.jsx';
+import { IconActivity, IconBox, IconCalendar, IconCoins, IconDashboard, IconGift, IconLogout, IconMenu, IconReceipt, IconReport, IconRoute, IconSettings, IconTicket, IconTrophy, IconUpload, IconUsers, IconWallet } from './components/Icons.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Events from './pages/Events.jsx';
@@ -25,6 +25,7 @@ import PracticeSessions from './pages/practice/Sessions.jsx';
 import Patients from './pages/practice/Patients.jsx';
 import Patient from './pages/practice/Patient.jsx';
 import Invoices from './pages/practice/Invoices.jsx';
+import Trips from './pages/practice/Trips.jsx';
 
 // `term`: the label is what the business calls it (Events / Sessions…); `feature`: shown only when that part is on.
 // `overview`: in the top group of the menu.
@@ -34,6 +35,7 @@ const NAV = [
   { to: '/sessions', term: 'events', icon: IconCalendar, feature: 'practice', overview: true },
   { to: '/patients', term: 'people', icon: IconUsers, feature: 'practice', overview: true },
   { to: '/invoices', label: 'Invoices', icon: IconReceipt, feature: 'practice', overview: true },
+  { to: '/trips', label: 'Kilometres', icon: IconRoute, feature: 'trips', overview: true },
   { to: '/payouts', label: 'Payouts', icon: IconCoins, feature: 'payouts', overview: true },
   { to: '/monthly', label: 'Monthly', icon: IconReport, feature: 'events', overview: true },
   { to: '/sports', term: 'sports', icon: IconTrophy, feature: 'funds', overview: true },
@@ -155,6 +157,7 @@ export default function App() {
           {on('practice') && <Route path="/patients" element={<Patients />} />}
           {on('practice') && <Route path="/patients/:id" element={<Patient />} />}
           {on('practice') && <Route path="/invoices" element={<Invoices />} />}
+          {on('trips') && <Route path="/trips" element={<Trips />} />}
           <Route path="/transactions" element={<Transactions />} />
           {on('payouts') && <Route path="/payouts" element={<Payouts />} />}
           {on('events') && <Route path="/monthly" element={<Monthly />} />}

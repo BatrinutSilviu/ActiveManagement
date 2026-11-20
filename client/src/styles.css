@@ -846,3 +846,26 @@ tr.row-picked td { background: var(--accent-soft); }
   .month-dots { display: flex; justify-content: center; }
   .month-head span { padding: 6px 2px; font-size: 10.5px; }
 }
+
+/* kilometre log (practice/Trips.jsx, TripForm.jsx) */
+a.chip { display: inline-flex; align-items: center; text-decoration: none; }
+.chip-add { display: inline-flex; align-items: center; gap: 4px; border-style: dashed; }
+.hint.warn { color: color-mix(in srgb, var(--warning) 55%, var(--text)); }
+.trip-stops-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.trip-stops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trip-stops li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.trip-num { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--text); display: grid; place-items: center; font-size: 12px; font-weight: 650; }
+.trip-stop { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.trip-stop strong { font-size: 12.5px; color: var(--text); }
+.trip-stop-actions { display: flex; }
+.trip-stop-actions .icon-btn { padding: 6px; }
+.trip-result { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.trip-result strong { font-size: 22px; font-weight: 700; color: var(--text); margin-left: 8px; }
+.trip-legs { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--text-2); }
+.trip-legs li span { margin-right: 8px; }
+.place-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.place-row:first-child { border-top: 0; }
+.place-row .row-actions { display: flex; }
+@media (max-width: 560px) {
+  .trip-stop-actions { flex-direction: column; }
+}

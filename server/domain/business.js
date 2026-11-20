@@ -8,6 +8,7 @@ import { db } from '../db/connection.js';
 export const FEATURES = {
   events: 'Community events (attendees, discounts, costs) and the monthly report',
   practice: 'Patients, sessions, packages, invoices and receipts',
+  trips: 'Kilometre log: the road driven each day to the home visits',
   payouts: 'Payouts, points and the profit split',
   funds: 'Sport funds page',
   vouchers: 'Vouchers',
@@ -24,12 +25,12 @@ const all = (on, except = {}) => ({ ...Object.fromEntries(Object.keys(FEATURES).
 export const TYPES = {
   community: {
     label: 'Community (events, sport funds, profit split)',
-    features: all(true, { practice: false }),
+    features: all(true, { practice: false, trips: false }),
     terms: { event: 'event', events: 'events', sport: 'sport', sports: 'sports', person: 'person', people: 'people' },
   },
   practice: {
     label: 'Practice (sessions with clients or patients)',
-    features: all(false, { practice: true }),
+    features: all(false, { practice: true, trips: true }),
     terms: { event: 'session', events: 'sessions', sport: 'service', sports: 'services', person: 'patient', people: 'patients' },
   },
 };

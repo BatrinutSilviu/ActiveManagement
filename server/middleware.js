@@ -30,7 +30,8 @@ export function errorHandler(err, req, res, next) {
   const status = err.status || err.statusCode || 500;
   if (status >= 500) log('error', 'request failed', { id: req.id, method: req.method, path: req.originalUrl.split('?')[0], ...errorFields(err) });
   if (res.headersSent) return next(err);
-  res.status(status).json({ error: status < 500 ? err.message : 'Something went wrong', requestId: req.id });
+  // vars: what fills the message's {placeholders}, so the app can translate it (t(error, vars)).
+  res.status(status).json({ error: status < 500 ? err.message : 'Something went wrong', vars: status < 500 ? err.vars : undefined, requestId: req.id });
 }
 
 // Security headers for every response: no framing (clickjacking), no MIME sniffing, HTTPS only,

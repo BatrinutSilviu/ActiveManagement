@@ -925,4 +925,36 @@ if (!columns('clients').includes('first_name')) {
     set.run(first, rest.join(' ') || null, c.id);
   }
 }
+
+/* ------------------------------------------------------------------- kilometre log (routes/trips.js) */
+
+// The road driven on a working day: from the start address, through the day's visits, to the finish address.
+// stops: JSON [{ label, address }] in the order driven; km: the road distance worked out from the map (legs: each
+// leg's), km_manual: the therapist's own figure when different. places: addresses kept to pick as start or finish.
+// geocodes: where each address is on the map, kept so it's asked for only once (key: the address simplified).
+db.exec(`
+CREATE TABLE IF NOT EXISTS trips (
+  date TEXT PRIMARY KEY,
+  start_address TEXT NOT NULL,
+  end_address TEXT NOT NULL,
+  stops TEXT NOT NULL DEFAULT '[]',
+  km REAL,
+  legs TEXT,
+  km_manual REAL,
+  note TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS places (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS geocodes (
+  key TEXT PRIMARY KEY,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  found TEXT,
+  approx INTEGER NOT NULL DEFAULT 0
+);
+`);
 }

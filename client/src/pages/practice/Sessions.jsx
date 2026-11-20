@@ -5,9 +5,10 @@ import { Link } from 'react-router-dom';
 import { api, qs } from '../../api.js';
 import { useAction, useApi, usePermissions, usePersistentState } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
-import { IconCheck, IconChevronLeft, IconPlus } from '../../components/Icons.jsx';
+import { IconCheck, IconChevronLeft, IconPlus, IconRoute } from '../../components/Icons.jsx';
 import { dateLocale, t, tn } from '../../i18n/index.js';
 import SessionForm from './SessionForm.jsx';
+import TripForm from './TripForm.jsx';
 import { addDays, Billing, dayMonth, iso, localToday, mapsUrl, sessionPrice, SessionStatus, timeLabel, VENUES, weekday, weekStart } from './common.jsx';
 
 // The views of the schedule, and how far each one reaches from the date it's on.
@@ -30,8 +31,9 @@ const monthLabel = (d) => { const s = new Date(`${d}T12:00:00`).toLocaleDateStri
 
 export default function Sessions() {
   const { canEdit } = usePermissions();
-  const { term, Term } = useBusiness();
+  const { term, Term, on } = useBusiness();
   const today = localToday();
+  const [trip, setTrip] = useState(null); // the day whose km are open
   const [view, setView] = usePersistentState('am-sessions-view', 'week');
   const [at, setAt] = useState(today);
   const [hideCancelled, setHideCancelled] = usePersistentState('am-sessions-hide-cancelled', true);
@@ -66,6 +68,7 @@ export default function Sessions() {
           <button onClick={() => setAt(step(view, at, 1))} aria-label={t('Next')}><IconChevronLeft width="15" style={{ transform: 'rotate(180deg)' }} /></button>
         </div>
         <input type="date" value={at} onChange={(e) => e.target.value && setAt(e.target.value)} aria-label={t('Go to date')} style={{ width: 'auto' }} />
+        {view === 'day' && on('trips') && canEdit && <button className="btn" onClick={() => setTrip(at)}><IconRoute width="15" />{t('Km this day')}</button>}
         <label className="check"><input type="checkbox" checked={hideCancelled} onChange={(e) => setHideCancelled(e.target.checked)} />{t('Hide cancelled')}</label>
       </div>
       {err && <div className="error-box" style={{ marginBottom: 12 }}>{err}</div>}
@@ -103,6 +106,7 @@ export default function Sessions() {
           {!list.length && <div className="card empty">{t(`No ${term('events')} in these {n} days.`, { n: LIST_DAYS })}</div>}
         </div>
       )}
+      {trip && <TripForm date={trip} onClose={() => setTrip(null)} />}
       {form && <SessionForm session={form.session} date={form.date} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
     </div>
   );

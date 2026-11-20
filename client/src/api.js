@@ -9,7 +9,7 @@ async function request(method, url, body) {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && !url.startsWith('/auth')) window.dispatchEvent(new Event('am:signed-out'));
-  if (!res.ok) throw new Error(t(data.error) || t('Request failed ({status})', { status: res.status }));
+  if (!res.ok) throw new Error(t(data.error, data.vars) || t('Request failed ({status})', { status: res.status }));
   return data;
 }
 

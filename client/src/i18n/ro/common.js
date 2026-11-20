@@ -35,6 +35,7 @@ export default {
   'Practice (sessions with clients or patients)': 'Cabinet (ședințe cu clienți sau pacienți)',
   'Community events (attendees, discounts, costs) and the monthly report': 'Evenimente comunitare (participanți, reduceri, costuri) și raportul lunar',
   'Patients, sessions, packages, invoices and receipts': 'Pacienți, ședințe, pachete, facturi și chitanțe',
+  'Kilometre log: the road driven each day to the home visits': 'Kilometri: drumul făcut în fiecare zi la vizitele la domiciliu',
   'Payouts, points and the profit split': 'Plăți, puncte și împărțirea profitului',
   'Sport funds page': 'Pagina fondurilor sportive', 'Partners and partner prizes': 'Parteneri și premii de la parteneri',
   'Stock and equipment': 'Stoc și echipament', 'Spreadsheet import': 'Import din foi de calcul',

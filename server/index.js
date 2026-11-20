@@ -37,6 +37,7 @@ import { router as exportRoutes } from './routes/export.js';
 import { router as serverStatus } from './routes/server.js';
 import { router as publicCalendar } from './routes/publicCalendar.js';
 import { router as practice } from './routes/practice.js';
+import { router as trips } from './routes/trips.js';
 import { publicRouter as businessPublic, router as business } from './routes/business.js';
 import { featureOn, getBusiness } from './domain/business.js';
 
@@ -68,7 +69,7 @@ api.use(health, auth, businessPublic, part('sync', integrations), part('calendar
 // Everything else needs a signed-in account, with a role allowed to do it.
 api.use(requireAuth, checkRole);
 api.use(users, business, settings, sports, categories, people, discounts, transactions, funds, stats, backups, exportRoutes,
-  part('events', events, eventTasks, eventAttendees), part('practice', practice),
+  part('events', events, eventTasks, eventAttendees), part('practice', practice), part('trips', trips),
   part('stock', stock, equipment, eventStock), part('payouts', activities, payouts), part('import', imports),
   part('vouchers', vouchers), part('partners', partners), part('server', serverStatus));
 api.use(apiNotFound);
