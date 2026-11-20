@@ -7,13 +7,18 @@ import { t } from '../../i18n/index.js';
 import { blankPurchase, purchaseBody, PurchaseFields } from './PurchaseFields.jsx';
 
 export function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
-  const [f, setF] = useState({ from: item.holdings[0]?.person_id || '', to: '', person_id: '', qty: '' });
+  const [f, setF] = useState({ from: mode === 'move' ? item.holdings[0]?.person_id || '' : '', to: '', person_id: '', qty: '' });
   const [purchase, setPurchase] = useState(blankPurchase);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // "Add" asks where it comes from; coming from another founder is a move (no money), like "Move".
+  const moving = mode === 'move' || purchase.how === 'moved';
+  const others = item.holdings.filter((h) => String(h.person_id) !== String(f.person_id));
   const save = async () => {
     try {
-      if (mode === 'add') await api.put('/stock/holdings', { item_id: item.id, person_id: f.person_id, qty: f.qty, mode: 'add', ...purchaseBody(purchase, f.person_id, f.qty, item.unit_price) });
+      if (mode === 'add' && !purchase.how) throw new Error(t('Choose where it comes from'));
+      if (mode === 'add' && purchase.how === 'moved') await api.post('/stock/transfer', { item_id: item.id, from: Number(f.from), to: Number(f.person_id), qty: f.qty });
+      else if (mode === 'add') await api.put('/stock/holdings', { item_id: item.id, person_id: f.person_id, qty: f.qty, mode: 'add', ...purchaseBody(purchase, f.person_id, f.qty, item.unit_price) });
       else await api.post('/stock/transfer', { item_id: item.id, from: Number(f.from), to: Number(f.to), qty: f.qty });
       onSaved();
     } catch (e) { setError(e.message); }
@@ -46,9 +51,18 @@ export function MoveForm({ item, people, founders, mode, onClose, onSaved }) {
           </>
         )}
         <label className="field">{t('Quantity')} ({item.unit})<input type="number" min="0.01" step="any" value={f.qty} onChange={set('qty')} autoFocus required /></label>
-        {mode === 'add' && <PurchaseFields p={purchase} setP={setPurchase} people={people} holder={f.person_id} qty={f.qty} price={item.unit_price} />}
+        {mode === 'add' && <PurchaseFields p={purchase} setP={setPurchase} people={people} holder={f.person_id} qty={f.qty} price={item.unit_price}
+          ways={item.holdings.length ? ['bought', 'moved', 'had'] : ['bought', 'had']} />}
+        {mode === 'add' && purchase.how === 'moved' && (
+          <label className="field">{t('From')}
+            <Select value={f.from} onChange={set('from')} required>
+              <option value="">{t('Choose founder…')}</option>
+              {others.map((h) => <option key={h.person_id} value={h.person_id}>{h.name} ({number(h.qty)})</option>)}
+            </Select>
+          </label>
+        )}
       </div>
-      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>{t('Adds to what this person already holds. Untick “Bought now” for stock that was given to us; to correct a count, edit the number in the table.')}</p>}
+      {mode === 'add' && <p className="hint" style={{ margin: 0 }}>{moving ? t('Taken from the first person and added to the second.') : t('Adds to what this person already holds. To correct a count, edit the number in the table.')}</p>}
     </Modal>
   );
 }

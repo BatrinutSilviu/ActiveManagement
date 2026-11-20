@@ -66,7 +66,7 @@ export default function Stock() {
           <button className={view === 'purchases' ? 'on' : ''} onClick={() => setView('purchases')}>{t('Purchases')}</button>
           <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>{t('Equipment')}</button>
         </div>
-        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <>{error && <div className="error-box">{error}</div>}<Purchases run={run} /></> : <>
+        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <>{error && <div className="error-box">{error}</div>}<Purchases run={run} founders={founders} onChanged={refresh} /></> : <>
         {error && <div className="error-box">{error}</div>}
         <div className="grid grid-kpi">
           <Kpi label={t('Stock value')} icon={IconBox} tone="profit" value={money0(totalValue)} sub={tn(items.length, '{n} product', '{n} products')} />

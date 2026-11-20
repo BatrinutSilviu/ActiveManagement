@@ -1,14 +1,18 @@
+import { useState } from 'react';
 import { api } from '../../api.js';
 import { useApi, usePermissions } from '../../hooks.js';
 import { date, money, number } from '../../format.js';
 import { IconTrash } from '../../components/Icons.jsx';
+import Modal from '../../components/Modal.jsx';
+import Select from '../../components/Select.jsx';
 import { PURCHASE_KINDS } from './PurchaseFields.jsx';
 import { t } from '../../i18n/index.js';
 
 /** Every purchase, newest first, with the points it earned. */
-export function Purchases({ run }) {
+export function Purchases({ run, founders = [], onChanged }) {
   const { data, reload } = useApi('/stock/purchases');
   const { canEdit } = usePermissions();
+  const [notBought, setNotBought] = useState(null); // the purchase being corrected
   if (!data) return null;
   const togglePaid = (l) => run(() => api.put(`/stock/purchases/${l.id}/paid-before`, { paid_before: !l.paid_before })).then(reload);
   const del = (l) => window.confirm(t('Delete this purchase? {qty} {unit} of {item} are taken back from {holder} and {person} loses its {points} points.', { qty: l.qty, unit: l.unit, item: l.item_name, holder: l.holder_name || t('the holder'), person: l.person_name, points: number(l.points) }))
@@ -30,12 +34,40 @@ export function Purchases({ run }) {
                     {canEdit && <> · <button className="link-btn" onClick={() => togglePaid(l)}>{l.paid_before ? t('take from the fund') : t('was paid earlier')}</button></>}</div>}
                 </td>
                 <td className="r"><strong>{number(l.points)}</strong></td>
-                {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Delete purchase')} onClick={() => del(l)}><IconTrash /></button></td>}
+                {canEdit && <td className="r actions">
+                  <button className="link-btn" onClick={() => setNotBought(l)} title={t('It was passed on by another founder, or we already had it')}>{t('Not bought')}</button>
+                  <button className="icon-btn" aria-label={t('Delete purchase')} onClick={() => del(l)}><IconTrash /></button></td>}
               </tr>
             ))}
           </tbody>
         </table>
-      ) : <div className="empty">{t('No purchases yet. When you add stock, tick “Bought now” to record who bought it.')}</div>}
+      ) : <div className="empty">{t('No purchases yet. When you add stock, choose “Bought now” to record who bought it.')}</div>}
+      {notBought && <NotBought l={notBought} founders={founders} onClose={() => setNotBought(null)}
+        onSaved={() => { setNotBought(null); reload(); onChanged?.(); }} />}
     </div>
+  );
+}
+
+/** A purchase that wasn't one: its money and points go; the holder keeps the stock, taken from whoever passed it on. */
+function NotBought({ l, founders, onClose, onSaved }) {
+  const [from, setFrom] = useState('');
+  const [error, setError] = useState(null);
+  const save = async () => {
+    try { await api.post(`/stock/purchases/${l.id}/not-bought`, { from: from === 'none' ? null : Number(from) }); onSaved(); } catch (e) { setError(e.message); }
+  };
+  return (
+    <Modal title={t('Not bought')} onClose={onClose} onSubmit={save}
+      footer={<><button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button><button className="btn btn-primary">{t('Save')}</button></>}>
+      {error && <div className="error-box">{error}</div>}
+      <p style={{ margin: 0 }}>{t('{qty} {unit} {item}, kept by {holder}: the {amount} expense and {person}’s {points} points are removed; {holder} keeps the {qty} {unit}.', {
+        qty: number(l.qty), unit: l.unit, item: l.item_name, holder: l.holder_name || t('the holder'), amount: money(l.amount), person: l.person_name, points: number(l.points) })}</p>
+      <label className="field">{t('Where did it come from?')}
+        <Select value={from} onChange={(e) => setFrom(e.target.value)} required>
+          <option value="">{t('Choose…')}</option>
+          {founders.filter((p) => p.id !== l.holder_id).map((p) => <option key={p.id} value={p.id}>{t('From {name} (taken off their count)', { name: p.name })}</option>)}
+          <option value="none">{t('We already had it / the counts are already right')}</option>
+        </Select>
+      </label>
+    </Modal>
   );
 }

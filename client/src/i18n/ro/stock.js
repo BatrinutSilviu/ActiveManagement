@@ -452,4 +452,21 @@ export default {
   'logged by the app': 'înregistrate de aplicație', 'of one core (the server has {n}) · average {avg}': 'dintr-un nucleu (serverul are {n}) · în medie {avg}',
   'average {avg} · peak {peak}': 'în medie {avg} · vârf {peak}', 'sent and received': 'trimis și primit', 'Last backup': 'Ultimul backup',
   CPU: 'CPU', Memory: 'Memorie', '% of one core, average per {bucket}': '% dintr-un nucleu, medie la fiecare {bucket}',
+  // where stock comes from (PurchaseFields, MoveForm), and correcting a purchase that wasn't one (Purchases)
+  'Bought now': 'Cumpărat acum', 'From another founder': 'De la alt fondator', 'We already had it (no cost)': 'Îl aveam deja (fără cost)',
+  'Where does it come from?': 'De unde vine?', 'Choose where it comes from': 'Alege de unde vine',
+  'Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points.':
+    'Plătit din fondul categoriei sale (categoria unui sport → fondul acelui sport, altfel fondul general); cumpărătorul primește puncte.',
+  'Passed on between founders: no money, no points.': 'Dat de la un fondator la altul: fără bani, fără puncte.',
+  'Already ours, or given to us: no money, no points.': 'Era deja al nostru sau ne-a fost dat: fără bani, fără puncte.',
+  'Choose one: only “Bought now” spends money.': 'Alege una: doar „Cumpărat acum” cheltuiește bani.',
+  'Taken from the first person and added to the second.': 'Se ia de la prima persoană și se adaugă celei de-a doua.',
+  'Adds to what this person already holds. To correct a count, edit the number in the table.': 'Se adaugă la ce are deja această persoană. Ca să corectezi o cantitate, editează numărul din tabel.',
+  'Not bought': 'Nu a fost cumpărat', 'It was passed on by another founder, or we already had it': 'A fost dat de alt fondator sau îl aveam deja',
+  'No purchases yet. When you add stock, choose “Bought now” to record who bought it.': 'Nicio achiziție încă. Când adaugi stoc, alege „Cumpărat acum” ca să notezi cine l-a cumpărat.',
+  '{qty} {unit} {item}, kept by {holder}: the {amount} expense and {person}’s {points} points are removed; {holder} keeps the {qty} {unit}.':
+    '{qty} {unit} {item}, la {holder}: cheltuiala de {amount} și cele {points} puncte ale lui {person} se șterg; {holder} păstrează cele {qty} {unit}.',
+  'Where did it come from?': 'De unde a venit?', 'From {name} (taken off their count)': 'De la {name} (se scade din cantitatea lui)',
+  'We already had it / the counts are already right': 'Îl aveam deja / cantitățile sunt deja corecte',
+  'Choose someone other than who keeps it': 'Alege pe altcineva decât cel care îl păstrează',
 };

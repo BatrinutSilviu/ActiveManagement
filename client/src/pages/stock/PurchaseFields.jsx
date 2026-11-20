@@ -5,15 +5,19 @@ import { t } from '../../i18n/index.js';
 
 // English labels; translate at render time with t().
 export const PURCHASE_KINDS = { items: 'Usual items / prizes', merch: 'Partnership merchandise' };
-export const blankPurchase = () => ({ on: true, person_id: '', kind: 'items', amount: '', date: today(), paid_before: false });
+// how: where the stock came from, chosen every time (nothing ticked to start with, so a move isn't recorded as bought):
+// 'bought' (spent from a fund, points to the buyer), 'moved' (from another founder), 'had' (ours already, no cost).
+export const blankPurchase = () => ({ how: null, person_id: '', kind: 'items', amount: '', date: today(), paid_before: false });
+export const HOW = { bought: 'Bought now', moved: 'From another founder', had: 'We already had it (no cost)' };
 
 /** Turns the purchase fields into what the API expects (or nothing when it wasn't bought). */
-export const purchaseBody = (p, holder, qty, price) => (p.on
+export const purchaseBody = (p, holder, qty, price) => (p.how === 'bought'
   ? { purchase: { kind: p.kind, person_id: p.person_id || holder, date: p.date, paid_before: p.paid_before, amount: p.amount === '' ? (Number(qty) || 0) * (Number(price) || 0) : p.amount } }
   : {});
 
-/** "Bought just now": who bought it, what kind of purchase, what they paid — it earns them points. */
-export function PurchaseFields({ p, setP, people, holder, qty, price }) {
+/** Where the stock came from (ways: the keys of HOW offered), and when bought: who bought it, what kind of purchase,
+ * what they paid — it earns them points. */
+export function PurchaseFields({ p, setP, people, holder, qty, price, ways = ['bought', 'had'] }) {
   const { data: rates } = useApi('/settings/points-rates');
   const set = (k) => (e) => setP({ ...p, [k]: e.target.value });
   const auto = (Number(qty) || 0) * (Number(price) || 0);
@@ -22,11 +26,18 @@ export function PurchaseFields({ p, setP, people, holder, qty, price }) {
   const points = step > 0 ? Math.round((amount / step) * pts * 100) / 100 : 0;
   return (
     <>
-      <label className="field full check-field">
-        <input type="checkbox" checked={p.on} onChange={(e) => setP({ ...p, on: e.target.checked })} />
-        {t('Bought now — spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points')}
-      </label>
-      {p.on && (
+      <div className="field full">{t('Where does it come from?')}
+        <div className="segmented how-choice" role="radiogroup" aria-label={t('Where does it come from?')}>
+          {ways.map((k) => (
+            <button type="button" key={k} role="radio" aria-checked={p.how === k} className={p.how === k ? 'on' : ''}
+              onClick={() => setP({ ...p, how: k })}>{t(HOW[k])}</button>
+          ))}
+        </div>
+        <span className="hint">{p.how === 'bought' ? t('Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points.')
+          : p.how === 'moved' ? t('Passed on between founders: no money, no points.')
+          : p.how === 'had' ? t('Already ours, or given to us: no money, no points.') : t('Choose one: only “Bought now” spends money.')}</span>
+      </div>
+      {p.how === 'bought' && (
         <>
           <label className="field">{t('Bought by')}
             <Select value={p.person_id || holder || ''} onChange={set('person_id')} required>

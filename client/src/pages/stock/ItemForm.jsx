@@ -25,7 +25,8 @@ export function ItemForm({ item, category, cats, people, founders, onClose, onSa
           if (!h.person_id || h.qty === '' || Number(h.qty) === h.was) continue;
           await api.put('/stock/holdings', { item_id: item.id, person_id: h.person_id, qty: Number(h.qty) });
         }
-      } else await api.post('/stock/items', { ...f, ...(f.person_id && Number(f.qty) > 0 ? purchaseBody(purchase, f.person_id, f.qty, f.unit_price) : {}) });
+      } else if (f.person_id && Number(f.qty) > 0 && !purchase.how) throw new Error(t('Choose where it comes from'));
+      else await api.post('/stock/items', { ...f, ...(f.person_id && Number(f.qty) > 0 ? purchaseBody(purchase, f.person_id, f.qty, f.unit_price) : {}) });
       onSaved();
     } catch (e) { setError(e.message); }
   };

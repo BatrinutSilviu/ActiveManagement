@@ -147,6 +147,22 @@ router.delete('/stock/purchases/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Recorded as bought, but it wasn't: it was passed on by another founder, or we already had it. The purchase, its money
+// from the fund and its points go; the holder keeps the quantity. With `from`, that person gives it up (as much as
+// they still hold); without, the counts are taken as already right.
+router.post('/stock/purchases/:id/not-bought', (req, res) => {
+  const p = db.prepare('SELECT * FROM stock_purchases WHERE id = ?').get(idParam(req));
+  need(p, 'Purchase not found');
+  const from = req.body.from ? Number(req.body.from) : null;
+  need(!from || from !== p.holder_id, 'Choose someone other than who keeps it');
+  tx(() => {
+    if (from) db.prepare('UPDATE stock_holdings SET qty = MAX(qty - ?, 0) WHERE item_id = ? AND person_id = ?').run(p.qty, p.item_id, from);
+    if (p.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(p.transaction_id);
+    db.prepare('DELETE FROM stock_purchases WHERE id = ?').run(p.id);
+  });
+  res.json({ ok: true });
+});
+
 // Set (mode 'set') or add to (mode 'add') the quantity one person holds.
 router.put('/stock/holdings', (req, res) => {
   const { item_id, person_id, qty, mode = 'set' } = req.body;

@@ -888,3 +888,6 @@ a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 .stats-matrix th, .stats-matrix td { white-space: nowrap; }
 .stats-matrix tbody th, .stats-matrix tfoot th { text-align: left; font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13.5px; color: var(--text); }
 .stats-matrix tfoot td, .stats-matrix tfoot th, .stats-matrix td:last-child { background: var(--surface-2); }
+
+/* stock: where it comes from (PurchaseFields) */
+.how-choice { flex-wrap: wrap; align-self: flex-start; }
