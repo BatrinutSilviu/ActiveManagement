@@ -36,7 +36,7 @@ export default function Overview() {
   const owing = new Map();
   for (const x of [...o.unbilled.sessions, ...o.unbilled.packages]) {
     const e = owing.get(x.client_id) || { id: x.client_id, name: x.client_name, amount: 0, n: 0 };
-    e.amount += x.price; e.n++;
+    e.amount += x.amount ?? x.price; e.n++;
     owing.set(x.client_id, e);
   }
 

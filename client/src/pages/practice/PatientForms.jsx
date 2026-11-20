@@ -165,12 +165,14 @@ export function PackageItems({ items, onChange, services }) {
 
 const itemsForForm = (items) => (items || []).map((it) => ({ service_id: it.service_id ? String(it.service_id) : '', sessions: it.sessions }));
 
-export function PackageForm({ pkg, clientId, onClose, onSaved }) {
+const sessionsIn = (items) => (items || []).reduce((a, it) => a + (Number(it.sessions) || 0), 0);
+
+export function PackageForm({ pkg, clientId, travelFee, onClose, onSaved }) {
   const { term, Term } = useBusiness();
   const { data: kinds } = useApi('/package-types');
   const { data: services } = useApi('/event-types');
   const { f, setF, set, error, saving, save } = useForm(
-    { name: t(`10 ${term('events')}`), price: '', date: localToday(), expires: '', note: '', ...(pkg || {}),
+    { name: t(`10 ${term('events')}`), price: '', travel_fee: travelFee || '', date: localToday(), expires: '', note: '', ...(pkg || {}),
       items: pkg ? itemsForForm(pkg.items) : [{ service_id: '', sessions: 10 }] },
     (v) => (pkg ? api.put(`/packages/${pkg.id}`, v) : api.post(`/clients/${clientId}/packages`, v)), onSaved);
   // A package type fills everything in; the expiry is its days from the day it's bought.
@@ -200,7 +202,14 @@ export function PackageForm({ pkg, clientId, onClose, onSaved }) {
         )}
         <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required /></label>
         <PackageItems items={f.items} onChange={(items) => setF({ ...f, items })} services={services} />
-        <label className="field full">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
+        <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
+        <label className="field half">{t('Travel fee per session ({currency})', { currency: CURRENCY })}
+          <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" /></label>
+        {Number(f.travel_fee) > 0 && sessionsIn(f.items) > 0 && (
+          <p className="hint" style={{ margin: 0, gridColumn: '1 / -1' }}>{t('Travel: {fee} × {n} = {travel} · to pay with the package: {total}. Its home visits have no travel fee of their own.', {
+            fee: money0(Number(f.travel_fee)), n: sessionsIn(f.items), travel: money0(Number(f.travel_fee) * sessionsIn(f.items)),
+            total: money0((Number(f.price) || 0) + Number(f.travel_fee) * sessionsIn(f.items)) })}</p>
+        )}
         <label className="field half">{t('Bought on')}<input type="date" value={f.date} onChange={pickDate} required /></label>
         <label className="field half">{t('Valid until')} <span className="hint">{t('(optional)')}</span><input type="date" value={f.expires || ''} onChange={set('expires')} /></label>
         <label className="field full">{t('Note')}<input value={f.note || ''} onChange={set('note')} /></label>

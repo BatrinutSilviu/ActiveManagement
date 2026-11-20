@@ -114,7 +114,7 @@ function Patient({ id }) {
 
       {form?.kind === 'edit' && <PatientForm patient={c} onClose={close} onSaved={saved} />}
       {form?.kind === 'session' && <SessionForm session={form.session} clientId={c.id} onClose={close} onSaved={saved} />}
-      {form?.kind === 'package' && <PackageForm pkg={form.pkg} clientId={c.id} onClose={close} onSaved={saved} />}
+      {form?.kind === 'package' && <PackageForm pkg={form.pkg} clientId={c.id} travelFee={c.travel_fee} onClose={close} onSaved={saved} />}
       {form?.kind === 'invoice' && <InvoiceForm invoiceId={form.invoiceId} clientId={c.id} select={form.select} onClose={close} onSaved={saved} />}
     </div>
   );
@@ -210,19 +210,20 @@ function Packages({ c, canEdit, run, onNew, onEdit, onBill }) {
       {c.packages.length ? c.packages.map((p) => (
         <div key={p.id} className="side-item">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <strong>{p.name}</strong><span>{money0(p.price)}</span>
+            <strong>{p.name}</strong><span>{money0(p.amount)}</span>
           </div>
           <div className="progress" style={{ margin: '6px 0' }}><div style={{ width: `${Math.min(1, (p.used + p.booked) / p.sessions) * 100}%`, background: 'var(--series)' }} /></div>
           <div className="row-sub">{t(`{used} done · {booked} booked · {left} left of {total} ${term('events')}`, { used: p.used, booked: p.booked, left: p.left, total: p.sessions })}
             {p.expires ? ` · ${t('until {date}', { date: date(p.expires) })}` : ''}</div>
+          {p.travel_total > 0 && <div className="row-sub">{t('{price} + travel {fee} × {n} = {travel}', { price: money0(p.price), fee: money0(p.travel_fee), n: p.sessions, travel: money0(p.travel_total) })}</div>}
           {(p.items?.length > 1 || p.items?.[0]?.service_id) && <div className="package-parts">{p.items.map((it, i) => (
             <span key={i} className={it.left ? '' : 'muted'}>{it.service_name || t('Any service')}: {t('{left} of {total} left', { left: it.left, total: it.sessions })}</span>
           ))}</div>}
           <div className="row-sub" style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             {p.invoice_id ? <span>{docLabel(p)} · {p.invoice_paid ? t('paid') : t('not paid')}</span>
-              : p.price > 0 && <span className="badge badge-warn">{t('Not billed')}</span>}
+              : p.amount > 0 && <span className="badge badge-warn">{t('Not billed')}</span>}
             {canEdit && <>
-              {!p.invoice_id && p.price > 0 && <button className="link-btn" onClick={() => onBill(p)}>{t('Bill')}</button>}
+              {!p.invoice_id && p.amount > 0 && <button className="link-btn" onClick={() => onBill(p)}>{t('Bill')}</button>}
               <button className="link-btn" onClick={() => onEdit(p)}>{t('Edit')}</button>
               <button className="link-btn" onClick={() => confirmDelete(t('package “{name}”', { name: p.name })) && run(() => api.del(`/packages/${p.id}`))}>{t('Delete')}</button>
             </>}

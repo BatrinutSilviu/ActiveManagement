@@ -48,7 +48,7 @@ export default function InvoiceForm({ invoiceId, clientId, select, onClose, onSa
   if (!f) return null;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const items = billable ? [
-    ...billable.packages.map((p) => ({ key: `p${p.id}`, list: 'package_ids', id: p.id, label: t('{name} (package, {date})', { name: p.name, date: date(p.date) }), amount: p.price })),
+    ...billable.packages.map((p) => ({ key: `p${p.id}`, list: 'package_ids', id: p.id, label: t('{name} (package, {date})', { name: p.name, date: date(p.date) }) + (p.travel_total > 0 ? ` · ${t('with travel')}` : ''), amount: p.amount ?? p.price })),
     ...billable.appointments.map((a) => ({ key: `a${a.id}`, list: 'appointment_ids', id: a.id,
       label: `${date(a.date)}${a.start_time ? ` ${timeLabel(a)}` : ''}${a.type_name ? ` · ${a.type_name}` : ''}${a.travel_fee > 0 ? ` · ${t(a.package_id ? 'travel' : 'with travel')}` : ''}`, amount: a.amount ?? a.price })),
   ] : [];

@@ -970,4 +970,7 @@ if (!columns('appointments').includes('series_id'))
   db.exec('ALTER TABLE appointments ADD COLUMN series_id INTEGER REFERENCES series(id) ON DELETE SET NULL');
 // A patient's diagnoses: JSON ["…", …], free text, as many as they have.
 if (!columns('clients').includes('diagnoses')) db.exec('ALTER TABLE clients ADD COLUMN diagnoses TEXT');
+// A package's travel fee for each of its sessions (bani): × its sessions, billed with the package; its home visits then
+// carry no travel fee of their own.
+if (!columns('packages').includes('travel_fee')) db.exec('ALTER TABLE packages ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
 }

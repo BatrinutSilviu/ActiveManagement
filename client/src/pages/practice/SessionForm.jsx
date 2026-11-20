@@ -243,7 +243,10 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
         {f.venue === 'home' && <label className="field full">{t('Address')}
           <input value={f.address || ''} onChange={set('address')} placeholder={client?.address ? t('{address} (their address)', { address: client.address }) : t(`Where the ${term('event')} is`)} />
         </label>}
-        {f.venue === 'home' && (
+        {f.venue === 'home' && chosen?.travel_fee > 0 && (
+          <p className="hint field">{t('Travel: billed with the package ({fee} a session)', { fee: money0(chosen.travel_fee) })}</p>
+        )}
+        {f.venue === 'home' && !(chosen?.travel_fee > 0) && (
           <label className="field">{t('Travel fee ({currency})', { currency: CURRENCY })}
             <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" />
           </label>
