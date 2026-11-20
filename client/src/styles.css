@@ -869,3 +869,8 @@ a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 @media (max-width: 560px) {
   .trip-stop-actions { flex-direction: column; }
 }
+
+/* weekly repeat in the session form */
+.repeat-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; gap: 8px; }
+.repeat-box .segmented { align-self: flex-start; flex-wrap: wrap; }
+.repeat-icon { opacity: .7; margin-left: 4px; vertical-align: -2px; }

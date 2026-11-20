@@ -330,8 +330,9 @@ router.delete('/packages/:id', (req, res) => {
 function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time') {
   return db.prepare(`
     SELECT a.*, c.name AS client_name, c.phone AS client_phone, CASE WHEN a.venue = 'practice' THEN NULL ELSE COALESCE(a.address, c.address) END AS place,
-      et.name AS type_name, et.color AS type_color, et.duration AS type_duration, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid
+      et.name AS type_name, et.color AS type_color, et.duration AS type_duration, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid, s.until AS series_until
     FROM appointments a JOIN clients c ON c.id = a.client_id
+    LEFT JOIN series s ON s.id = a.series_id
     LEFT JOIN event_types et ON et.id = a.type_id
     LEFT JOIN packages p ON p.id = a.package_id
     LEFT JOIN invoices i ON i.id = a.invoice_id
@@ -410,19 +411,90 @@ router.get('/appointments', (req, res) => {
   res.json(loadAppointments(where.length ? `WHERE ${where.join(' AND ')}` : '', params));
 });
 
+const insertAppointment = (v, seriesId = null) => Number(db.prepare(`INSERT INTO appointments (${APPOINTMENT_FIELDS.join(', ')}, series_id)
+  VALUES (${APPOINTMENT_FIELDS.map(() => '?').join(', ')}, ?)`).run(...APPOINTMENT_FIELDS.map((k) => v[k]), seriesId).lastInsertRowid);
+
+/**
+ * A session of a series on `date`, like `body`. Its package stays while it has a place; after that the session is paid
+ * separately, at the price given or else its service's usual price.
+ */
+function occurrence(body, date, id = null) {
+  try { return readAppointment({ ...body, date }, id); } catch (e) {
+    if (!body.package_id || e.status !== 400) throw e;
+    const fee = body.type_id ? toRon(db.prepare('SELECT default_fee FROM event_types WHERE id = ?').get(Number(body.type_id))?.default_fee ?? 0) : 0;
+    return readAppointment({ ...body, date, package_id: null, price: Number(body.price) || fee }, id);
+  }
+}
+
+// How far a weekly series may reach: a year.
+function readUntil(v, from) {
+  need(isDate(v), 'Choose until when it repeats');
+  need(v > from, 'It has to repeat until a date after the first session');
+  need(v <= addDays(from, 366), 'A session can repeat for at most a year');
+  return v;
+}
+
+/** Makes the sessions of series `seriesId` every 7 days after `after` up to its end, like `body`. */
+function extendSeries(seriesId, body, after, until) {
+  for (let d = addDays(after, 7); d <= until; d = addDays(d, 7)) insertAppointment(occurrence({ ...body, status: 'scheduled' }, d), seriesId);
+}
+
+// A new session; with repeat_until, one every week up to that date (all made now, sharing a series).
 router.post('/appointments', (req, res) => {
   const v = readAppointment(req.body);
-  const { lastInsertRowid } = db.prepare(`INSERT INTO appointments (${APPOINTMENT_FIELDS.join(', ')})
-    VALUES (${APPOINTMENT_FIELDS.map(() => '?').join(', ')})`).run(...APPOINTMENT_FIELDS.map((k) => v[k]));
-  res.json({ id: Number(lastInsertRowid) });
+  if (!req.body.repeat_until) return res.json({ id: insertAppointment(v) });
+  const until = readUntil(req.body.repeat_until, v.date);
+  res.json(tx(() => {
+    const seriesId = Number(db.prepare('INSERT INTO series (until) VALUES (?)').run(until).lastInsertRowid);
+    const id = insertAppointment(v, seriesId);
+    extendSeries(seriesId, req.body, v.date, until);
+    return { id, count: db.prepare('SELECT COUNT(*) AS n FROM appointments WHERE series_id = ?').get(seriesId).n };
+  }));
 });
 
+// The sessions of its series after `a` that can still change: scheduled, not billed.
+const following = (a) => db.prepare(`SELECT * FROM appointments WHERE series_id = ? AND date > ? AND id != ? AND status = 'scheduled'
+  AND invoice_id IS NULL ORDER BY date`).all(a.series_id, a.date, a.id);
+// A stored session as the form sends it (money in RON), to make others like it.
+const asBody = (r) => ({ ...r, price: toRon(r.price), travel_fee: toRon(r.travel_fee) });
+
+// Changing a session. scope "following" (in a series): the following sessions (scheduled, not billed) get the same
+// changes: service, times, place, therapist, price, travel fee, package, and the same move in days if its date moved.
+// repeat_until (in a series): its new end; sessions after it go (scheduled, not billed), new ones are made up to it.
 router.put('/appointments/:id', (req, res) => {
   const id = idParam(req);
-  need(db.prepare('SELECT 1 FROM appointments WHERE id = ?').get(id), 'This session no longer exists');
+  const old = db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
+  need(old, 'This session no longer exists');
   const v = readAppointment(req.body, id);
-  db.prepare(`UPDATE appointments SET ${APPOINTMENT_FIELDS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
-    .run(...APPOINTMENT_FIELDS.map((k) => v[k]), id);
+  tx(() => {
+    db.prepare(`UPDATE appointments SET ${APPOINTMENT_FIELDS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
+      .run(...APPOINTMENT_FIELDS.map((k) => v[k]), id);
+    if (!old.series_id) return;
+    const series = db.prepare('SELECT * FROM series WHERE id = ?').get(old.series_id);
+    if (req.body.scope === 'following') {
+      const shift = Math.round((new Date(`${v.date}T00:00:00Z`) - new Date(`${old.date}T00:00:00Z`)) / 86400000);
+      const like = { ...req.body, cancel_reason: undefined, status: 'scheduled' };
+      // Their package places are counted again one by one, in date order.
+      const rows = following(old);
+      db.prepare(`UPDATE appointments SET package_id = NULL WHERE id IN (${rows.map(() => '?').join(', ') || 'NULL'})`).run(...rows.map((r) => r.id));
+      for (const r of rows) {
+        const w = occurrence({ ...like, note: r.note }, addDays(r.date, shift), r.id);
+        db.prepare(`UPDATE appointments SET ${APPOINTMENT_FIELDS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
+          .run(...APPOINTMENT_FIELDS.map((k) => w[k]), r.id);
+      }
+      // Moved by some days: its end moves with it.
+      if (shift) db.prepare('UPDATE series SET until = ? WHERE id = ?').run(addDays(series.until, shift), series.id);
+    }
+    // A new end: sessions after it go (scheduled, not billed; not this one), and new ones are made up to it, like the
+    // last one of the series.
+    if (req.body.repeat_until && req.body.repeat_until !== series.until) {
+      const until = readUntil(req.body.repeat_until, db.prepare('SELECT MIN(date) AS d FROM appointments WHERE series_id = ?').get(series.id).d);
+      db.prepare(`DELETE FROM appointments WHERE series_id = ? AND date > ? AND status = 'scheduled' AND invoice_id IS NULL AND id != ?`).run(series.id, until, id);
+      db.prepare('UPDATE series SET until = ? WHERE id = ?').run(until, series.id);
+      const last = db.prepare('SELECT * FROM appointments WHERE series_id = ? ORDER BY date DESC LIMIT 1').get(series.id);
+      if (until > last.date) extendSeries(series.id, { ...asBody(last), note: null, cancel_reason: null }, last.date, until);
+    }
+  });
   res.json({ ok: true });
 });
 
@@ -435,8 +507,18 @@ router.put('/appointments/:id/status', (req, res) => {
   res.json({ ok: true });
 });
 
+// ?scope=following (in a series): the following ones go too (those scheduled and not billed), and the series ends
+// the week before this one.
 router.delete('/appointments/:id', (req, res) => {
-  db.prepare('DELETE FROM appointments WHERE id = ?').run(idParam(req));
+  const a = db.prepare('SELECT * FROM appointments WHERE id = ?').get(idParam(req));
+  if (!a) return res.json({ ok: true });
+  tx(() => {
+    if (a.series_id && req.query.scope === 'following') {
+      for (const r of following(a)) db.prepare('DELETE FROM appointments WHERE id = ?').run(r.id);
+      db.prepare('UPDATE series SET until = ? WHERE id = ?').run(addDays(a.date, -1), a.series_id);
+    }
+    db.prepare('DELETE FROM appointments WHERE id = ?').run(a.id);
+  });
   res.json({ ok: true });
 });
 

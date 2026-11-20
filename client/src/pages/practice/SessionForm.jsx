@@ -6,9 +6,10 @@ import { useBusiness } from '../../business.js';
 import { CURRENCY, money0 } from '../../format.js';
 import Modal from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
-import { IconCopy } from '../../components/Icons.jsx';
-import { t } from '../../i18n/index.js';
-import { addDays, dayMonth, localToday, SESSION_STATUS, VENUES } from './common.jsx';
+import { IconCopy, IconTrash } from '../../components/Icons.jsx';
+import { confirmDelete } from '../../components/Modal.jsx';
+import { t, tn } from '../../i18n/index.js';
+import { addDays, dayMonth, localToday, SESSION_STATUS, VENUES, weekday } from './common.jsx';
 
 export default function SessionForm({ session: given, clientId, date, onClose, onSaved }) {
   // The session being changed; null for a new one (also after Duplicate, which turns the form into a new session).
@@ -26,6 +27,7 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
     client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '', travel_fee: '',
     status: 'scheduled', price: '', package_id: '', note: '', therapist: therapists.length === 1 ? therapists[0] : '',
     ...(session || {}),
+    repeat: false, repeat_until: session?.series_until || '', scope: 'one', // weekly repeat (new), or how far a change reaches (series)
   }));
   const { data: packages } = useApi(f.client_id ? `/packages?client_id=${f.client_id}` : null);
   const [error, setError] = useState(null);
@@ -101,11 +103,11 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
     const keep = (packages || []).find((p) => String(p.id) === String(f.package_id) && p.left > 0 && fits(p, f.type_id));
     const next = addDays(f.date, 7);
     const pkg = keep || (packages || []).find((p) => (!p.expires || p.expires >= next) && fits(p, f.type_id));
-    const { id, invoice_id, invoice_number, invoice_kind, invoice_paid, cancel_reason, ...rest } = f;
+    const { id, invoice_id, invoice_number, invoice_kind, invoice_paid, cancel_reason, series_id, series_until, ...rest } = f;
     setCopiedFrom(f.date);
     setSession(null);
     setSwitched(null); setError(null);
-    setF({ ...rest, date: next, status: 'scheduled', note: '', package_id: pkg ? String(pkg.id) : '',
+    setF({ ...rest, date: next, status: 'scheduled', note: '', package_id: pkg ? String(pkg.id) : '', repeat: false, repeat_until: '', scope: 'one',
       therapist: rest.therapist || (therapists.length === 1 ? therapists[0] : '') });
     // Back to the top, where it says it's a copy.
     requestAnimationFrame(() => document.querySelectorAll('.modal, .modal-body').forEach((el) => el.scrollTo?.(0, 0)));
@@ -114,15 +116,28 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
   const save = async () => {
     setSaving(true);
     try {
-      const body = { ...f, package_id: f.package_id || null, type_id: f.type_id || null };
+      const { repeat, repeat_until, scope, ...fields } = f;
+      const body = { ...fields, package_id: f.package_id || null, type_id: f.type_id || null,
+        ...(session ? (session.series_id ? { scope, repeat_until } : {}) : repeat ? { repeat_until } : {}) };
       const r = session ? await api.put(`/appointments/${session.id}`, body) : await api.post('/appointments', body);
       onSaved(session?.id ?? r.id);
     } catch (e) { setError(e.message); setSaving(false); }
   };
 
+  const del = async () => {
+    const following = session.series_id && f.scope === 'following';
+    if (!confirmDelete(following ? t(`this ${term('event')} and the following ones of the series`) : t(`this ${term('event')}`))) return;
+    try { await api.del(`/appointments/${session.id}${following ? '?scope=following' : ''}`); onSaved(); } catch (e) { setError(e.message); }
+  };
+  // How many sessions a weekly repeat makes, the first included.
+  const weeks = (from, until) => (from && until && until >= from ? Math.floor((new Date(`${until}T12:00:00`) - new Date(`${from}T12:00:00`)) / (7 * 86400000)) + 1 : 0);
+  // A new repeat ends, at first, when the package does, else in 12 weeks.
+  const toggleRepeat = (on) => setF({ ...f, repeat: on, repeat_until: f.repeat_until || (chosen?.expires && chosen.expires > f.date ? chosen.expires : addDays(f.date, 7 * 11)) });
+
   return (
     <Modal title={session ? t(`Edit ${term('event')}`) : t(`New ${term('event')}`)} onClose={onClose} onSubmit={save}
       footer={<>
+        {session && <button type="button" className="icon-btn btn-danger" onClick={del} aria-label={t('Delete')} title={t('Delete')}><IconTrash width="16" /></button>}
         {session && <button type="button" className="btn" onClick={duplicate} style={{ marginRight: 'auto' }} title={t(`A new ${term('event')} like this one, a week later`)}>
           <IconCopy width="15" />{t('Duplicate')}</button>}
         <button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button>
@@ -192,6 +207,31 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field half">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
         <label className="field half">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
+        {!session && (
+          <div className="field full repeat-box">
+            <label className="check"><input type="checkbox" checked={f.repeat} onChange={(e) => toggleRepeat(e.target.checked)} />{t('Repeats every week')}</label>
+            {f.repeat && <>
+              <label className="field">{t('Until')}<input type="date" value={f.repeat_until} min={addDays(f.date, 7)} onChange={set('repeat_until')} required /></label>
+              <span className="hint">{tn(weeks(f.date, f.repeat_until), `{n} ${term('event')} in all, every {day}`, `{n} ${term('events')} in all, every {day}`, { day: weekday(f.date) })}
+                {f.package_id ? ` · ${t('those beyond the package’s places are paid separately')}` : ''}</span>
+            </>}
+          </div>
+        )}
+        {session?.series_id && (
+          <div className="field full repeat-box">
+            <span>{t('Repeats every week, until')}</span>
+            <input type="date" value={f.repeat_until} onChange={set('repeat_until')} required aria-label={t('Until')} />
+            <div className="segmented" role="radiogroup" aria-label={t('Changes apply to')}>
+              {[['one', 'Only this one'], ['following', 'This and the following ones']].map(([k, label]) => (
+                <button type="button" key={k} className={f.scope === k ? 'on' : ''} role="radio" aria-checked={f.scope === k}
+                  onClick={() => setF({ ...f, scope: k })}>{t(label)}</button>
+              ))}
+            </div>
+            <span className="hint">{f.scope === 'following'
+              ? t('Saving or deleting also changes the following ones still scheduled and not billed.')
+              : t('Saving or deleting changes only this one. A new end date applies to the series either way.')}</span>
+          </div>
+        )}
         <label className="field full">{t('Venue')}
           <Select value={f.venue === 'practice' ? `practice:${f.location || ''}` : 'home'} required
             onChange={(e) => { const [venue, ...name] = e.target.value.split(':'); setF({ ...f, venue, location: name.join(':'), travel_fee: venue === 'home' && !f.travel_fee ? client?.travel_fee || '' : f.travel_fee }); }}>

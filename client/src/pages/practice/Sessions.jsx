@@ -161,7 +161,7 @@ function DayGrid({ date, items, canEdit, onOpen, onDone, onNew }) {
           <button key={a.id} type="button" className={`day-block status-${a.status}`} onClick={() => onOpen(a)}
             style={{ top: ((from - first * 60) / 60) * HOUR_PX, height: Math.max(26, ((to - from) / 60) * HOUR_PX - 2),
               left: `calc(52px + (100% - 52px) * ${lane / n})`, width: `calc((100% - 52px) / ${n} - 4px)`, '--svc': a.type_color || 'var(--accent)' }}>
-            <span className="day-line"><strong>{timeLabel(a)}</strong> <span className="day-who">{a.client_name}</span></span>
+            <span className="day-line"><strong>{timeLabel(a)}{a.series_id && <span className="repeat-icon">↻</span>}</strong> <span className="day-who">{a.client_name}</span></span>
             <span className="day-what">{[a.type_name, a.therapist, a.venue === 'practice' ? a.location || t(VENUES.practice) : null].filter(Boolean).join(' · ')}</span>
             {a.status !== 'scheduled' && <span className="day-status"><SessionStatus status={a.status} /></span>}
           </button>
@@ -208,7 +208,7 @@ export function SessionCard({ a, canEdit, onOpen, onDone, showDate }) {
     <div className={`session-card status-${a.status}${a.type_color ? ' has-color' : ''}`} onClick={onOpen} role={canEdit ? 'button' : undefined}
       style={a.type_color ? { '--svc': a.type_color } : undefined}>
       <div className="session-top">
-        <strong>{showDate ? `${dayMonth(a.date)} ` : ''}{timeLabel(a) || t('No time set')}</strong>
+        <strong>{showDate ? `${dayMonth(a.date)} ` : ''}{timeLabel(a) || t('No time set')}{a.series_id && <span className="repeat-icon" title={t('Repeats every week, until {date}', { date: dayMonth(a.series_until) })}>↻</span>}</strong>
         {a.status !== 'scheduled' ? <SessionStatus status={a.status} />
           : canEdit && a.date <= localToday() && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDone(); }}><IconCheck width="13" />{t('Done')}</button>}
       </div>

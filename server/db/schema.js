@@ -959,4 +959,13 @@ CREATE TABLE IF NOT EXISTS geocodes (
 `);
 // Who did the session: one of the business's therapists (Settings → Services), by name.
 if (!columns('appointments').includes('therapist')) db.exec('ALTER TABLE appointments ADD COLUMN therapist TEXT');
+// A session repeating every week until a date: its sessions are all made up front (each an ordinary session) and
+// share series_id. Changing or deleting one can take the following ones with it.
+db.exec(`CREATE TABLE IF NOT EXISTS series (
+  id INTEGER PRIMARY KEY,
+  until TEXT NOT NULL,                     -- the last date a session of it can be on
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+if (!columns('appointments').includes('series_id'))
+  db.exec('ALTER TABLE appointments ADD COLUMN series_id INTEGER REFERENCES series(id) ON DELETE SET NULL');
 }

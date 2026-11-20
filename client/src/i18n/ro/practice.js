@@ -224,4 +224,15 @@ export default {
   // duplicating a session
   Duplicate: 'Duplică', 'A new session like this one, a week later': 'O ședință nouă ca aceasta, cu o săptămână mai târziu',
   'A copy of the one on {date}, a week later: check the date and time.': 'O copie a celei din {date}, cu o săptămână mai târziu: verifică data și ora.',
+  // weekly repeat
+  'Repeats every week': 'Se repetă săptămânal', Until: 'Până la', 'Repeats every week, until': 'Se repetă săptămânal, până la',
+  'Repeats every week, until {date}': 'Se repetă săptămânal, până la {date}',
+  '{n} session in all, every {day}': '{n} ședință în total, în fiecare {day}', '{n} sessions in all, every {day}': '{n de} ședințe în total, în fiecare {day}',
+  'those beyond the package’s places are paid separately': 'cele care nu mai încap în pachet se plătesc separat',
+  'Changes apply to': 'Modificările se aplică la', 'Only this one': 'Doar aceasta', 'This and the following ones': 'Aceasta și următoarele',
+  'Saving or deleting also changes the following ones still scheduled and not billed.': 'Salvarea sau ștergerea schimbă și următoarele ședințe încă programate și nefacturate.',
+  'Saving or deleting changes only this one. A new end date applies to the series either way.': 'Salvarea sau ștergerea schimbă doar aceasta. O nouă dată de final se aplică oricum întregii serii.',
+  'this session and the following ones of the series': 'această ședință și următoarele din serie', 'this session': 'această ședință',
+  'Choose until when it repeats': 'Alege până când se repetă', 'It has to repeat until a date after the first session': 'Trebuie să se repete până la o dată după prima ședință',
+  'A session can repeat for at most a year': 'O ședință se poate repeta cel mult un an',
 };
