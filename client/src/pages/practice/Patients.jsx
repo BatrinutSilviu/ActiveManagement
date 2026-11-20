@@ -71,7 +71,7 @@ export default function Patients() {
         {list.length ? (
           <table>
             <thead><tr>
-              <th>{t('Name')}</th><th className="hide-sm">{t('Legal entity')}</th><th className="hide-sm">{t('Phone')}</th><th className="hide-sm">{t(`Last ${term('event')}`)}</th><th className="hide-sm">{t('Next')}</th>
+              <th>{t('Name')}</th><th className="hide-sm">{t('Legal entity')}</th><th className="hide-sm">{t('Diagnoses')}</th><th className="hide-sm">{t('Phone')}</th><th className="hide-sm">{t(`Last ${term('event')}`)}</th><th className="hide-sm">{t('Next')}</th>
               <th className="r hide-sm">{t('Done')}</th><th className="r">{t('Owes')}</th>
             </tr></thead>
             <tbody>
@@ -81,11 +81,13 @@ export default function Patients() {
                     <div className="row-title">{c.name}{c.conditions?.map((x) => <span key={x} className="badge" style={{ marginLeft: 4 }}>{x}</span>)}{c.association && <> <span className="badge">{c.association}</span></>}{!!c.archived && <> <span className="badge">{t('archived')}</span></>}</div>
                     {c.tutor_name && <div className="row-sub">{t('Tutor')}: {c.tutor_name}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</div>}
                     <div className="row-sub">{c.address}</div>
+                    {c.diagnoses?.length > 0 && <div className="row-sub show-sm">{t(c.diagnoses.length > 1 ? 'Diagnoses' : 'Diagnosis')}: {c.diagnoses.join('; ')}</div>}
                     {c.entity && <div className="row-sub show-sm">{t('Legal entity')}: {c.entity}</div>}
                     {c.birth_date && <div className="row-sub">{t('Born {date}', { date: date(c.birth_date) })}</div>}
                     <div className="row-sub show-sm">{c.phone}{c.next_session ? ` · ${t('next {date}', { date: date(c.next_session) })}` : ''}</div>
                   </td>
                   <td className="hide-sm cell-wrap">{c.entity || <span className="muted">—</span>}</td>
+                  <td className="hide-sm cell-wrap">{c.diagnoses?.length ? c.diagnoses.map((d) => <div key={d}>{d}</div>) : <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.phone || c.tutor_phone || <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.last_session ? date(c.last_session) : <span className="muted">—</span>}</td>
                   <td className="hide-sm">{c.next_session ? date(c.next_session) : <span className="muted">—</span>}</td>
