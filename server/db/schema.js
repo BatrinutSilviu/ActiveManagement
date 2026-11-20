@@ -973,4 +973,6 @@ if (!columns('clients').includes('diagnoses')) db.exec('ALTER TABLE clients ADD 
 // A package's travel fee for each of its sessions (bani): × its sessions, billed with the package; its home visits then
 // carry no travel fee of their own.
 if (!columns('packages').includes('travel_fee')) db.exec('ALTER TABLE packages ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
+// A package entered once already under way: how many of each part's sessions were done before it was entered here.
+if (!columns('package_items').includes('done_before')) db.exec('ALTER TABLE package_items ADD COLUMN done_before INTEGER NOT NULL DEFAULT 0');
 }

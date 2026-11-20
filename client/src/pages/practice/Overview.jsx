@@ -116,7 +116,7 @@ export default function Overview() {
                 {o.lowPackages.map((p) => (
                   <div key={p.id} className="side-item" style={{ display: 'flex', gap: 10 }}>
                     <div style={{ flex: 1 }}><Link to={`/patients/${p.client_id}`}>{p.client_name}</Link><div className="row-sub">{p.name}</div></div>
-                    <span className="secondary">{t('{left} left to book · {n} not done', { left: p.left, n: p.sessions - p.used })}</span>
+                    <span className="secondary">{t('{left} left to book · {n} not done', { left: p.left, n: p.sessions - (p.before || 0) - p.used })}</span>
                   </div>
                 ))}
               </div>

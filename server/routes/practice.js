@@ -180,26 +180,28 @@ router.delete('/client-notes/:id', (req, res) => {
 /**
  * How a package's places are taken: a session takes a place of its own service first, else a general one (service_id
  * empty). items: [{ service_id, sessions }]; counts: Map(service id or null -> sessions taking a place). Returns each
- * part with how many are taken and left, and whether they all fit.
+ * part with how many are taken and left, and whether they all fit. A part's sessions done before the package was entered
+ * here (done_before) are taken already.
  */
 function allocate(items, counts) {
   let overflow = 0;
-  const parts = items.map((it) => ({ ...it, taken: 0 }));
+  const parts = items.map((it) => ({ ...it, taken: it.done_before || 0 }));
+  const free = (p) => p.sessions - (p.done_before || 0);
   const general = parts.filter((p) => p.service_id == null);
   for (const [service, n] of counts) {
     const own = service == null ? null : parts.find((p) => p.service_id === service);
-    const take = own ? Math.min(n, own.sessions) : 0;
-    if (own) own.taken = take;
+    const take = own ? Math.min(n, free(own)) : 0;
+    if (own) own.taken += take;
     overflow += n - take;
   }
-  const generalSize = general.reduce((a, p) => a + p.sessions, 0);
+  const generalSize = general.reduce((a, p) => a + free(p), 0);
   let spill = overflow;
-  for (const g of general) { g.taken = Math.min(spill, g.sessions); spill -= g.taken; }
+  for (const g of general) { const take = Math.min(spill, free(g)); g.taken += take; spill -= take; }
   for (const p of parts) p.left = p.sessions - p.taken;
   return { parts, fits: overflow <= generalSize, generalLeft: Math.max(0, generalSize - overflow) };
 }
 
-const itemsOf = (packageId) => db.prepare(`SELECT pi.service_id, pi.sessions, et.name AS service_name FROM package_items pi
+const itemsOf = (packageId) => db.prepare(`SELECT pi.service_id, pi.sessions, pi.done_before, et.name AS service_name FROM package_items pi
   LEFT JOIN event_types et ON et.id = pi.service_id WHERE pi.package_id = ? ORDER BY pi.service_id IS NULL, et.name`).all(packageId);
 // Sessions taking a place in a package (not cancelled), by service; one session can be left out (the one being changed).
 const countsOf = (packageId, exceptId = 0) => new Map(db.prepare(`SELECT type_id, COUNT(*) AS n FROM appointments
@@ -217,14 +219,16 @@ function loadPackages(where, params) {
       // left_for: places a session of each service could still take (its own part plus the general ones).
       const leftFor = { any: generalLeft };
       for (const it of parts) if (it.service_id != null) leftFor[it.service_id] = it.left + generalLeft;
-      return { ...p, price: toRon(p.price), travel_fee: toRon(p.travel_fee), travel_total: toRon(p.travel_fee * p.sessions),
-        amount: toRon(p.price + p.travel_fee * p.sessions), items: parts, left: p.sessions - p.used - p.booked, left_for: leftFor };
+      const before = parts.reduce((a, it) => a + (it.done_before || 0), 0);
+      return { ...p, before, price: toRon(p.price), travel_fee: toRon(p.travel_fee), travel_total: toRon(p.travel_fee * p.sessions),
+        amount: toRon(p.price + p.travel_fee * p.sessions), items: parts, left: p.sessions - before - p.used - p.booked, left_for: leftFor };
     });
 }
 
 /** The parts of a package (or type) from a form: [{ service_id, sessions }], one per service, merged when repeated. */
-function readItems(list) {
-  const merged = new Map();
+// withBefore: a package's parts also say how many of their sessions were done before it was entered here.
+function readItems(list, withBefore = false) {
+  const merged = new Map(), before = new Map();
   for (const it of Array.isArray(list) ? list : []) {
     const n = Number(it?.sessions);
     if (!n) continue;
@@ -232,15 +236,23 @@ function readItems(list) {
     const service = it.service_id ? Number(it.service_id) : null;
     need(service == null || db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(service), 'Unknown service');
     merged.set(service, (merged.get(service) ?? 0) + n);
+    const b = withBefore && it.done_before !== '' && it.done_before != null ? Number(it.done_before) : 0;
+    need(Number.isInteger(b) && b >= 0 && b <= n, 'The sessions done before must be a whole number, at most the sessions');
+    before.set(service, (before.get(service) ?? 0) + b);
   }
   need(merged.size, 'Add at least one service with a number of sessions');
-  const items = [...merged].map(([service_id, sessions]) => ({ service_id, sessions }));
+  const items = [...merged].map(([service_id, sessions]) => ({ service_id, sessions, done_before: before.get(service_id) ?? 0 }));
   need(items.reduce((a, it) => a + it.sessions, 0) <= 500, 'A package can have at most 500 sessions');
   return items;
 }
 const total = (items) => items.reduce((a, it) => a + it.sessions, 0);
 function saveItems(table, key, id, items) {
   db.prepare(`DELETE FROM ${table} WHERE ${key} = ?`).run(id);
+  if (table === 'package_items') {
+    const add = db.prepare('INSERT INTO package_items (package_id, service_id, sessions, done_before) VALUES (?, ?, ?, ?)');
+    for (const it of items) add.run(id, it.service_id, it.sessions, it.done_before);
+    return;
+  }
   const add = db.prepare(`INSERT INTO ${table} (${key}, service_id, sessions) VALUES (?, ?, ?)`);
   for (const it of items) add.run(id, it.service_id, it.sessions);
 }
@@ -249,7 +261,7 @@ function readPackage(body) {
   const name = text(body.name, 120);
   need(name, 'Give the package a name, e.g. 10 sessions');
   need(isDate(body.date), 'A valid date is required');
-  const items = readItems(body.items);
+  const items = readItems(body.items, true);
   return { values: [name, total(items), money(body.price, 'The price'), body.date, optDate(body.expires, 'The expiry date'), text(body.note, 2000),
     money(body.travel_fee, 'The travel fee')], items };
 }
@@ -746,6 +758,6 @@ router.get('/practice/overview', (req, res) => {
     toConfirm: loadAppointments("WHERE a.status = 'scheduled' AND a.date < ?", [day]),
     upcoming: loadAppointments("WHERE a.status = 'scheduled' AND a.date BETWEEN ? AND ?", [day, addDays(day, 6)]),
     // Packages nearly used up: at most one session left to book, and not all of them done yet.
-    lowPackages: loadPackages('', []).filter((p) => p.left <= 1 && p.sessions - p.used >= 1 && (!p.expires || p.expires >= day)),
+    lowPackages: loadPackages('', []).filter((p) => p.left <= 1 && p.sessions - p.before - p.used >= 1 && (!p.expires || p.expires >= day)),
   });
 });

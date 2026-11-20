@@ -135,35 +135,38 @@ export function PatientForm({ patient, onClose, onSaved }) {
 }
 
 /** What a package is made of: rows of a service (or any service) and how many sessions, with the total. */
-export function PackageItems({ items, onChange, services }) {
+export function PackageItems({ items, onChange, services, withBefore }) {
   const { term } = useBusiness();
   const rows = items.length ? items : [{ service_id: '', sessions: '' }];
   const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
   const sum = rows.reduce((a, r) => a + (Number(r.sessions) || 0), 0);
+  const before = rows.reduce((a, r) => a + (Number(r.done_before) || 0), 0);
   return (
     <div className="field full">{t('What it includes')} <span className="hint">— {t(`${term('events')} of a service, or of any service`)}</span>
       <div className="stack" style={{ gap: 6 }}>
         {rows.map((r, i) => (
-          <div key={i} className="package-item">
+          <div key={i} className={`package-item${withBefore ? ' with-before' : ''}`}>
             <Select value={r.service_id ? String(r.service_id) : ''} onChange={change(i, 'service_id')} aria-label={t('Service')}>
               <option value="">{t('Any service')}</option>
               {services?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </Select>
             <input type="number" min="1" step="1" value={r.sessions} onChange={change(i, 'sessions')} required aria-label={t(`Number of ${term('events')}`)} />
+            {withBefore && <input type="number" min="0" max={r.sessions || undefined} step="1" value={r.done_before ?? ''} onChange={change(i, 'done_before')} placeholder="0"
+              aria-label={t('Done before')} title={t('Done before')} />}
             <button type="button" className="icon-btn" aria-label={t('Remove')} disabled={rows.length === 1}
               onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { service_id: '', sessions: '' }])}>{t('Add service')}</button>
-          <span className="hint">{t(`Total: {n} ${term('events')}`, { n: sum })}</span>
+          <span className="hint">{t(`Total: {n} ${term('events')}`, { n: sum })}{withBefore && before > 0 ? ` · ${t('{done} done before, {left} left', { done: before, left: sum - before })}` : ''}</span>
         </div>
       </div>
     </div>
   );
 }
 
-const itemsForForm = (items) => (items || []).map((it) => ({ service_id: it.service_id ? String(it.service_id) : '', sessions: it.sessions }));
+const itemsForForm = (items) => (items || []).map((it) => ({ service_id: it.service_id ? String(it.service_id) : '', sessions: it.sessions, done_before: it.done_before || '' }));
 
 const sessionsIn = (items) => (items || []).reduce((a, it) => a + (Number(it.sessions) || 0), 0);
 
@@ -173,7 +176,7 @@ export function PackageForm({ pkg, clientId, travelFee, onClose, onSaved }) {
   const { data: services } = useApi('/event-types');
   const { f, setF, set, error, saving, save } = useForm(
     { name: t(`10 ${term('events')}`), price: '', travel_fee: travelFee || '', date: localToday(), expires: '', note: '', ...(pkg || {}),
-      items: pkg ? itemsForForm(pkg.items) : [{ service_id: '', sessions: 10 }] },
+      items: pkg ? itemsForForm(pkg.items) : [{ service_id: '', sessions: 10 }], started: !!pkg?.before },
     (v) => (pkg ? api.put(`/packages/${pkg.id}`, v) : api.post(`/clients/${clientId}/packages`, v)), onSaved);
   // A package type fills everything in; the expiry is its days from the day it's bought.
   const expiry = (date, days) => {
@@ -201,7 +204,11 @@ export function PackageForm({ pkg, clientId, travelFee, onClose, onSaved }) {
           </label>
         )}
         <label className="field full">{t('Name')}<input value={f.name} onChange={set('name')} required /></label>
-        <PackageItems items={f.items} onChange={(items) => setF({ ...f, items })} services={services} />
+        <PackageItems items={f.items} onChange={(items) => setF({ ...f, items })} services={services} withBefore={f.started} />
+        <label className="field full check-field">
+          <input type="checkbox" checked={f.started} onChange={(e) => setF({ ...f, started: e.target.checked, items: e.target.checked ? f.items : f.items.map((it) => ({ ...it, done_before: '' })) })} />
+          <span>{t('Already started')} <span className="hint">{t(`— some of its ${term('events')} were done before it was entered here: write how many, next to each service`)}</span></span>
+        </label>
         <label className="field half">{t('Price ({currency})', { currency: CURRENCY })}<input type="number" min="0" step="0.01" value={f.price} onChange={set('price')} required /></label>
         <label className="field half">{t('Travel fee per session ({currency})', { currency: CURRENCY })}
           <input type="number" min="0" step="0.01" value={f.travel_fee || ''} onChange={set('travel_fee')} placeholder="0" /></label>
