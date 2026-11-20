@@ -122,10 +122,18 @@ export function Venues() {
 }
 
 /** The illness categories a patient can be put in (business.conditions), picked in the patient form. */
-export function Conditions() {
+export const Conditions = () => <NameList field="conditions" renamesField="conditionRenames" title="Illness categories"
+  about="What a patient can be treated for; picked in the patient form" addLabel="Add category" />;
+
+/** The therapists who do the sessions (business.therapists), picked in the session form. */
+export const Therapists = () => <NameList field="therapists" renamesField="therapistRenames" title="Therapists"
+  about="Who does the sessions; picked in the session form" addLabel="Add therapist" />;
+
+/** A list of names kept in the business (Settings → Services); a renamed one is sent as { old: new } so what uses it follows. */
+function NameList({ field, renamesField, title, about, addLabel }) {
   const { business } = useBusiness();
   const { isAdmin } = usePermissions();
-  const saved = business?.conditions || [];
+  const saved = business?.[field] || [];
   const [list, setList] = useState(null); // being edited: [{ name, was }]
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -134,8 +142,8 @@ export function Conditions() {
     e.preventDefault();
     setSaving(true);
     try {
-      const conditionRenames = Object.fromEntries(rows.filter((r) => r.was && r.was !== r.name.trim()).map((r) => [r.was, r.name.trim()]));
-      await api.put('/business', { conditions: rows.map((r) => r.name), conditionRenames });
+      const renames = Object.fromEntries(rows.filter((r) => r.was && r.was !== r.name.trim()).map((r) => [r.was, r.name.trim()]));
+      await api.put('/business', { [field]: rows.map((r) => r.name), [renamesField]: renames });
       setList(null); setError(null);
       window.dispatchEvent(new Event('am:business'));
     } catch (err) { setError(err.message); }
@@ -143,7 +151,7 @@ export function Conditions() {
   };
   return (
     <div className="card card-pad">
-      <div className="card-head"><div><h2>{t('Illness categories')}</h2><p>{t('What a patient can be treated for; picked in the patient form')}</p></div></div>
+      <div className="card-head"><div><h2>{t(title)}</h2><p>{t(about)}</p></div></div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
       <form onSubmit={save} className="stack" style={{ gap: 6 }}>
         {!rows.length && <p className="muted" style={{ margin: 0 }}>{t('None yet.')}</p>}
@@ -154,7 +162,7 @@ export function Conditions() {
           </div>
         ) : <div key={i}>{r.name}</div>))}
         {isAdmin && <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn btn-sm" onClick={() => setList([...rows, { name: '' }])}>{t('Add category')}</button>
+          <button type="button" className="btn btn-sm" onClick={() => setList([...rows, { name: '' }])}>{t(addLabel)}</button>
           {list && <button className="btn btn-primary btn-sm" disabled={saving}>{t('Save')}</button>}
           {list && <button type="button" className="btn btn-sm" onClick={() => { setList(null); setError(null); }}>{t('Cancel')}</button>}
         </div>}

@@ -162,7 +162,7 @@ function DayGrid({ date, items, canEdit, onOpen, onDone, onNew }) {
             style={{ top: ((from - first * 60) / 60) * HOUR_PX, height: Math.max(26, ((to - from) / 60) * HOUR_PX - 2),
               left: `calc(52px + (100% - 52px) * ${lane / n})`, width: `calc((100% - 52px) / ${n} - 4px)`, '--svc': a.type_color || 'var(--accent)' }}>
             <span className="day-line"><strong>{timeLabel(a)}</strong> <span className="day-who">{a.client_name}</span></span>
-            <span className="day-what">{[a.type_name, a.venue === 'practice' ? a.location || t(VENUES.practice) : null].filter(Boolean).join(' · ')}</span>
+            <span className="day-what">{[a.type_name, a.therapist, a.venue === 'practice' ? a.location || t(VENUES.practice) : null].filter(Boolean).join(' · ')}</span>
             {a.status !== 'scheduled' && <span className="day-status"><SessionStatus status={a.status} /></span>}
           </button>
         ))}
@@ -213,7 +213,7 @@ export function SessionCard({ a, canEdit, onOpen, onDone, showDate }) {
           : canEdit && a.date <= localToday() && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDone(); }}><IconCheck width="13" />{t('Done')}</button>}
       </div>
       <Link to={`/patients/${a.client_id}`} onClick={(e) => e.stopPropagation()} className="session-who">{a.client_name}</Link>
-      <div className="row-sub">{[a.type_name, a.venue === 'practice' ? a.location || t(VENUES.practice) : null, a.place].filter(Boolean).join(' · ')}
+      <div className="row-sub">{[a.type_name, a.therapist, a.venue === 'practice' ? a.location || t(VENUES.practice) : null, a.place].filter(Boolean).join(' · ')}
         {a.place && <> <a href={mapsUrl(a.place)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{t('map')} ↗</a></>}</div>
       {a.status === 'cancelled' && a.cancel_reason && <div className="row-sub">{a.cancel_reason}</div>}
       <div className="session-foot"><span>{sessionPrice(a)}</span><Billing a={a} /></div>

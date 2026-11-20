@@ -218,4 +218,7 @@ export default {
   'Write the address': 'Scrie adresa', 'This place no longer exists': 'Această adresă nu mai există',
   'Couldn’t find “{address}” on the map: write it with the street, number and town': 'Nu am găsit „{address}” pe hartă: scrie-o cu stradă, număr și localitate',
   'The map service didn’t answer: try again in a minute': 'Serviciul de hărți nu a răspuns: încearcă din nou peste un minut',
+  // therapists (Settings → Services, session form)
+  Therapists: 'Terapeuți', 'Who does the sessions; picked in the session form': 'Cine face ședințele; se alege în formularul ședinței',
+  'Add therapist': 'Adaugă terapeut', 'Two therapists have the same name': 'Doi terapeuți au același nume', 'Unknown therapist': 'Terapeut necunoscut',
 };

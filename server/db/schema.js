@@ -957,4 +957,6 @@ CREATE TABLE IF NOT EXISTS geocodes (
   approx INTEGER NOT NULL DEFAULT 0
 );
 `);
+// Who did the session: one of the business's therapists (Settings → Services), by name.
+if (!columns('appointments').includes('therapist')) db.exec('ALTER TABLE appointments ADD COLUMN therapist TEXT');
 }

@@ -351,6 +351,13 @@ function readLocation(v, id) {
   return name;
 }
 
+// One of the business's therapists; one no longer listed is kept as it was.
+function readTherapist(v) {
+  const name = text(v, 80);
+  need(!name || (getBusiness()?.therapists || []).includes(name) || db.prepare('SELECT 1 FROM appointments WHERE therapist = ?').get(name), 'Unknown therapist');
+  return name;
+}
+
 const STATUSES = ['scheduled', 'done', 'cancelled'];
 const VENUES = ['home', 'practice']; // at the patient's home, or at the practice
 
@@ -386,13 +393,13 @@ function readAppointment(body, id = null) {
   return {
     client_id: clientId, type_id: typeId, date: body.date, start_time: start, end_time: end, venue,
     address: venue === 'home' ? text(body.address, 300) : null, location: venue === 'practice' ? readLocation(body.location, id) : null,
-    status, price, package_id: packageId, note: text(body.note, 5000),
+    status, price, package_id: packageId, note: text(body.note, 5000), therapist: readTherapist(body.therapist),
     cancel_reason: status === 'cancelled' ? text(body.cancel_reason, 2000) : null, // why it was cancelled
     travel_fee: venue === 'home' ? money(body.travel_fee, 'The travel fee') : 0, // billed with it, package or not
   };
 }
 const APPOINTMENT_FIELDS = ['client_id', 'type_id', 'date', 'start_time', 'end_time', 'venue', 'address', 'location', 'status', 'price',
-  'package_id', 'note', 'cancel_reason', 'travel_fee'];
+  'package_id', 'note', 'cancel_reason', 'travel_fee', 'therapist'];
 
 router.get('/appointments', (req, res) => {
   const where = [], params = [];

@@ -12,13 +12,15 @@ import { localToday, SESSION_STATUS, VENUES } from './common.jsx';
 export default function SessionForm({ session, clientId, date, onClose, onSaved }) {
   const { term, Term, business } = useBusiness();
   const locations = business?.locations || [];
+  // The therapists (Settings → Services), plus one the session has that has since been removed.
+  const therapists = [...(business?.therapists || []), ...(session?.therapist && !business?.therapists?.includes(session.therapist) ? [session.therapist] : [])];
   // The practice's locations, plus one a session was booked at that has since been removed.
   const places = [...locations, ...(session?.location && !locations.some((l) => l.name === session.location) ? [{ name: session.location }] : [])];
   const { data: clients, reload: reloadClients } = useApi('/clients');
   const { data: types } = useApi('/event-types');
   const [f, setF] = useState(() => ({
     client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '', travel_fee: '',
-    status: 'scheduled', price: '', package_id: '', note: '',
+    status: 'scheduled', price: '', package_id: '', note: '', therapist: therapists.length === 1 ? therapists[0] : '',
     ...(session || {}),
   }));
   const { data: packages } = useApi(f.client_id ? `/packages?client_id=${f.client_id}` : null);
@@ -155,6 +157,14 @@ export default function SessionForm({ session, clientId, date, onClose, onSaved 
             </div>}
             {!offered.length && <span className="hint">{t('This patient has no package with sessions left.')}</span>}
           </div>
+        )}
+        {therapists.length > 0 && (
+          <label className="field full">{t('Therapist')}
+            <Select value={f.therapist || ''} onChange={set('therapist')}>
+              <option value="">{t('— choose —')}</option>
+              {therapists.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
+          </label>
         )}
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field half">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>

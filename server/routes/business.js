@@ -16,7 +16,7 @@ publicRouter.get('/business', (req, res) => {
 export const router = express.Router({ caseSensitive: true });
 
 router.put('/business', (req, res) => {
-  const { type, renames, conditionRenames, ...body } = req.body;
+  const { type, renames, conditionRenames, therapistRenames, ...body } = req.body;
   const { value, error } = readBusiness(body, getBusiness());
   need(!error, error);
   // A practice location renamed in Settings → Services ({ old: new }): its sessions follow it.
@@ -26,6 +26,9 @@ router.put('/business', (req, res) => {
     // An illness category renamed: its patients follow it.
     const recat = db.prepare('UPDATE OR IGNORE client_conditions SET name = ? WHERE name = ?');
     for (const [from, to] of Object.entries(conditionRenames ?? {})) if (from !== to && value.conditions?.includes(to)) recat.run(to, from);
+    // A therapist renamed: their sessions follow.
+    const reassign = db.prepare('UPDATE appointments SET therapist = ? WHERE therapist = ?');
+    for (const [from, to] of Object.entries(therapistRenames ?? {})) if (from !== to && value.therapists?.includes(to)) reassign.run(to, from);
     return setBusiness(value);
   }));
 });

@@ -35,7 +35,7 @@ export const TYPES = {
   },
 };
 
-const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', locations: [], entities: [], conditions: [], language: 'en' };
+const DEFAULTS = { name: '', tagline: '', color: '#2a78d6', currency: 'RON', locale: 'ro-RO', website: '', locations: [], entities: [], conditions: [], therapists: [], language: 'en' };
 
 /** Databases made before this setting existed are Active's: that's what they get. */
 export const ACTIVE = { type: 'community', name: 'Active', tagline: 'Community admin', website: 'https://activetimisoara.ro' };
@@ -117,6 +117,12 @@ export function readBusiness(body, current = {}) {
     const list = (Array.isArray(body.conditions) ? body.conditions : []).map((e) => String(e).trim().slice(0, 80)).filter(Boolean);
     if (new Set(list.map((x) => x.toLowerCase())).size < list.length) return { error: 'Two illness categories have the same name' };
     v.conditions = list.slice(0, 100);
+  }
+  // The therapists who do the sessions (Settings → Services); a session picks one.
+  if (body.therapists !== undefined) {
+    const list = (Array.isArray(body.therapists) ? body.therapists : []).map((e) => String(e).trim().slice(0, 80)).filter(Boolean);
+    if (new Set(list.map((x) => x.toLowerCase())).size < list.length) return { error: 'Two therapists have the same name' };
+    v.therapists = list.slice(0, 50);
   }
   if (body.features !== undefined) {
     v.features = {};

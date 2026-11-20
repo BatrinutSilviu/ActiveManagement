@@ -16,7 +16,7 @@ export function Business() {
   const save = async (e) => {
     e.preventDefault();
     try {
-      const { locations, conditions, ...rest } = v; // edited in Settings → Services (venues, illness categories)
+      const { locations, conditions, therapists, ...rest } = v; // edited in Settings → Services (venues, illness categories, therapists)
       await api.put('/business', rest);
       setMsg({ ok: true, text: t('Saved.') }); setF(null); reload();
       window.dispatchEvent(new Event('am:business')); // the menu, colours and money format follow
