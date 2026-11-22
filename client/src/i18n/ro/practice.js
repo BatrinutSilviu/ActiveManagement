@@ -30,7 +30,7 @@ export default {
   'Edit note': 'Editează notița', 'Delete note': 'Șterge notița', 'this note': 'această notiță', 'No notes yet.': 'Nicio notiță încă.',
   '{n} done': '{n} efectuate', Status: 'Stare', Price: 'Preț', 'Mark done': 'Marchează ca efectuată',
   'No sessions yet.': 'Nicio ședință încă.',
-  Packages: 'Pachete', Package: 'Pachet',
+  Packages: 'Pachete', Package: 'Pachet', 'Sessions done': 'Efectuate', 'Done + booked': 'Efectuate + programate',
   '{used} done · {booked} booked · {left} left of {total} sessions': '{used} efectuate · {booked} programate · {left} neprogramate din {total} ședințe',
   'until {date}': 'până la {date}', 'package “{name}”': 'pachetul „{name}”', 'No packages.': 'Niciun pachet.',
   'Invoices & receipts': 'Facturi și chitanțe', New: 'Nou', 'Not paid yet': 'Neîncasat încă', Paid: 'Încasat', 'None yet.': 'Niciuna încă.',

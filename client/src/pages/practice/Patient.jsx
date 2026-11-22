@@ -212,7 +212,13 @@ function Packages({ c, canEdit, run, onNew, onEdit, onBill }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <strong>{p.name}</strong><span>{money0(p.amount)}</span>
           </div>
-          <div className="progress" style={{ margin: '6px 0' }}><div style={{ width: `${Math.min(1, (p.before + p.used + p.booked) / p.sessions) * 100}%`, background: 'var(--series)' }} /></div>
+          {/* Two bars: the sessions done (those done before it was entered included), and the places taken (done + booked). */}
+          <div className="progress" style={{ margin: '6px 0 4px' }}><div style={{ width: `${Math.min(1, (p.before + p.used) / p.sessions) * 100}%`, background: 'var(--income)' }} /></div>
+          <div className="progress" style={{ margin: '0 0 6px' }}><div style={{ width: `${Math.min(1, (p.before + p.used + p.booked) / p.sessions) * 100}%`, background: 'var(--series)' }} /></div>
+          <div className="legend" style={{ gap: 12, marginBottom: 4 }}>
+            <span><i style={{ background: 'var(--income)' }} />{t('Sessions done')} {p.before + p.used}/{p.sessions}</span>
+            <span><i style={{ background: 'var(--series)' }} />{t('Done + booked')} {p.before + p.used + p.booked}/{p.sessions}</span>
+          </div>
           <div className="row-sub">{p.before > 0 && `${t('{n} done before', { n: p.before })} · `}{t(`{used} done · {booked} booked · {left} left of {total} ${term('events')}`, { used: p.used, booked: p.booked, left: p.left, total: p.sessions })}
             {p.expires ? ` · ${t('until {date}', { date: date(p.expires) })}` : ''}</div>
           {p.travel_total > 0 && <div className="row-sub">{t('{price} + travel {fee} × {n} = {travel}', { price: money0(p.price), fee: money0(p.travel_fee), n: p.sessions, travel: money0(p.travel_total) })}</div>}
