@@ -182,7 +182,7 @@ export default {
   'Travel fee ({currency})': 'Taxă de deplasare ({currency})', 'usual cost of driving to them; filled in on home visits': 'cât costă de obicei drumul până la ei; se completează la vizitele la domiciliu',
   '{amount} travel': '{amount} deplasare', travel: 'deplasare', 'with travel': 'cu deplasare', "The travel fee can't be negative": 'Taxa de deplasare nu poate fi negativă',
   'No package (paid separately)': 'Fără pachet (plătită separat)', 'no place for this service': 'fără loc pentru acest serviciu',
-  '{n} left after this one': 'Rămân {n} după aceasta', 'This patient has no package with sessions left.': 'Pacientul nu are niciun pachet cu ședințe rămase.',
+  '{n} of {total} to do from this date on (this one included)': '{n} din {total} de făcut de la această dată (inclusiv aceasta)', 'This patient has no package with sessions left.': 'Pacientul nu are niciun pachet cu ședințe rămase.',
   '{n} left for {services}': '{n} rămase pentru {services}',
   'The service was changed to {service}, which this package covers.': 'Serviciul a fost schimbat în {service}, pe care îl acoperă acest pachet.',
   'Travel fee per session ({currency})': 'Taxă de deplasare pe ședință ({currency})',

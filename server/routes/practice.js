@@ -207,6 +207,8 @@ const itemsOf = (packageId) => db.prepare(`SELECT pi.service_id, pi.sessions, pi
 const countsOf = (packageId, exceptId = 0) => new Map(db.prepare(`SELECT type_id, COUNT(*) AS n FROM appointments
   WHERE package_id = ? AND status != 'cancelled' AND id != ? GROUP BY type_id`).all(packageId, exceptId).map((r) => [r.type_id, r.n]));
 
+const slotsOf = db.prepare(`SELECT id, date, start_time, type_id FROM appointments WHERE package_id = ? AND status != 'cancelled'`);
+
 function loadPackages(where, params) {
   return db.prepare(`
     SELECT p.*, c.name AS client_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid,
@@ -221,7 +223,9 @@ function loadPackages(where, params) {
       for (const it of parts) if (it.service_id != null) leftFor[it.service_id] = it.left + generalLeft;
       const before = parts.reduce((a, it) => a + (it.done_before || 0), 0);
       return { ...p, before, price: toRon(p.price), travel_fee: toRon(p.travel_fee), travel_total: toRon(p.travel_fee * p.sessions),
-        amount: toRon(p.price + p.travel_fee * p.sessions), items: parts, left: p.sessions - before - p.used - p.booked, left_for: leftFor };
+        amount: toRon(p.price + p.travel_fee * p.sessions), items: parts, left: p.sessions - before - p.used - p.booked, left_for: leftFor,
+        // Its sessions (not cancelled), so a session's form can say how many are still to do from its date on.
+        slots: slotsOf.all(p.id) };
     });
 }
 

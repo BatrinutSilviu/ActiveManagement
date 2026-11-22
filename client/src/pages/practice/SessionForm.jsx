@@ -58,8 +58,20 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
   // chosen service are shown but can't be picked.
   const offered = (packages || []).filter((p) => p.left > 0 || String(p.id) === String(session?.package_id));
   const chosen = offered.find((p) => String(p.id) === String(f.package_id));
-  // Editing a session already in the chosen package: its place is already counted in what's left.
-  const alreadyIn = session && String(session.package_id) === String(f.package_id) && session.status !== 'cancelled';
+  // What the chosen package still has to do from this session on (this one included): its sessions minus those done
+  // before it was entered and its other sessions dated earlier. A session takes a place of its own service first, else a
+  // general one (as on the server).
+  const fromHere = (() => {
+    if (!chosen) return null;
+    const at = `${f.date} ${f.start_time || ''}`;
+    const earlier = (chosen.slots || []).filter((a) => a.id !== session?.id && `${a.date} ${a.start_time || ''}` < at);
+    const parts = chosen.items.map((it) => ({ ...it, left: it.sessions - (it.done_before || 0) }));
+    for (const a of earlier) {
+      const part = parts.find((p) => p.service_id != null && p.service_id === a.type_id && p.left > 0) || parts.find((p) => p.service_id == null && p.left > 0);
+      if (part) part.left -= 1;
+    }
+    return { parts, total: parts.reduce((n, p) => n + Math.max(0, p.left), 0) };
+  })();
   // Picking a package with no room for the chosen service (or none chosen yet): the service becomes the first one it
   // still has places for (unless it has general places, which any service can take).
   const [switched, setSwitched] = useState(null); // the service picking a package switched to, to say so
@@ -190,8 +202,8 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
             </label>
             {chosen && switched && <span className="hint">{t('The service was changed to {service}, which this package covers.', { service: switched })}</span>}
             {chosen && <div className="package-hint">
-              <strong>{t('{n} left after this one', { n: Math.max(0, placesFor(chosen, f.type_id) - (alreadyIn ? 0 : 1)) })}</strong>
-              <span>{chosen.items.map((it) => `${it.service_name || t('Any service')}: ${it.left}/${it.sessions}`).join(' · ')}</span>
+              <strong>{t('{n} of {total} to do from this date on (this one included)', { n: fromHere.total, total: chosen.sessions })}</strong>
+              <span>{fromHere.parts.map((it) => `${it.service_name || t('Any service')}: ${it.left}/${it.sessions}`).join(' · ')}</span>
             </div>}
             {!offered.length && <span className="hint">{t('This patient has no package with sessions left.')}</span>}
           </div>
