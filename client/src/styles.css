@@ -875,6 +875,7 @@ a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 /* weekly repeat in the session form */
 .repeat-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; gap: 8px; }
 .repeat-box .segmented { align-self: flex-start; flex-wrap: wrap; }
+.repeat-ends { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .repeat-icon { opacity: .7; margin-left: 4px; vertical-align: -2px; }
 
 /* names still used but no longer listed (Settings → Services lists) */

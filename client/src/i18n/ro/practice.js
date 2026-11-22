@@ -234,7 +234,7 @@ export default {
   Duplicate: 'Duplică', 'A new session like this one, a week later': 'O ședință nouă ca aceasta, cu o săptămână mai târziu',
   'A copy of the one on {date}, a week later: check the date and time.': 'O copie a celei din {date}, cu o săptămână mai târziu: verifică data și ora.',
   // weekly repeat
-  'Repeats every week': 'Se repetă săptămânal', Until: 'Până la', 'Repeats every week, until': 'Se repetă săptămânal, până la',
+  'Repeats every week': 'Se repetă săptămânal', 'At most (sessions)': 'Maximum (ședințe)', 'It stops at whichever comes first.': 'Se oprește la ce vine întâi.', Until: 'Până la', 'Repeats every week, until': 'Se repetă săptămânal, până la',
   'Repeats every week, until {date}': 'Se repetă săptămânal, până la {date}',
   '{n} session in all, every {day}': '{n} ședință în total, în fiecare {day}', '{n} sessions in all, every {day}': '{n de} ședințe în total, în fiecare {day}',
   'those beyond the package’s places are paid separately': 'cele care nu mai încap în pachet se plătesc separat',

@@ -27,7 +27,7 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
     client_id: clientId || '', type_id: '', date: date || localToday(), start_time: '', end_time: '', venue: 'home', address: '', location: '', travel_fee: '',
     status: 'scheduled', price: '', package_id: '', note: '', therapist: therapists.length === 1 ? therapists[0] : '',
     ...(session || {}),
-    repeat: false, repeat_until: session?.series_until || '', scope: 'one', // weekly repeat (new), or how far a change reaches (series)
+    repeat: false, repeat_until: session?.series_until || '', repeat_count: '', scope: 'one', // weekly repeat (new), or how far a change reaches (series)
   }));
   const { data: packages } = useApi(f.client_id ? `/packages?client_id=${f.client_id}` : null);
   const [error, setError] = useState(null);
@@ -119,7 +119,7 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
     setCopiedFrom(f.date);
     setSession(null);
     setSwitched(null); setError(null);
-    setF({ ...rest, date: next, status: 'scheduled', note: '', package_id: pkg ? String(pkg.id) : '', repeat: false, repeat_until: '', scope: 'one',
+    setF({ ...rest, date: next, status: 'scheduled', note: '', package_id: pkg ? String(pkg.id) : '', repeat: false, repeat_until: '', repeat_count: '', scope: 'one',
       therapist: rest.therapist || (therapists.length === 1 ? therapists[0] : '') });
     // Back to the top, where it says it's a copy.
     requestAnimationFrame(() => document.querySelectorAll('.modal, .modal-body').forEach((el) => el.scrollTo?.(0, 0)));
@@ -128,9 +128,9 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
   const save = async () => {
     setSaving(true);
     try {
-      const { repeat, repeat_until, scope, ...fields } = f;
+      const { repeat, repeat_until, repeat_count, scope, ...fields } = f;
       const body = { ...fields, package_id: f.package_id || null, type_id: f.type_id || null,
-        ...(session?.series_id ? { scope, repeat_until } : repeat ? { repeat_until } : {}) };
+        ...(session?.series_id ? { scope, repeat_until } : repeat ? { repeat_until: repeatEnd } : {}) };
       const r = session ? await api.put(`/appointments/${session.id}`, body) : await api.post('/appointments', body);
       onSaved(session?.id ?? r.id);
     } catch (e) { setError(e.message); setSaving(false); }
@@ -143,8 +143,13 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
   };
   // How many sessions a weekly repeat makes, the first included.
   const weeks = (from, until) => (from && until && until >= from ? Math.floor((new Date(`${until}T12:00:00`) - new Date(`${from}T12:00:00`)) / (7 * 86400000)) + 1 : 0);
-  // A new repeat ends, at first, when the package does, else in 12 weeks.
-  const toggleRepeat = (on) => setF({ ...f, repeat: on, repeat_until: f.repeat_until || (chosen?.expires && chosen.expires > f.date ? chosen.expires : addDays(f.date, 7 * 11)) });
+  // A new repeat ends, at first, when the package does, else in 12 weeks; with a package, also after as many sessions as
+  // it has places left (this one included).
+  const toggleRepeat = (on) => setF({ ...f, repeat: on, repeat_until: f.repeat_until || (chosen?.expires && chosen.expires > f.date ? chosen.expires : addDays(f.date, 7 * 11)),
+    repeat_count: f.repeat_count || (chosen && placesFor(chosen, f.type_id) > 1 ? String(placesFor(chosen, f.type_id)) : '') });
+  // A repeat ends on its date or after its number of sessions (the first included), whichever comes first.
+  const countEnd = Number(f.repeat_count) >= 1 ? addDays(f.date, 7 * (Number(f.repeat_count) - 1)) : '';
+  const repeatEnd = countEnd && (!f.repeat_until || countEnd < f.repeat_until) ? countEnd : f.repeat_until;
 
   return (
     <Modal title={session ? t(`Edit ${term('event')}`) : t(`New ${term('event')}`)} onClose={onClose} onSubmit={save}
@@ -223,8 +228,11 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
           <div className="field full repeat-box">
             <label className="check"><input type="checkbox" checked={f.repeat} onChange={(e) => toggleRepeat(e.target.checked)} />{t('Repeats every week')}</label>
             {f.repeat && <>
-              <label className="field">{t('Until')}<input type="date" value={f.repeat_until} min={addDays(f.date, 7)} onChange={set('repeat_until')} required /></label>
-              <span className="hint">{tn(weeks(f.date, f.repeat_until), `{n} ${term('event')} in all, every {day}`, `{n} ${term('events')} in all, every {day}`, { day: weekday(f.date) })}
+              <div className="repeat-ends">
+              <label className="field">{t('Until')}<input type="date" value={f.repeat_until} min={addDays(f.date, 7)} onChange={set('repeat_until')} required={!f.repeat_count} /></label>
+              <label className="field">{t(`At most (${term('events')})`)}<input type="number" min="2" max="53" step="1" value={f.repeat_count} onChange={set('repeat_count')} required={!f.repeat_until} placeholder="—" /></label>
+              </div>
+              <span className="hint">{t('It stops at whichever comes first.')} {tn(weeks(f.date, repeatEnd), `{n} ${term('event')} in all, every {day}`, `{n} ${term('events')} in all, every {day}`, { day: weekday(f.date) })}
                 {f.package_id ? ` · ${t('those beyond the package’s places are paid separately')}` : ''}</span>
             </>}
           </div>
