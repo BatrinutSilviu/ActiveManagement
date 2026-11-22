@@ -31,7 +31,7 @@ export default {
   '{n} done': '{n} efectuate', Status: 'Stare', Price: 'Preț', 'Mark done': 'Marchează ca efectuată',
   'No sessions yet.': 'Nicio ședință încă.',
   Packages: 'Pachete', Package: 'Pachet',
-  '{used} done · {booked} booked · {left} left of {total} sessions': '{used} efectuate · {booked} programate · {left} rămase din {total} ședințe',
+  '{used} done · {booked} booked · {left} left of {total} sessions': '{used} efectuate · {booked} programate · {left} neprogramate din {total} ședințe',
   'until {date}': 'până la {date}', 'package “{name}”': 'pachetul „{name}”', 'No packages.': 'Niciun pachet.',
   'Invoices & receipts': 'Facturi și chitanțe', New: 'Nou', 'Not paid yet': 'Neîncasat încă', Paid: 'Încasat', 'None yet.': 'Niciuna încă.',
 
@@ -175,7 +175,7 @@ export default {
   'No sessions in these {n} days.': 'Nicio ședință în aceste {n} zile.',
   'What it includes': 'Ce include', 'sessions of a service, or of any service': 'ședințe dintr-un serviciu sau din orice serviciu',
   'Add service': 'Adaugă serviciu', 'Total: {n} sessions': 'Total: {n de} ședințe', '× any session': 'ședințe din orice serviciu',
-  '{left} of {total} left': '{left} rămase din {total}', Service: 'Serviciu',
+  '{left} of {total} left': '{left} neprogramate din {total}', Service: 'Serviciu',
   'Add at least one service with a number of sessions': 'Adaugă cel puțin un serviciu cu un număr de ședințe',
   'A package can have at most 500 sessions': 'Un pachet poate avea cel mult 500 de ședințe',
   'The sessions already booked with this package wouldn’t fit in it any more': 'Ședințele deja programate cu acest pachet nu ar mai încăpea în el',
