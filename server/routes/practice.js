@@ -487,6 +487,7 @@ const asBody = (r) => ({ ...r, price: toRon(r.price), travel_fee: toRon(r.travel
 
 // Changing a session. scope "following" (in a series): the following sessions (scheduled, not billed) get the same
 // changes: service, times, place, therapist, price, travel fee, package, and the same move in days if its date moved.
+// repeat_until (alone): it starts repeating every week up to that date.
 // repeat_until (in a series): its new end; sessions after it go (scheduled, not billed), new ones are made up to it.
 router.put('/appointments/:id', (req, res) => {
   const id = idParam(req);
@@ -496,6 +497,14 @@ router.put('/appointments/:id', (req, res) => {
   tx(() => {
     db.prepare(`UPDATE appointments SET ${APPOINTMENT_FIELDS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
       .run(...APPOINTMENT_FIELDS.map((k) => v[k]), id);
+    // A single session made to repeat (repeat_until): it starts a series, with new ones every week up to that date.
+    if (!old.series_id && req.body.repeat_until) {
+      const until = readUntil(req.body.repeat_until, v.date);
+      const seriesId = Number(db.prepare('INSERT INTO series (until) VALUES (?)').run(until).lastInsertRowid);
+      db.prepare('UPDATE appointments SET series_id = ? WHERE id = ?').run(seriesId, id);
+      extendSeries(seriesId, { ...req.body, note: null, cancel_reason: null }, v.date, until);
+      return;
+    }
     if (!old.series_id) return;
     const series = db.prepare('SELECT * FROM series WHERE id = ?').get(old.series_id);
     if (req.body.scope === 'following') {

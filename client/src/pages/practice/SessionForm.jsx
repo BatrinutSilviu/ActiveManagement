@@ -130,7 +130,7 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
     try {
       const { repeat, repeat_until, scope, ...fields } = f;
       const body = { ...fields, package_id: f.package_id || null, type_id: f.type_id || null,
-        ...(session ? (session.series_id ? { scope, repeat_until } : {}) : repeat ? { repeat_until } : {}) };
+        ...(session?.series_id ? { scope, repeat_until } : repeat ? { repeat_until } : {}) };
       const r = session ? await api.put(`/appointments/${session.id}`, body) : await api.post('/appointments', body);
       onSaved(session?.id ?? r.id);
     } catch (e) { setError(e.message); setSaving(false); }
@@ -219,7 +219,7 @@ export default function SessionForm({ session: given, clientId, date, onClose, o
         <label className="field">{t('Date')}<input type="date" value={f.date} onChange={set('date')} required /></label>
         <label className="field half">{t('From')}<input type="time" value={f.start_time || ''} onChange={pickStart} /></label>
         <label className="field half">{t('To')}<input type="time" value={f.end_time || ''} onChange={set('end_time')} /></label>
-        {!session && (
+        {!session?.series_id && (
           <div className="field full repeat-box">
             <label className="check"><input type="checkbox" checked={f.repeat} onChange={(e) => toggleRepeat(e.target.checked)} />{t('Repeats every week')}</label>
             {f.repeat && <>
