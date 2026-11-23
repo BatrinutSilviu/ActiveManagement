@@ -975,4 +975,13 @@ if (!columns('clients').includes('diagnoses')) db.exec('ALTER TABLE clients ADD 
 if (!columns('packages').includes('travel_fee')) db.exec('ALTER TABLE packages ADD COLUMN travel_fee INTEGER NOT NULL DEFAULT 0');
 // A package entered once already under way: how many of each part's sessions were done before it was entered here.
 if (!columns('package_items').includes('done_before')) db.exec('ALTER TABLE package_items ADD COLUMN done_before INTEGER NOT NULL DEFAULT 0');
+// A patient's history from before the app: hours of a service done with them back then, with no dates or sessions.
+db.exec(`CREATE TABLE IF NOT EXISTS client_history (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,
+  hours REAL NOT NULL CHECK (hours > 0),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS client_history_client ON client_history (client_id)');
 }

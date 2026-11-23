@@ -142,6 +142,8 @@ router.get('/clients/:id', (req, res) => {
   res.json({
     ...c, conditions: JSON.parse(owed.conditions), travel_fee: toRon(c.travel_fee), other_therapies: JSON.parse(c.other_therapies || '[]'), diagnoses: JSON.parse(c.diagnoses || '[]'), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
     notes: db.prepare('SELECT * FROM client_notes WHERE client_id = ? ORDER BY date DESC, id DESC').all(id),
+    history: db.prepare(`SELECT h.id, h.service_id, h.hours, et.name AS service_name FROM client_history h
+      LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(id),
     packages: loadPackages('WHERE p.client_id = ?', [id]),
     appointments: loadAppointments('WHERE a.client_id = ?', [id], 'ORDER BY a.date DESC, a.start_time DESC'),
     invoices: loadInvoices('WHERE i.client_id = ?', [id]),
@@ -172,6 +174,35 @@ router.put('/client-notes/:id', (req, res) => {
 
 router.delete('/client-notes/:id', (req, res) => {
   db.prepare('DELETE FROM client_notes WHERE id = ?').run(idParam(req));
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------------ history from before the app */
+
+function readHistory(body) {
+  const service = body.service_id ? Number(body.service_id) : null;
+  need(service, 'Choose the service');
+  need(db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(service), 'Unknown service');
+  const hours = Math.round(Number(String(body.hours ?? '').replace(',', '.')) * 100) / 100;
+  need(Number.isFinite(hours) && hours > 0 && hours <= 100000, 'The hours have to be a number above 0');
+  return [service, hours];
+}
+
+router.post('/clients/:id/history', (req, res) => {
+  getClient(idParam(req));
+  const { lastInsertRowid } = db.prepare('INSERT INTO client_history (client_id, service_id, hours) VALUES (?, ?, ?)')
+    .run(idParam(req), ...readHistory(req.body));
+  res.json({ id: Number(lastInsertRowid) });
+});
+
+router.put('/client-history/:id', (req, res) => {
+  const r = db.prepare('UPDATE client_history SET service_id = ?, hours = ? WHERE id = ?').run(...readHistory(req.body), idParam(req));
+  if (!r.changes) throw httpError(404, 'This entry no longer exists');
+  res.json({ ok: true });
+});
+
+router.delete('/client-history/:id', (req, res) => {
+  db.prepare('DELETE FROM client_history WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
 });
 

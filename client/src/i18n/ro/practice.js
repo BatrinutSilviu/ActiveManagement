@@ -257,4 +257,7 @@ export default {
   'Add legal entity': 'Adaugă entitate juridică',
   'Still in use, but no longer in the list: replace each with one from the list.': 'Încă folosite, dar care nu mai sunt în listă: înlocuiește-le cu unele din listă.',
   'Replace with…': 'Înlocuiește cu…', 'Replace {name} with': 'Înlocuiește {name} cu',
+  'Before the app': 'Înainte de aplicație', 'Hours done before using this app': 'Ore efectuate înainte de folosirea aplicației',
+  '{h} h in all': '{h} h în total', Entry: 'Înregistrare', Hours: 'Ore', 'this entry': 'această înregistrare', 'Nothing entered.': 'Nimic introdus.',
+  'The hours have to be a number above 0': 'Orele trebuie să fie un număr peste 0', 'This entry no longer exists': 'Această înregistrare nu mai există',
 };

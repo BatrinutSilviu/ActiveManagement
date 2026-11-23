@@ -1,12 +1,13 @@
-// One patient: contact details, what to keep in mind, dated notes, their sessions, packages, invoices and receipts.
+// One patient: contact details, what to keep in mind, dated notes, their history from before the app, their sessions, packages, invoices and receipts.
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
 import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
-import { date, money0 } from '../../format.js';
+import { date, money0, number } from '../../format.js';
 import { t, tn } from '../../i18n/index.js';
 import { confirmDelete } from '../../components/Modal.jsx';
+import Select from '../../components/Select.jsx';
 import { IconCheck, IconChevronLeft, IconEdit, IconPlus, IconTrash } from '../../components/Icons.jsx';
 import InvoiceForm from './InvoiceForm.jsx';
 import { PackageForm, PatientForm } from './PatientForms.jsx';
@@ -98,6 +99,7 @@ function Patient({ id }) {
             </div>
           )}
           <Notes c={c} reload={reload} />
+          <History c={c} reload={reload} />
           <Sessions c={c} run={run} onEdit={(s) => setForm({ kind: 'session', session: s })} />
         </div>
         <div className="stack">
@@ -164,6 +166,52 @@ function Notes({ c, reload }) {
           )))}
         </div>
       ) : !f && <p className="muted" style={{ margin: 0 }}>{t('No notes yet.')}</p>}
+    </div>
+  );
+}
+
+/** What was done with them before the app: hours of each service, with no dates or sessions. */
+function History({ c, reload }) {
+  const { canEdit } = usePermissions();
+  const { term } = useBusiness();
+  const { data: types } = useApi('/event-types');
+  const [f, setF] = useState(null); // { id?, service_id, hours }
+  const [err, run] = useAction(reload);
+  const save = async (e) => {
+    e.preventDefault();
+    if (await run(() => (f.id ? api.put(`/client-history/${f.id}`, f) : api.post(`/clients/${c.id}/history`, f)))) setF(null);
+  };
+  const total = c.history.reduce((a, h) => a + h.hours, 0);
+  const editor = (
+    <form onSubmit={save} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '6px 0' }}>
+      <Select value={f?.service_id ? String(f.service_id) : ''} onChange={(e) => setF({ ...f, service_id: e.target.value })} required style={{ flex: '1 1 160px' }}>
+        <option value="">{t('— choose —')}</option>
+        {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
+      </Select>
+      <input type="number" min="0.25" step="0.25" inputMode="decimal" value={f?.hours ?? ''} onChange={(e) => setF({ ...f, hours: e.target.value })}
+        required placeholder={t('Hours')} aria-label={t('Hours')} style={{ width: 100 }} />
+      <button className="btn btn-primary btn-sm">{t('Save')}</button>
+      <button type="button" className="btn btn-sm" onClick={() => setF(null)}>{t('Cancel')}</button>
+    </form>
+  );
+  return (
+    <div className="card card-pad">
+      <div className="card-head">
+        <div><h2>{t('Before the app')}</h2><p>{c.history.length ? t('{h} h in all', { h: number(total) }) : t('Hours done before using this app')}</p></div>
+        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ service_id: '', hours: '' })}><IconPlus width="14" />{t('Entry')}</button>}
+      </div>
+      {err && <div className="error-box" style={{ marginBottom: 10 }}>{err}</div>}
+      {f && !f.id && editor}
+      {c.history.length ? c.history.map((h) => (f?.id === h.id ? <div key={h.id}>{editor}</div> : (
+        <div key={h.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>{h.service_name || <span className="muted">{t(`No ${term('sport')}`)}</span>}</div>
+          <strong>{number(h.hours)} h</strong>
+          {canEdit && <span className="note-actions">
+            <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF(h)}><IconEdit width="15" /></button>
+            <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(t('this entry')) && run(() => api.del(`/client-history/${h.id}`))}><IconTrash width="15" /></button>
+          </span>}
+        </div>
+      ))) : !f && <p className="muted" style={{ margin: 0 }}>{t('Nothing entered.')}</p>}
     </div>
   );
 }
