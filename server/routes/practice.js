@@ -11,6 +11,7 @@ import express from 'express';
 import { db, tx } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
 import { getBusiness } from '../domain/business.js';
+import { writeSessionsPdf } from '../domain/sessionsPdf.js';
 import { httpError, idParam, isDate, need, today } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -175,6 +176,19 @@ router.put('/client-notes/:id', (req, res) => {
 router.delete('/client-notes/:id', (req, res) => {
   db.prepare('DELETE FROM client_notes WHERE id = ?').run(idParam(req));
   res.json({ ok: true });
+});
+
+// The sessions done with a patient between two dates (both included), as a PDF to download.
+router.get('/clients/:id/sessions.pdf', (req, res) => {
+  const id = idParam(req);
+  const client = getClient(id);
+  const { from, to } = req.query;
+  need(isDate(from) && isDate(to), 'Choose the start and end dates');
+  need(from <= to, 'The start date is after the end date');
+  const sessions = loadAppointments("WHERE a.client_id = ? AND a.status = 'done' AND a.date BETWEEN ? AND ?", [id, from, to]);
+  const file = `${client.name.normalize('NFD').replace(/[^\w -]/g, '').trim().replace(/\s+/g, '-') || 'patient'}-${from}-${to}.pdf`;
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${file}"`, 'Cache-Control': 'no-store' });
+  writeSessionsPdf(res, { business: getBusiness(), client, from, to, sessions });
 });
 
 /* ------------------------------------------------------------------ history from before the app */

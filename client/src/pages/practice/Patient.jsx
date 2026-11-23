@@ -6,9 +6,9 @@ import { useAction, useApi, usePermissions } from '../../hooks.js';
 import { useBusiness } from '../../business.js';
 import { date, money0, number } from '../../format.js';
 import { t, tn } from '../../i18n/index.js';
-import { confirmDelete } from '../../components/Modal.jsx';
+import Modal, { confirmDelete } from '../../components/Modal.jsx';
 import Select from '../../components/Select.jsx';
-import { IconCheck, IconChevronLeft, IconEdit, IconPlus, IconTrash } from '../../components/Icons.jsx';
+import { IconCheck, IconChevronLeft, IconDownload, IconEdit, IconPlus, IconTrash } from '../../components/Icons.jsx';
 import InvoiceForm from './InvoiceForm.jsx';
 import { PackageForm, PatientForm } from './PatientForms.jsx';
 import SessionForm from './SessionForm.jsx';
@@ -30,7 +30,7 @@ function Patient({ id }) {
   const { canEdit } = usePermissions();
   const { term, Term } = useBusiness();
   const { data: c, error, reload } = useApi(`/clients/${id}`);
-  const [form, setForm] = useState(null); // { kind: 'edit' | 'session' | 'package' | 'invoice', … }
+  const [form, setForm] = useState(null); // { kind: 'edit' | 'session' | 'package' | 'invoice' | 'pdf', … }
   const [err, run] = useAction(reload);
   const close = () => setForm(null);
   const saved = () => { setForm(null); reload(); };
@@ -71,6 +71,7 @@ function Patient({ id }) {
         {canEdit && <div className="page-actions">
           <button className="btn btn-primary" onClick={() => setForm({ kind: 'session' })}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>
           {c.unbilled > 0 && <button className="btn" onClick={() => setForm({ kind: 'invoice', select: 'all' })}>{t('Bill {amount}', { amount: money0(c.unbilled) })}</button>}
+          <button className="btn" onClick={() => setForm({ kind: 'pdf' })}><IconDownload width="15" />PDF</button>
           <button className="btn" onClick={() => setForm({ kind: 'edit' })}><IconEdit width="15" />{t('Edit')}</button>
           <button className="btn btn-danger" onClick={del}><IconTrash width="15" />{t('Delete')}</button>
         </div>}
@@ -117,6 +118,7 @@ function Patient({ id }) {
       {form?.kind === 'edit' && <PatientForm patient={c} onClose={close} onSaved={saved} />}
       {form?.kind === 'session' && <SessionForm session={form.session} clientId={c.id} onClose={close} onSaved={saved} />}
       {form?.kind === 'package' && <PackageForm pkg={form.pkg} clientId={c.id} travelFee={c.travel_fee} onClose={close} onSaved={saved} />}
+      {form?.kind === 'pdf' && <SessionsPdf c={c} onClose={close} />}
       {form?.kind === 'invoice' && <InvoiceForm invoiceId={form.invoiceId} clientId={c.id} select={form.select} onClose={close} onSaved={saved} />}
     </div>
   );
@@ -306,5 +308,42 @@ function Invoices({ c, canEdit, run, onNew, onEdit }) {
         </div>
       )) : <p className="muted" style={{ margin: 0 }}>{t('None yet.')}</p>}
     </div>
+  );
+}
+
+/** Downloads the sessions done with them between two dates, as a PDF. */
+function SessionsPdf({ c, onClose }) {
+  const { term } = useBusiness();
+  const today = localToday();
+  const [f, setF] = useState({ from: `${today.slice(0, 7)}-01`, to: today });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const download = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/clients/${c.id}/sessions.pdf?from=${f.from}&to=${f.to}`, { credentials: 'same-origin' });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(t(d.error) || t('Request failed ({status})', { status: res.status })); }
+      const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'sessions.pdf';
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      onClose();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={t(`PDF of the ${term('events')} done`)} onClose={onClose} onSubmit={download}
+      footer={<>
+        <button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button>
+        <button className="btn btn-primary" disabled={busy}><IconDownload width="15" />{t('Download')}</button>
+      </>}>
+      {err && <div className="error-box" style={{ marginBottom: 12 }}>{err}</div>}
+      <div className="form-grid">
+        <label className="field">{t('From')}
+          <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => setF({ ...f, from: e.target.value })} required /></label>
+        <label className="field">{t('To')}
+          <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => setF({ ...f, to: e.target.value })} required /></label>
+      </div>
+    </Modal>
   );
 }
