@@ -12,16 +12,14 @@ const WORDS = {
     therapist: 'Therapist', place: 'Place', duration: 'Duration', home: 'Home', practice: 'Practice',
     total: 'Total', sessions: (n) => `${n} ${n === 1 ? 'session' : 'sessions'}`, none: 'No sessions done in this period.',
     noTime: (n) => `${n} without a duration, not counted in the hours`, made: 'Made on', page: (i, n) => `Page ${i} of ${n}`,
-    history: 'Before the app', done: 'Done', hours: 'Hours', inHours: 'in hours', onDates: (n) => `${n} ${n === 1 ? 'session' : 'sessions'}:`,
-    estimate: 'Hours of dated sessions are worked out from the service’s duration (≈).',
+    history: 'Before the app', inHours: 'no dates',
   },
   ro: {
     title: 'Ședințe efectuate', patient: 'Pacient', period: 'Perioada', date: 'Data', time: 'Ora', service: 'Serviciu',
     therapist: 'Terapeut', place: 'Loc', duration: 'Durata', home: 'Acasă', practice: 'Cabinet',
     total: 'Total', sessions: (n) => `${n} ${n === 1 ? 'ședință' : 'ședințe'}`, none: 'Nicio ședință efectuată în această perioadă.',
     noTime: (n) => `${n} fără durată, necontorizate în ore`, made: 'Generat la', page: (i, n) => `Pagina ${i} din ${n}`,
-    history: 'Înainte de aplicație', done: 'Efectuat', hours: 'Ore', inHours: 'în ore', onDates: (n) => `${n} ${n === 1 ? 'ședință' : 'ședințe'}:`,
-    estimate: 'Orele ședințelor cu date sunt calculate din durata serviciului (≈).',
+    history: 'Înainte de aplicație', inHours: 'fără date',
   },
 };
 
@@ -31,7 +29,8 @@ export const sessionMinutes = (a) => (a.start_time && a.end_time ? minutesOf(a.e
 const hours = (min) => { const h = Math.floor(min / 60), m = min % 60; return h && m ? `${h} h ${m} min` : h ? `${h} h` : `${m} min`; };
 
 /** Writes the PDF to `out` (a response). sessions: loadAppointments rows, oldest first; history: the patient's
- *  entries from before the app ({ service_name, hours } or { service_name, dates, duration }). */
+ *  entries from before the app ({ kind: 'hours', service_name, hours } or { kind: 'dates', service_name, dates: [{ date, minutes }],
+ *  duration }), shown in the same table, before the sessions. */
 export function writeSessionsPdf(out, { business, client, from, to, sessions, history = [] }) {
   const w = WORDS[business?.language] || WORDS.en;
   const locale = business?.locale || 'ro-RO';
@@ -49,16 +48,16 @@ export function writeSessionsPdf(out, { business, client, from, to, sessions, hi
   doc.moveDown(1);
 
   // Columns: date, time, service, therapist, place, duration.
-  const sessionCols = [
+  const cols = [
     { key: 'date', w: 64 }, { key: 'time', w: 66 }, { key: 'service', w: 120 }, { key: 'therapist', w: 100 },
     { key: 'place', w: 0 }, { key: 'duration', w: 80, right: true },
   ];
-  sessionCols[4].w = width - sessionCols.reduce((a, c) => a + c.w, 0);
+  cols[4].w = width - cols.reduce((a, c) => a + c.w, 0);
   const pad = 4;
-  const row = (cells, { bold = false, fill = null, cols = sessionCols } = {}) => {
+  const row = (cells, { bold = false, fill = null } = {}) => {
     doc.font(bold ? 'b' : 'r').fontSize(9);
     const h = Math.max(...cells.map((t, i) => doc.heightOfString(t || '', { width: cols[i].w - 2 * pad }))) + 2 * pad;
-    if (doc.y + h > doc.page.height - doc.page.margins.bottom - 20) { doc.addPage(); if (!fill) header(cols); doc.font(bold ? 'b' : 'r').fontSize(9); }
+    if (doc.y + h > doc.page.height - doc.page.margins.bottom - 20) { doc.addPage(); if (!fill) header(); doc.font(bold ? 'b' : 'r').fontSize(9); }
     const y = doc.y;
     if (fill) doc.rect(left, y, width, h).fill(fill).fillColor('#000');
     let x = left;
@@ -69,43 +68,35 @@ export function writeSessionsPdf(out, { business, client, from, to, sessions, hi
     doc.moveTo(left, y + h).lineTo(left + width, y + h).lineWidth(0.5).strokeColor('#ccc').stroke();
     doc.x = left; doc.y = y + h;
   };
-  const header = (cols = sessionCols) => row(cols.map((c) => w[c.key]), { bold: true, fill: '#eee', cols });
+  const header = () => row(cols.map((c) => w[c.key]), { bold: true, fill: '#eee' });
 
-  if (!sessions.length) {
+  // One table: the history from before the app first (hours entries, then each dated day, by date), then the
+  // sessions done in the period. A history day's duration is the one entered for it, else the service's usual one.
+  const where = (a) => (a.venue === 'practice' ? [w.practice, a.location].filter(Boolean).join(' · ')
+    // At home: their address only when the session was somewhere else than the one on their page.
+    : [w.home, a.address && a.address !== client.address ? a.address : null].filter(Boolean).join(' · '));
+  const rows = [
+    ...history.filter((h) => h.kind !== 'dates').map((h) => ({ date: '—', time: '', service: h.service_name, place: `${w.history} · ${w.inHours}`, min: Math.round(h.hours * 60), count: 0 })),
+    ...history.filter((h) => h.kind === 'dates').flatMap((h) => h.dates.map((d) => ({
+      sort: d.date, date: day(d.date), service: h.service_name, place: w.history, min: d.minutes || h.duration || null, count: 1,
+    }))).sort((x, y) => x.sort.localeCompare(y.sort)),
+    ...sessions.map((a) => ({
+      date: day(a.date), time: [a.start_time, a.end_time].filter(Boolean).join('–'), service: a.type_name, therapist: a.therapist,
+      place: where(a), min: sessionMinutes(a), count: 1,
+    })),
+  ];
+  if (!rows.length) {
     doc.font('r').fontSize(10).text(w.none);
   } else {
     header();
-    let total = 0, noTime = 0;
-    for (const a of sessions) {
-      const min = sessionMinutes(a);
-      if (min > 0) total += min; else noTime += 1;
-      // At home: their address only when the session was somewhere else than the one on their page.
-      const place = a.venue === 'practice' ? [w.practice, a.location].filter(Boolean).join(' · ')
-        : [w.home, a.address && a.address !== client.address ? a.address : null].filter(Boolean).join(' · ');
-      row([day(a.date), [a.start_time, a.end_time].filter(Boolean).join('–'), a.type_name, a.therapist, place, min > 0 ? hours(min) : '—']);
+    let total = 0, noTime = 0, count = 0;
+    for (const r of rows) {
+      if (r.min > 0) total += r.min; else noTime += 1;
+      count += r.count;
+      row([r.date, r.time, r.service, r.therapist, r.place, r.min > 0 ? hours(r.min) : '—']);
     }
-    row([w.total, '', w.sessions(sessions.length), '', '', hours(total)], { bold: true });
+    row([w.total, '', w.sessions(count), '', '', hours(total)], { bold: true });
     if (noTime) doc.moveDown(0.5).font('r').fontSize(8).fillColor('#666').text(w.noTime(noTime), left).fillColor('#000');
-  }
-
-  // The history from before the app: hours of a service, or the days it was done on.
-  if (history.length) {
-    const histCols = [{ key: 'service', w: 130 }, { key: 'done', w: 0 }, { key: 'hours', w: 80, right: true }];
-    histCols[1].w = width - histCols[0].w - histCols[2].w;
-    if (doc.y + 80 > doc.page.height - doc.page.margins.bottom) doc.addPage();
-    doc.moveDown(1.5).font('b').fontSize(13).fillColor('#000').text(w.history, left);
-    doc.moveDown(0.4);
-    header(histCols);
-    let total = 0, estimated = false;
-    for (const h of history) {
-      let min = h.hours ? Math.round(h.hours * 60) : null;
-      if (h.dates?.length) { min = h.duration ? h.dates.length * h.duration : null; estimated ||= !!min; }
-      if (min) total += min;
-      const done = h.dates?.length ? `${w.onDates(h.dates.length)} ${h.dates.map(day).join(', ')}` : w.inHours;
-      row([h.service_name || '—', done, min ? `${h.dates?.length ? '≈ ' : ''}${hours(min)}` : '—'], { cols: histCols });
-    }
-    row([w.total, '', `${estimated ? '≈ ' : ''}${hours(total)}`], { bold: true, cols: histCols });
-    if (estimated) doc.moveDown(0.5).font('r').fontSize(8).fillColor('#666').text(w.estimate, left).fillColor('#000');
   }
 
   // Footer on every page: when it was made, and the page number.

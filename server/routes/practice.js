@@ -196,16 +196,24 @@ export function sendSessionsPdf(res, id, query) {
 
 /* ------------------------------------------------------------------ history from before the app */
 
-// An entry is a service and either the hours done (kind 'hours') or the days it was done on (kind 'dates').
+// An entry is a service and either the hours done (kind 'hours') or the days it was done on (kind 'dates'), each day
+// with how long it took: dates [{ date, minutes }].
 function readHistory(body) {
   const service = body.service_id ? Number(body.service_id) : null;
   need(service, 'Choose the service');
   need(db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(service), 'Unknown service');
   if (body.kind === 'dates') {
-    const dates = [...new Set(Array.isArray(body.dates) ? body.dates : [])].sort();
-    need(dates.length, 'Add at least one date');
-    need(dates.length <= 1000 && dates.every(isDate), 'A date isn’t valid');
-    return [service, null, JSON.stringify(dates)];
+    const days = new Map();
+    for (const d of Array.isArray(body.dates) ? body.dates : []) {
+      const { date, minutes } = typeof d === 'string' ? { date: d } : d || {};
+      need(isDate(date), 'A date isn’t valid');
+      const min = minutes == null || minutes === '' ? null : Math.round(Number(minutes));
+      need(min === null || (min > 0 && min <= 1440), 'A duration has to be between 1 and 1440 minutes');
+      days.set(date, { date, minutes: min });
+    }
+    need(days.size, 'Add at least one date');
+    need(days.size <= 1000, 'Too many dates');
+    return [service, null, JSON.stringify([...days.values()].sort((a, b) => a.date.localeCompare(b.date)))];
   }
   const hours = Math.round(Number(String(body.hours ?? '').replace(',', '.')) * 100) / 100;
   need(Number.isFinite(hours) && hours > 0 && hours <= 100000, 'The hours have to be a number above 0');
@@ -215,7 +223,9 @@ function readHistory(body) {
 /** A patient's history from before the app, oldest entry first; duration = the service's, in minutes (for dated entries). */
 export const loadHistory = (clientId) => db.prepare(`SELECT h.id, h.service_id, h.hours, h.dates, et.name AS service_name, et.duration
   FROM client_history h LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(clientId)
-  .map((h) => ({ ...h, kind: h.dates ? 'dates' : 'hours', dates: h.dates ? JSON.parse(h.dates) : [] }));
+  .map((h) => ({ ...h, kind: h.dates ? 'dates' : 'hours', dates: h.dates ? JSON.parse(h.dates).map(historyDay) : [] }));
+// A dated entry's day: { date, minutes } (entries made before durations were asked for keep just the date).
+const historyDay = (d) => (typeof d === 'string' ? { date: d, minutes: null } : d);
 
 // Each service once per patient: it has either its hours or its dates.
 function oneEntryPerService(clientId, serviceId, exceptId = 0) {
