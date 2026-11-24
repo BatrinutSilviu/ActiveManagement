@@ -19,10 +19,16 @@ router.post('/events/:id/attendees', (req, res) => {
   res.json({ ok: true });
 });
 
-// Either tick: { paid } (in full) and / or { advance_paid }.
+// Either tick: { paid } (in full) and / or { advance_paid }; and / or { dropped }.
 router.put('/event-attendees/:id', (req, res) => {
   for (const k of ['paid', 'advance_paid']) {
     if (k in req.body) db.prepare(`UPDATE event_attendees SET ${k} = ? WHERE id = ?`).run(req.body[k] ? 1 : 0, idParam(req));
+  }
+  // Dropped out: { dropped: 'undecided' | 'kept' | 'refunded' }, or null when they're coming after all.
+  if ('dropped' in req.body) {
+    const d = req.body.dropped ?? null;
+    need(d === null || ['undecided', 'kept', 'refunded'].includes(d), 'Invalid choice');
+    db.prepare('UPDATE event_attendees SET dropped = ? WHERE id = ?').run(d, idParam(req));
   }
   res.json({ ok: true });
 });

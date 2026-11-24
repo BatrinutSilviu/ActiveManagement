@@ -37,6 +37,10 @@ const EVENT_SQL = `
     (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_discounts,
     (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_count,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.event_id = e.id AND t.kind = 'income') AS other_income,
+    -- What we kept from people who dropped out (the price if they'd paid in full, else the advance): fee income on
+    -- top of the counted participants.
+    (SELECT COALESCE(SUM(CASE WHEN a.paid = 1 THEN e.participation_fee ELSE e.advance_fee END), 0) FROM event_attendees a
+       WHERE a.event_id = e.id AND a.dropped = 'kept') AS kept_advances,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND COALESCE(c.cost_group, 'organizing') = 'organizing') AS organizing,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN categories c ON c.id = t.category_id
@@ -81,7 +85,8 @@ function eventPoints(e, profit, rates = getPointsRates()) {
 function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
-  // Fee income = people × fee − what members don't pay (they pay only the venue's part).
+  // Fee income = people × fee − what members don't pay (they pay only the venue's part), plus the advances
+  // kept from people who dropped out.
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
   // without signing up aren't counted at all.
   // Discounts and the venue part of people let in free that we pay for come out of the general
@@ -90,7 +95,8 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // let off (covered_waived): money we don't get, like a member price — we don't pay it to ourselves.
   const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts), memberDiscounts = toRon(e.member_discounts);
   const coveredWaived = toRon(e.covered_waived);
-  const feeIncome = r2(feeGross - memberDiscounts - coveredWaived), otherIncome = toRon(e.other_income);
+  const keptAdvances = toRon(e.kept_advances);
+  const feeIncome = r2(feeGross - memberDiscounts - coveredWaived + keptAdvances), otherIncome = toRon(e.other_income);
   const venueCost = toRon(e.venue_cost), stockCost = toRon(e.stock_cost), coveredFees = toRon(e.covered_fees);
   const fundPaid = r2(discounts + coveredFees);
   const organizing = r2(toRon(e.organizing) + venueCost);
@@ -102,7 +108,7 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
     ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), advance_fee: toRon(e.advance_fee), venue_total: toRon(e.venue_total),
-    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
+    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, kept_advances: keptAdvances, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }

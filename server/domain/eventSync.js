@@ -112,7 +112,7 @@ export function upsertSyncedEvent(source, externalId, record) {
 }
 
 // The app's sign-up list (m.players) becomes the event's attendees, on every push: who signed up is added, who
-// left is taken off. Only the attendees that came from the app (synced) are ever taken off — the ones added here
+// left is taken off (or, when they'd paid, kept as dropped out). Only the attendees that came from the app (synced) are ever taken off — the ones added here
 // by hand stay; a name already on the list by hand becomes the app's. Each tick the app sends (paid, advance_paid)
 // follows the app's only when it changed there since the last push, so a tick set here is kept otherwise.
 // Returns whether anything changed.
@@ -133,7 +133,7 @@ function syncAttendees(eventId, m, before) {
       changed = true;
       continue;
     }
-    const next = { synced: 1 };
+    const next = { synced: 1, dropped: null }; // signed up again after dropping out: coming after all
     for (const k of TICKS) {
       if (typeof p[k] !== 'boolean' || was.get(foldName(p.name))?.[k] === p[k]) continue;
       // A hand-added row the app now has too: ticked if either says so.
@@ -145,8 +145,13 @@ function syncAttendees(eventId, m, before) {
       changed = true;
     }
   }
+  // Gone from the app's list: taken off, unless they'd paid something — then they stay as dropped out, for
+  // someone to decide here whether we keep the advance or refund it.
   for (const r of rows) {
-    if (r.synced && !want.has(foldName(r.name))) { db.prepare('DELETE FROM event_attendees WHERE id = ?').run(r.id); changed = true; }
+    if (!r.synced || want.has(foldName(r.name)) || r.dropped) continue;
+    if (r.advance_paid || r.paid) db.prepare("UPDATE event_attendees SET dropped = 'undecided' WHERE id = ?").run(r.id);
+    else db.prepare('DELETE FROM event_attendees WHERE id = ?').run(r.id);
+    changed = true;
   }
   return changed;
 }

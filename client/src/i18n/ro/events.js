@@ -230,6 +230,16 @@ export default {
   'The list follows the {app} app’s sign-ups (advance ticked = confirmed there); names added here stay.':
     'Lista urmează înscrierile din aplicația {app} (avans bifat = confirmat acolo); numele adăugate aici rămân.',
   'Advance per person': 'Avans de persoană',
+  'Dropped out': 'S-au retras',
+  'They paid but won’t come: decide whether we keep what they paid or refund it':
+    'Au plătit, dar nu mai vin: hotărăște dacă păstrăm ce au plătit sau le dăm banii înapoi',
+  '{n} person paid and dropped out — keep what they paid or refund it?': '{n} persoană a plătit și s-a retras — păstrăm ce a plătit sau îi dăm banii înapoi?',
+  '{n} people paid and dropped out — keep what they paid or refund it?': '{n} persoane au plătit și s-au retras — păstrăm ce au plătit sau le dăm banii înapoi?',
+  'What we kept counts as income from fees': 'Ce am păstrat se socotește venit din taxe',
+  'Had paid': 'Plătise', 'in full': 'integral', advance: 'avans', 'What we did': 'Ce am făcut',
+  'Not decided yet': 'Nehotărât încă', 'Kept it': 'L-am păstrat', 'Refunded it': 'L-am returnat',
+  'Coming after all': 'Vine totuși',
+  'Kept from people who dropped out': 'Păstrat de la cei care s-au retras',
   'Paid to hold a place, part of the price · 0 = none': 'Plătit ca să-și păstreze locul, parte din preț · 0 = fără',
   'Signed up in the {app} app: kept in step with its list': 'Înscris în aplicația {app}: ținut la zi după lista de acolo',
   'The list follows the {app} app’s sign-ups (ticked = confirmed there); names added here stay.':
