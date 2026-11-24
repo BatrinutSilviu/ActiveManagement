@@ -1027,4 +1027,19 @@ if (!columns('clients').includes('medications')) db.exec('ALTER TABLE clients AD
 // (domain/organizer.js). A flag next to role, like parent, since role's CHECK can't change without rebuilding users.
 if (!columns('users').includes('organizer')) db.exec('ALTER TABLE users ADD COLUMN organizer INTEGER NOT NULL DEFAULT 0');
 if (!columns('users').includes('person_id')) db.exec('ALTER TABLE users ADD COLUMN person_id INTEGER REFERENCES people(id) ON DELETE SET NULL');
+// Development points (domain/devPoints.js): the commits read from GitHub, and the contribution made for each week
+// (key "2026-W48|2026-11": a week, split by month).
+db.exec(`CREATE TABLE IF NOT EXISTS dev_commits (
+  sha TEXT PRIMARY KEY,
+  repo TEXT NOT NULL,
+  email TEXT NOT NULL,
+  at INTEGER NOT NULL                     -- author time, ms
+)`);
+db.exec(`CREATE TABLE IF NOT EXISTS dev_weeks (
+  key TEXT PRIMARY KEY,
+  contribution_id INTEGER REFERENCES contributions(id) ON DELETE SET NULL,
+  minutes REAL NOT NULL,
+  commits INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+)`);
 }

@@ -24,6 +24,8 @@ services:
     environment:
       # Shared secret the padel and hikes apps use to push their events here (empty = disabled).
       - INTEGRATION_TOKEN=${INTEGRATION_TOKEN:-}
+      # Read-only GitHub token for development points (Settings → Points), needed for private repos (empty = public ones only).
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       # Which copy this is: a copy other than Active's sees only its own app on the Server page.
       - APP_NAME=${APP_NAME:-active-management}
       - METRICS_APP=${METRICS_APP:-}

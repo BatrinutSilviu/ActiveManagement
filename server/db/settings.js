@@ -65,3 +65,18 @@ export function setMonthSplit(ym, split) {
   db.prepare('INSERT INTO month_splits (month, value) VALUES (?, ?) ON CONFLICT(month) DO UPDATE SET value = excluded.value')
     .run(ym, JSON.stringify(split));
 }
+
+/* ------------------------------------------------------- development points */
+
+// Points for developing the apps (domain/devPoints.js): who gets them, their git email(s), the GitHub repos
+// ("owner/name"), points per hour of work, the session rules, and the day counting starts from.
+const DEFAULT_DEV_POINTS = { person_id: null, emails: [], perHour: 1, maxGapMin: 120, firstCommitMin: 30, since: null,
+  repos: ['BatrinutSilviu/ActiveManagement', 'BatrinutSilviu/Padel-Challenge', 'catacioba/padel-challenge-backend', 'BatrinutSilviu/ActiveHikes'] };
+export const getDevPoints = () => {
+  const v = readSetting('dev_points', DEFAULT_DEV_POINTS);
+  return { ...v, since: v.since || new Date().toISOString().slice(0, 10) };
+};
+export const setDevPoints = (v) => writeSetting('dev_points', v);
+// The last run: { at, week, errors }.
+export const getDevStatus = () => readSetting('dev_points_status', {});
+export const setDevStatus = (v) => writeSetting('dev_points_status', v);

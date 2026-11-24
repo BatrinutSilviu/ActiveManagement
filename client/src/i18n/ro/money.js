@@ -388,4 +388,16 @@ export default {
   'Enter what the award is worth': 'Introdu cât valorează recompensa',
   'Award not found': 'Recompensa nu a fost găsită',
   'Real points are calculated once the month is over': 'Punctele reale se calculează după ce se încheie luna',
+  // Development points
+  'Development points': 'Puncte pentru dezvoltare',
+  'Every week, the commits on the apps’ repos become hours of work and points for the person below, as a “Development & programming” contribution. Commits less than the longest gap apart count the time between them; a commit after a longer break starts a session worth the session start. Months already closed aren’t changed.':
+    'În fiecare săptămână, commit-urile din repo-urile aplicațiilor devin ore de lucru și puncte pentru persoana de mai jos, ca o contribuție „Development & programming”. Între commit-uri mai apropiate decât pauza cea mai lungă se socotește timpul dintre ele; un commit după o pauză mai lungă începe o sesiune, care valorează cât începutul de sesiune. Lunile deja închise nu se schimbă.',
+  'Their git email(s)': 'Email-urile lor din git', Repos: 'Repo-uri', 'owner/name, one per line': 'proprietar/nume, câte unul pe rând',
+  'Points per hour': 'Puncte pe oră', 'Count from': 'Numără de la', 'Longest gap (minutes)': 'Pauza cea mai lungă (minute)',
+  'Session start (minutes)': 'Începutul unei sesiuni (minute)', 'Count now': 'Numără acum', 'Counting…': 'Se numără…',
+  'Last counted {when}': 'Numărat ultima dată {when}', 'No GITHUB_TOKEN on the server: private repos are skipped': 'Fără GITHUB_TOKEN pe server: repo-urile private sunt sărite',
+  '{n} weeks counted.': '{n} săptămâni numărate.', Week: 'Săptămâna', Commits: 'Commit-uri',
+  'Not set up: pick the person, their git email and the repos': 'Nesetat: alege persoana, email-ul din git și repo-urile',
+  'Pick a person from People': 'Alege o persoană din Oameni', 'An email isn’t valid': 'Un email nu este valid',
+  'Write each repo as owner/name': 'Scrie fiecare repo ca proprietar/nume', 'Pick the day to count from': 'Alege ziua de la care se numără',
 };

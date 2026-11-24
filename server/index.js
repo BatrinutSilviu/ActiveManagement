@@ -8,6 +8,7 @@ import { errorFields, log } from './log.js';
 import { startBackupSchedule } from './backup.js';
 import { checkRole, requireAuth } from './auth.js';
 import { startPointsSchedule } from './finance.js';
+import { startDevPointsSchedule } from './domain/devPoints.js';
 import { apiNotFound, errorHandler, requestLog, sameOrigin, securityHeaders } from './middleware.js';
 import { router as health } from './routes/health.js';
 import { router as auth } from './routes/auth.js';
@@ -89,6 +90,7 @@ const host = process.env.HOST || '0.0.0.0'; // use 127.0.0.1 behind a reverse pr
 const server = app.listen(port, host, () => log('info', `${getBusiness()?.name || 'New business'} management on http://${host}:${port}`, { db: process.env.DB_PATH || 'data/active.db' }));
 startBackupSchedule();
 startPointsSchedule();
+startDevPointsSchedule();
 
 // Docker sends SIGTERM on every redeploy: stop taking requests, let the ones under way finish, then close the
 // database (which checkpoints the WAL into the main file) before exiting — instead of being killed after 10 s.

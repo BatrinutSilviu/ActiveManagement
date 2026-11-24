@@ -8,6 +8,7 @@ import { Discounts } from './settings/Discounts.jsx';
 import { ProfitSplit, StartingBalance } from './settings/Money.jsx';
 import { People } from './settings/People.jsx';
 import { Activities, PointsRates, TaskShares } from './settings/Points.jsx';
+import { DevPoints } from './settings/DevPoints.jsx';
 import { Categories, Sports } from './settings/Sports.jsx';
 import { Conditions, Entities, PackageTypes, Services, Therapists, Venues } from './practice/Services.jsx';
 
@@ -40,6 +41,7 @@ export default function Settings({ user }) {
             <TaskShares />
           </div>
           <Activities />
+          {isAdmin && <DevPoints />}
         </>}
         {on('events') ? (
           <div className="grid grid-2">

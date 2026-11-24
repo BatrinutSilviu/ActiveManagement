@@ -7,7 +7,9 @@ import {
 import { sumBy } from '../domain/money.js';
 import { TASKS } from '../domain/tasks.js';
 import { recalcClosedMonths } from '../finance.js';
-import { isDate, isMonth, need } from '../http.js';
+import { getDevPoints, getDevStatus, setDevPoints } from '../db/settings.js';
+import { devWeeks, runDevPoints } from '../domain/devPoints.js';
+import { httpError, isDate, isMonth, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
 
@@ -82,4 +84,36 @@ router.put('/splits/:month', (req, res) => {
 router.delete('/splits/:month', (req, res) => {
   setMonthSplit(req.params.month, null);
   res.json({ ok: true });
+});
+
+/* ------------------------------------------------------- development points (admins) */
+
+const adminOnly = (req) => { if (req.user.role !== 'admin') throw httpError(403, 'Only admins can do this'); };
+
+router.get('/settings/dev-points', (req, res) => {
+  adminOnly(req);
+  res.json({ config: getDevPoints(), status: getDevStatus(), weeks: devWeeks(), token: !!process.env.GITHUB_TOKEN });
+});
+
+router.put('/settings/dev-points', (req, res) => {
+  adminOnly(req);
+  const b = req.body;
+  const person = b.person_id ? Number(b.person_id) : null;
+  need(!person || db.prepare('SELECT 1 FROM people WHERE id = ?').get(person), 'Pick a person from People');
+  const list = (v) => [...new Set((Array.isArray(v) ? v : String(v || '').split(/[\s,]+/)).map((x) => String(x).trim()).filter(Boolean))];
+  const emails = list(b.emails).map((e) => e.toLowerCase());
+  need(emails.every((e) => /^[^@\s]+@[^@\s]+$/.test(e)), 'An email isn’t valid');
+  const repos = list(b.repos);
+  need(repos.every((r) => /^[\w.-]+\/[\w.-]+$/.test(r)), 'Write each repo as owner/name');
+  const num = (v, min, max, what) => { const n = Number(v); need(Number.isFinite(n) && n >= min && n <= max, what); return n; };
+  need(isDate(b.since), 'Pick the day to count from');
+  setDevPoints({ person_id: person, emails, repos, since: b.since,
+    perHour: num(b.perHour, 0, 100, 'Points per hour: a number from 0 to 100'),
+    maxGapMin: num(b.maxGapMin, 10, 600, 'The longest gap: 10 to 600 minutes'),
+    firstCommitMin: num(b.firstCommitMin, 0, 240, 'A session’s start: 0 to 240 minutes') });
+  res.json({ ok: true });
+});
+
+router.post('/settings/dev-points/run', async (req, res, next) => {
+  try { adminOnly(req); res.json(await runDevPoints()); } catch (e) { next(e); }
 });
