@@ -1,4 +1,4 @@
-// One patient: contact details, what to keep in mind, dated notes, their history from before the app, their sessions, packages, invoices and receipts.
+// One patient: contact details, what to keep in mind, dated notes, their history from before the app (hours or dates), their sessions, packages, invoices and receipts.
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
@@ -172,44 +172,84 @@ function Notes({ c, reload }) {
   );
 }
 
-/** What was done with them before the app: hours of each service, with no dates or sessions. */
+/** What was done with them before the app: per service, either the hours done or the days it was done on. */
 function History({ c, reload }) {
   const { canEdit } = usePermissions();
   const { term } = useBusiness();
   const { data: types } = useApi('/event-types');
-  const [f, setF] = useState(null); // { id?, service_id, hours }
+  const [f, setF] = useState(null); // { id?, kind: 'hours' | 'dates', service_id, hours, dates, day }
   const [err, run] = useAction(reload);
   const save = async (e) => {
     e.preventDefault();
-    if (await run(() => (f.id ? api.put(`/client-history/${f.id}`, f) : api.post(`/clients/${c.id}/history`, f)))) setF(null);
+    // A day typed in but not added yet still counts.
+    const body = f.kind === 'dates' && f.day && !f.dates.includes(f.day) ? { ...f, dates: [...f.dates, f.day] } : f;
+    if (await run(() => (f.id ? api.put(`/client-history/${f.id}`, body) : api.post(`/clients/${c.id}/history`, body)))) setF(null);
   };
-  const total = c.history.reduce((a, h) => a + h.hours, 0);
-  const editor = (
-    <form onSubmit={save} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '6px 0' }}>
-      <Select value={f?.service_id ? String(f.service_id) : ''} onChange={(e) => setF({ ...f, service_id: e.target.value })} required style={{ flex: '1 1 160px' }}>
-        <option value="">{t('— choose —')}</option>
-        {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
-      </Select>
-      <input type="number" min="0.25" step="0.25" inputMode="decimal" value={f?.hours ?? ''} onChange={(e) => setF({ ...f, hours: e.target.value })}
-        required placeholder={t('Hours')} aria-label={t('Hours')} style={{ width: 100 }} />
-      <button className="btn btn-primary btn-sm">{t('Save')}</button>
-      <button type="button" className="btn btn-sm" onClick={() => setF(null)}>{t('Cancel')}</button>
+  const addDay = () => { if (f.day && !f.dates.includes(f.day)) setF({ ...f, dates: [...f.dates, f.day].sort(), day: '' }); };
+  // Hours of an entry: the hours, or for dated sessions their number × the service's duration (when it has one).
+  const minutes = (h) => (h.kind === 'dates' ? (h.duration ? h.dates.length * h.duration : 0) : h.hours * 60);
+  const total = c.history.reduce((a, h) => a + minutes(h), 0) / 60;
+  const estimated = c.history.some((h) => h.kind === 'dates' && h.duration);
+  const sessions = c.history.filter((h) => h.kind === 'dates').reduce((a, h) => a + h.dates.length, 0);
+  const editor = f && (
+    <form onSubmit={save} style={{ display: 'grid', gap: 8, padding: '6px 0' }}>
+      <div className="segmented" style={{ justifySelf: 'start' }}>
+        <button type="button" className={f.kind === 'hours' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'hours' })}>{t('Hours spent')}</button>
+        <button type="button" className={f.kind === 'dates' ? 'on' : ''} onClick={() => setF({ ...f, kind: 'dates' })}>{t('Dates done')}</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Select value={f.service_id ? String(f.service_id) : ''} onChange={(e) => setF({ ...f, service_id: e.target.value })} required style={{ flex: '1 1 160px' }}>
+          <option value="">{t('— choose —')}</option>
+          {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
+        </Select>
+        {f.kind === 'hours' ? (
+          <input type="number" min="0.25" step="0.25" inputMode="decimal" value={f.hours ?? ''} onChange={(e) => setF({ ...f, hours: e.target.value })}
+            required placeholder={t('Hours')} aria-label={t('Hours')} style={{ width: 100 }} />
+        ) : (
+          <span style={{ display: 'flex', gap: 6 }}>
+            <input type="date" value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} aria-label={t('Date')}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDay(); } }} />
+            <button type="button" className="btn btn-sm" onClick={addDay} disabled={!f.day}><IconPlus width="14" />{t('Add')}</button>
+          </span>
+        )}
+      </div>
+      {f.kind === 'dates' && (f.dates.length ? (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {f.dates.map((d) => (
+            <span key={d} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{date(d)}
+              <button type="button" className="icon-btn" style={{ width: 18, height: 18 }} aria-label={t('Remove {date}', { date: date(d) })}
+                onClick={() => setF({ ...f, dates: f.dates.filter((x) => x !== d) })}>×</button>
+            </span>
+          ))}
+        </div>
+      ) : <span className="hint">{t('Pick each day it was done on and press Add.')}</span>)}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary btn-sm">{t('Save')}</button>
+        <button type="button" className="btn btn-sm" onClick={() => setF(null)}>{t('Cancel')}</button>
+      </div>
     </form>
   );
+  const summary = [total > 0 && t(estimated ? '≈ {h} h in all' : '{h} h in all', { h: number(Math.round(total * 100) / 100) }),
+    sessions > 0 && tn(sessions, '{n} dated session', '{n} dated sessions')].filter(Boolean).join(' · ');
   return (
     <div className="card card-pad">
       <div className="card-head">
-        <div><h2>{t('Before the app')}</h2><p>{c.history.length ? t('{h} h in all', { h: number(total) }) : t('Hours done before using this app')}</p></div>
-        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ service_id: '', hours: '' })}><IconPlus width="14" />{t('Entry')}</button>}
+        <div><h2>{t('Before the app')}</h2><p>{c.history.length ? summary : t('Hours done before using this app')}</p></div>
+        {canEdit && !f && <button className="btn btn-sm" onClick={() => setF({ kind: 'hours', service_id: '', hours: '', dates: [], day: '' })}><IconPlus width="14" />{t('Entry')}</button>}
       </div>
       {err && <div className="error-box" style={{ marginBottom: 10 }}>{err}</div>}
       {f && !f.id && editor}
       {c.history.length ? c.history.map((h) => (f?.id === h.id ? <div key={h.id}>{editor}</div> : (
         <div key={h.id} className="side-item" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>{h.service_name || <span className="muted">{t(`No ${term('sport')}`)}</span>}</div>
-          <strong>{number(h.hours)} h</strong>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {h.service_name || <span className="muted">{t(`No ${term('sport')}`)}</span>}
+            {h.kind === 'dates' && <div className="muted" style={{ fontSize: 12.5 }}>{h.dates.map(date).join(', ')}</div>}
+          </div>
+          <strong style={{ whiteSpace: 'nowrap' }}>{h.kind === 'dates'
+            ? <>{tn(h.dates.length, '{n} session', '{n} sessions')}{h.duration ? <span className="muted" style={{ fontWeight: 400 }}> · ≈ {number(Math.round(minutes(h) / 60 * 100) / 100)} h</span> : null}</>
+            : `${number(h.hours)} h`}</strong>
           {canEdit && <span className="note-actions">
-            <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF(h)}><IconEdit width="15" /></button>
+            <button className="icon-btn" aria-label={t('Edit')} onClick={() => setF({ ...h, hours: h.hours ?? '', day: '' })}><IconEdit width="15" /></button>
             <button className="icon-btn" aria-label={t('Delete')} onClick={() => confirmDelete(t('this entry')) && run(() => api.del(`/client-history/${h.id}`))}><IconTrash width="15" /></button>
           </span>}
         </div>
@@ -315,13 +355,13 @@ function Invoices({ c, canEdit, run, onNew, onEdit }) {
 function SessionsPdf({ c, onClose }) {
   const { term } = useBusiness();
   const today = localToday();
-  const [f, setF] = useState({ from: `${today.slice(0, 7)}-01`, to: today });
+  const [f, setF] = useState({ from: `${today.slice(0, 7)}-01`, to: today, history: c.history.length > 0 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const download = async () => {
     setBusy(true); setErr(null);
     try {
-      const res = await fetch(`/api/clients/${c.id}/sessions.pdf?from=${f.from}&to=${f.to}`, { credentials: 'same-origin' });
+      const res = await fetch(`/api/clients/${c.id}/sessions.pdf?from=${f.from}&to=${f.to}&history=${f.history ? 1 : 0}`, { credentials: 'same-origin' });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(t(d.error) || t('Request failed ({status})', { status: res.status })); }
       const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'sessions.pdf';
       const url = URL.createObjectURL(await res.blob());
@@ -343,6 +383,10 @@ function SessionsPdf({ c, onClose }) {
           <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => setF({ ...f, from: e.target.value })} required /></label>
         <label className="field">{t('To')}
           <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => setF({ ...f, to: e.target.value })} required /></label>
+        {c.history.length > 0 && (
+          <label className="check full"><input type="checkbox" checked={f.history} onChange={(e) => setF({ ...f, history: e.target.checked })} />
+            {t('Include the history from before the app')}</label>
+        )}
       </div>
     </Modal>
   );

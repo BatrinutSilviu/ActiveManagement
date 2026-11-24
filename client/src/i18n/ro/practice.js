@@ -260,6 +260,11 @@ export default {
   'Before the app': 'Înainte de aplicație', 'Hours done before using this app': 'Ore efectuate înainte de folosirea aplicației',
   '{h} h in all': '{h} h în total', Entry: 'Înregistrare', Hours: 'Ore', 'this entry': 'această înregistrare', 'Nothing entered.': 'Nimic introdus.',
   'The hours have to be a number above 0': 'Orele trebuie să fie un număr peste 0', 'This entry no longer exists': 'Această înregistrare nu mai există',
+  'Hours spent': 'Ore efectuate', 'Dates done': 'Date efectuate', 'Pick each day it was done on and press Add.': 'Alege fiecare zi în care s-a efectuat și apasă Adaugă.',
+  'Remove {date}': 'Elimină {date}', '≈ {h} h in all': '≈ {h} h în total',
+  '{n} dated session': '{n} ședință cu dată', '{n} dated sessions': '{n} ședințe cu dată',
+  'Add at least one date': 'Adaugă cel puțin o dată', 'A date isn’t valid': 'O dată nu este validă',
+  'Include the history from before the app': 'Include istoricul de dinainte de aplicație',
   'PDF of the sessions done': 'PDF cu ședințele efectuate', 'Choose the start and end dates': 'Alege data de început și de sfârșit',
   'The start date is after the end date': 'Data de început e după data de sfârșit', Download: 'Descarcă',
 };

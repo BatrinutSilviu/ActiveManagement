@@ -143,8 +143,7 @@ router.get('/clients/:id', (req, res) => {
   res.json({
     ...c, conditions: JSON.parse(owed.conditions), travel_fee: toRon(c.travel_fee), other_therapies: JSON.parse(c.other_therapies || '[]'), diagnoses: JSON.parse(c.diagnoses || '[]'), unbilled: toRon(owed.unbilled), unpaid: toRon(owed.unpaid),
     notes: db.prepare('SELECT * FROM client_notes WHERE client_id = ? ORDER BY date DESC, id DESC').all(id),
-    history: db.prepare(`SELECT h.id, h.service_id, h.hours, et.name AS service_name FROM client_history h
-      LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(id),
+    history: loadHistory(id),
     packages: loadPackages('WHERE p.client_id = ?', [id]),
     appointments: loadAppointments('WHERE a.client_id = ?', [id], 'ORDER BY a.date DESC, a.start_time DESC'),
     invoices: loadInvoices('WHERE i.client_id = ?', [id]),
@@ -188,29 +187,43 @@ router.get('/clients/:id/sessions.pdf', (req, res) => {
   const sessions = loadAppointments("WHERE a.client_id = ? AND a.status = 'done' AND a.date BETWEEN ? AND ?", [id, from, to]);
   const file = `${client.name.normalize('NFD').replace(/[^\w -]/g, '').trim().replace(/\s+/g, '-') || 'patient'}-${from}-${to}.pdf`;
   res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${file}"`, 'Cache-Control': 'no-store' });
-  writeSessionsPdf(res, { business: getBusiness(), client, from, to, sessions });
+  // The history from before the app goes in too, unless left out (history=0).
+  const history = req.query.history === '0' ? [] : loadHistory(id);
+  writeSessionsPdf(res, { business: getBusiness(), client, from, to, sessions, history });
 });
 
 /* ------------------------------------------------------------------ history from before the app */
 
+// An entry is a service and either the hours done (kind 'hours') or the days it was done on (kind 'dates').
 function readHistory(body) {
   const service = body.service_id ? Number(body.service_id) : null;
   need(service, 'Choose the service');
   need(db.prepare('SELECT 1 FROM event_types WHERE id = ?').get(service), 'Unknown service');
+  if (body.kind === 'dates') {
+    const dates = [...new Set(Array.isArray(body.dates) ? body.dates : [])].sort();
+    need(dates.length, 'Add at least one date');
+    need(dates.length <= 1000 && dates.every(isDate), 'A date isn’t valid');
+    return [service, null, JSON.stringify(dates)];
+  }
   const hours = Math.round(Number(String(body.hours ?? '').replace(',', '.')) * 100) / 100;
   need(Number.isFinite(hours) && hours > 0 && hours <= 100000, 'The hours have to be a number above 0');
-  return [service, hours];
+  return [service, hours, null];
 }
+
+/** A patient's history from before the app, oldest entry first; duration = the service's, in minutes (for dated entries). */
+const loadHistory = (clientId) => db.prepare(`SELECT h.id, h.service_id, h.hours, h.dates, et.name AS service_name, et.duration
+  FROM client_history h LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(clientId)
+  .map((h) => ({ ...h, kind: h.dates ? 'dates' : 'hours', dates: h.dates ? JSON.parse(h.dates) : [] }));
 
 router.post('/clients/:id/history', (req, res) => {
   getClient(idParam(req));
-  const { lastInsertRowid } = db.prepare('INSERT INTO client_history (client_id, service_id, hours) VALUES (?, ?, ?)')
+  const { lastInsertRowid } = db.prepare('INSERT INTO client_history (client_id, service_id, hours, dates) VALUES (?, ?, ?, ?)')
     .run(idParam(req), ...readHistory(req.body));
   res.json({ id: Number(lastInsertRowid) });
 });
 
 router.put('/client-history/:id', (req, res) => {
-  const r = db.prepare('UPDATE client_history SET service_id = ?, hours = ? WHERE id = ?').run(...readHistory(req.body), idParam(req));
+  const r = db.prepare('UPDATE client_history SET service_id = ?, hours = ?, dates = ? WHERE id = ?').run(...readHistory(req.body), idParam(req));
   if (!r.changes) throw httpError(404, 'This entry no longer exists');
   res.json({ ok: true });
 });

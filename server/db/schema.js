@@ -984,8 +984,24 @@ db.exec(`CREATE TABLE IF NOT EXISTS client_history (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS client_history_client ON client_history (client_id)');
-// An attendee that came from the event's app (the padel app's sign-up list): kept in step with that list on each push,
-// while the ones added here by hand are left alone.
+// A history entry is either hours of a service (hours) or the days it was done on (dates: JSON ["YYYY-MM-DD", …]).
+if (!columns('client_history').includes('dates')) {
+  db.exec(`
+CREATE TABLE client_history_new (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  service_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL,
+  hours REAL CHECK (hours IS NULL OR hours > 0),
+  dates TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK ((hours IS NULL) <> (dates IS NULL))
+);
+INSERT INTO client_history_new (id, client_id, service_id, hours, created_at) SELECT id, client_id, service_id, hours, created_at FROM client_history;
+DROP TABLE client_history;
+ALTER TABLE client_history_new RENAME TO client_history;
+CREATE INDEX client_history_client ON client_history (client_id);
+`);
+}
 // The advance each person pays to hold their place (bani, 0 = none), part of the price; and which attendees paid it.
 if (!columns('events').includes('advance_fee')) db.exec('ALTER TABLE events ADD COLUMN advance_fee INTEGER NOT NULL DEFAULT 0');
 if (!columns('event_attendees').includes('advance_paid')) db.exec('ALTER TABLE event_attendees ADD COLUMN advance_paid INTEGER NOT NULL DEFAULT 0');
@@ -993,5 +1009,7 @@ if (!columns('event_attendees').includes('advance_paid')) db.exec('ALTER TABLE e
 // 'refunded'. NULL = still coming.
 if (!columns('event_attendees').includes('dropped'))
   db.exec("ALTER TABLE event_attendees ADD COLUMN dropped TEXT CHECK (dropped IN ('undecided', 'kept', 'refunded'))");
+// An attendee that came from the event's app (the padel app's sign-up list): kept in step with that list on each push,
+// while the ones added here by hand are left alone.
 if (!columns('event_attendees').includes('synced')) db.exec('ALTER TABLE event_attendees ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
 }
