@@ -24,6 +24,12 @@ const prizeList = (list) => (Array.isArray(list) ? list : [])
     partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null,
   }));
 
+// The sign-up list an app sends: [{ name, paid }], or null when it doesn't send one (older pushes).
+const playerList = (list) => (Array.isArray(list)
+  ? [...new Map(list.filter((p) => p && typeof p.name === 'string' && p.name.trim())
+    .map((p) => { const name = p.name.trim().replace(/\s+/g, ' ').slice(0, 120); return [name.toLowerCase(), { name, paid: !!p.paid }]; })).values()]
+  : null);
+
 const PADEL_TYPES = {
   AMERICANO: 'Americano', AMERICANO_CHAMPIONS: 'Americano Champions', AMERICANO_GIRLS: 'Americano Girls',
   CHALLENGER: 'Challenger', TEAM_AMERICANO: 'Team Americano', KING_OF_THE_COURT: 'King of the Court', MASTERS: 'Masters',
@@ -31,7 +37,9 @@ const PADEL_TYPES = {
 const PADEL_LEVELS = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'Level 4', 5: 'Level 5', 6: 'Beginner', 7: 'Girls' };
 
 /**
- * A padel tournament (padel app's Tournament + confirmedCount + url). Every tournament type counts.
+ * A padel tournament (padel app's Tournament + confirmedCount + players + url). Every tournament type counts.
+ * Its sign-up list (players: everyone signed up, paid = confirmed by an admin, i.e. off the waiting list) becomes
+ * the event's attendees (see syncAttendees in domain/eventSync.js).
  * Price = its entry fee per person. Its location, start/end times and prizes
  * (a labelled list, each offered by us or by a named partner) come along; partner prizes also become
  * partner prize records (see syncPartnerPrizes in domain/eventSync.js).
@@ -59,6 +67,7 @@ function mapPadel(t) {
     // Shown on the public calendar (routes/publicCalendar.js): padel tournaments have no drafts.
     listed: t.status !== 'CANCELLED',
     prizes: prizeList(t.prizes),
+    players: playerList(t.players),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
       planned !== null

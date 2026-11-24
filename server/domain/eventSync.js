@@ -3,6 +3,7 @@ import { log } from '../log.js';
 import { isDate, need, today } from '../http.js';
 import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from '../sync.js';
 import { toBani } from './money.js';
+import { whoIs } from './people.js';
 import { repriceEvent } from './pricing.js';
 
 // Applies the records pushed by the community's other apps (POST /api/integrations/events, see routes/integrations.js)
@@ -60,6 +61,7 @@ export function upsertSyncedEvent(source, externalId, record) {
     if (own) {
       db.prepare(`UPDATE events SET source = ?, external_id = ?, external_url = ?, sync_data = ?, synced_at = datetime('now') WHERE id = ?`)
         .run(source, externalId, url, JSON.stringify(m), own.id);
+      syncAttendees(own.id, m, {});
       return { action: 'linked', id: own.id };
     }
     const sport = eventType(m.sport, source);
@@ -75,6 +77,7 @@ export function upsertSyncedEvent(source, externalId, record) {
       m.participants, fee, venue, m.notes || null, m.prizes ? JSON.stringify(m.prizes) : null,
       source, externalId, url, JSON.stringify(m)).lastInsertRowid);
     syncPartnerPrizes(id, source, externalId, m);
+    syncAttendees(id, m, {});
     return { action: 'created', id };
   }
   if (ev.status === 'completed') return { action: 'ignored', reason: 'finalized', id: ev.id };
@@ -102,7 +105,43 @@ export function upsertSyncedEvent(source, externalId, record) {
     .run(...keys.map((k) => set[k]), url ?? ev.external_url, JSON.stringify(m), ev.id);
   if ('participation_fee' in set || 'venue_fee' in set) repriceEvent(ev.id);
   if ('prizes' in set) syncPartnerPrizes(ev.id, source, externalId, m);
+  const attendees = syncAttendees(ev.id, m, before);
+  if (attendees) keys.push('attendees');
   return { action: keys.length ? 'updated' : 'unchanged', id: ev.id, fields: keys };
+}
+
+// The app's sign-up list (m.players) becomes the event's attendees, on every push: who signed up is added, who
+// left is taken off. Only the attendees that came from the app (synced) are ever taken off — the ones added here
+// by hand stay; a name already on the list by hand becomes the app's. The paid tick follows the app's (confirmed
+// off the waiting list) only when it changed there since the last push, so a tick set here is kept otherwise.
+// Returns whether anything changed.
+function syncAttendees(eventId, m, before) {
+  if (!Array.isArray(m.players)) return false;
+  const wasPaid = new Map((before.players || []).map((p) => [foldName(p.name), p.paid]));
+  const rows = db.prepare('SELECT id, name, paid, synced FROM event_attendees WHERE event_id = ?').all(eventId);
+  const byName = new Map(rows.map((r) => [foldName(r.name), r]));
+  const want = new Set(m.players.map((p) => foldName(p.name)));
+  let changed = false;
+  for (const p of m.players) {
+    const row = byName.get(foldName(p.name));
+    if (!row) {
+      const who = whoIs({ name: p.name });
+      db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, synced) VALUES (?, ?, ?, ?, 1)').run(eventId, who.person_id, who.name, p.paid ? 1 : 0);
+      changed = true;
+      continue;
+    }
+    const same = wasPaid.has(foldName(p.name)) && wasPaid.get(foldName(p.name)) === p.paid;
+    // Unchanged in the app: keep ours. A hand-added row the app now has too: ticked if either says paid.
+    const paid = same ? row.paid : !row.synced ? (row.paid || p.paid ? 1 : 0) : p.paid ? 1 : 0;
+    if (!row.synced || paid !== row.paid) {
+      db.prepare('UPDATE event_attendees SET synced = 1, paid = ? WHERE id = ?').run(paid, row.id);
+      changed = true;
+    }
+  }
+  for (const r of rows) {
+    if (r.synced && !want.has(foldName(r.name))) { db.prepare('DELETE FROM event_attendees WHERE id = ?').run(r.id); changed = true; }
+  }
+  return changed;
 }
 
 // The partner prizes an app advertises for its event become partner prize records here, one per place,

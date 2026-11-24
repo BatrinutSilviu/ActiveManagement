@@ -48,7 +48,8 @@ export default function Attendees({ e, reload }) {
                     <input type="checkbox" checked={!!a.paid} disabled={!canEdit} aria-label={t('{name} paid', { name: a.name })}
                       onChange={(ev) => run(() => api.put(`/event-attendees/${a.id}`, { paid: ev.target.checked }))} />
                   </td>
-                  <td>{a.name}{a.is_member ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>{t('Member')}</span> : null}</td>
+                  <td>{a.name}{a.is_member ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>{t('Member')}</span> : null}
+                    {a.synced && e.source ? <span className="badge hide-sm" style={{ marginLeft: 6 }} title={t('Signed up in the {app} app: kept in step with its list', { app: e.source })}>{e.source}</span> : null}</td>
                   <td className={`r ${a.paid ? 'secondary' : ''}`}>{money(owes(a))}</td>
                   {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button></td>}
                 </tr>
@@ -56,6 +57,11 @@ export default function Attendees({ e, reload }) {
             </tbody>
           </table>
         </div>
+      )}
+      {e.source && e.attendees.some((a) => a.synced) && (
+        <p className="hint" style={{ padding: '10px 22px 0', margin: 0 }}>
+          {t('The list follows the {app} app’s sign-ups (ticked = confirmed there); names added here stay.', { app: e.source })}
+        </p>
       )}
       {e.attendees.length > 0 && e.attendees.length !== e.participants && (
         <p className="hint" style={{ padding: '10px 22px 0', margin: 0 }}>

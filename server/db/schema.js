@@ -984,4 +984,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS client_history (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS client_history_client ON client_history (client_id)');
+// An attendee that came from the event's app (the padel app's sign-up list): kept in step with that list on each push,
+// while the ones added here by hand are left alone.
+if (!columns('event_attendees').includes('synced')) db.exec('ALTER TABLE event_attendees ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
 }

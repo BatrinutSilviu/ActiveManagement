@@ -221,6 +221,9 @@ export default {
     'The list has {n} people but the event counts {count} participants — the money uses the count (Edit to change it).':
     'Lista are {n} persoane, dar evenimentul socotește {count} participanți — banii se calculează după număr (Editează ca să-l schimbi).',
   'Attendee name': 'Numele participantului',
+  'Signed up in the {app} app: kept in step with its list': 'Înscris în aplicația {app}: ținut la zi după lista de acolo',
+  'The list follows the {app} app’s sign-ups (ticked = confirmed there); names added here stay.':
+    'Lista urmează înscrierile din aplicația {app} (bifat = confirmat acolo); numele adăugate aici rămân.',
 
   // Discounts
   'Free — not counted': 'Gratuit — nesocotit',
