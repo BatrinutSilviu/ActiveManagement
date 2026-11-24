@@ -172,7 +172,7 @@ function Notes({ c, reload }) {
   );
 }
 
-/** What was done with them before the app: per service, either the hours done or the days it was done on. */
+/** What was done with them before the app: each service once, with either the hours done or the days it was done on. */
 export function History({ c, reload }) {
   const { canEdit } = usePermissions();
   const { term } = useBusiness();
@@ -200,7 +200,9 @@ export function History({ c, reload }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Select value={f.service_id ? String(f.service_id) : ''} onChange={(e) => setF({ ...f, service_id: e.target.value })} required style={{ flex: '1 1 160px' }}>
           <option value="">{t('— choose —')}</option>
-          {types?.map((ty) => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
+          {/* Each service once: the ones already in the history (other than this entry's) aren't offered. */}
+          {types?.filter((ty) => !c.history.some((h) => h.service_id === ty.id && h.id !== f.id))
+            .map((ty) => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
         </Select>
         {f.kind === 'hours' ? (
           <input type="number" min="0.25" step="0.25" inputMode="decimal" value={f.hours ?? ''} onChange={(e) => setF({ ...f, hours: e.target.value })}

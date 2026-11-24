@@ -217,14 +217,24 @@ export const loadHistory = (clientId) => db.prepare(`SELECT h.id, h.service_id, 
   FROM client_history h LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(clientId)
   .map((h) => ({ ...h, kind: h.dates ? 'dates' : 'hours', dates: h.dates ? JSON.parse(h.dates) : [] }));
 
+// Each service once per patient: it has either its hours or its dates.
+function oneEntryPerService(clientId, serviceId, exceptId = 0) {
+  need(!db.prepare('SELECT 1 FROM client_history WHERE client_id = ? AND service_id = ? AND id != ?').get(clientId, serviceId, exceptId),
+    'This service is already in the history: change its entry instead');
+}
+
 router.post('/clients/:id/history', (req, res) => {
   getClient(idParam(req));
+  oneEntryPerService(idParam(req), Number(req.body.service_id));
   const { lastInsertRowid } = db.prepare('INSERT INTO client_history (client_id, service_id, hours, dates) VALUES (?, ?, ?, ?)')
     .run(idParam(req), ...readHistory(req.body));
   res.json({ id: Number(lastInsertRowid) });
 });
 
 router.put('/client-history/:id', (req, res) => {
+  const row = db.prepare('SELECT client_id FROM client_history WHERE id = ?').get(idParam(req));
+  if (!row) throw httpError(404, 'This entry no longer exists');
+  oneEntryPerService(row.client_id, Number(req.body.service_id), idParam(req));
   const r = db.prepare('UPDATE client_history SET service_id = ?, hours = ?, dates = ? WHERE id = ?').run(...readHistory(req.body), idParam(req));
   if (!r.changes) throw httpError(404, 'This entry no longer exists');
   res.json({ ok: true });
