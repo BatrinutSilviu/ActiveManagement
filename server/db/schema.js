@@ -1020,4 +1020,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS parent_clients (
   client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   PRIMARY KEY (user_id, client_id)
 )`);
+// A patient's attending doctors (JSON [{ name, specialty }], at least one) and the drugs they take (JSON [{ name, dose }]).
+if (!columns('clients').includes('doctors')) db.exec('ALTER TABLE clients ADD COLUMN doctors TEXT');
+if (!columns('clients').includes('medications')) db.exec('ALTER TABLE clients ADD COLUMN medications TEXT');
 }

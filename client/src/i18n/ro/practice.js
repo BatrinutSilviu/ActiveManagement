@@ -281,4 +281,15 @@ export default {
   'Pick the child (or children) this parent can see': 'Alege copilul (sau copiii) pe care îi poate vedea acest părinte',
   'Only a parent account has children to pick': 'Doar un cont de părinte are copii de ales',
   'Only for parent accounts': 'Doar pentru conturile de părinte',
+  // Attending doctors and medication
+  'Attending doctors': 'Medici curanți', 'Attending doctor': 'Medic curant', 'at least one': 'cel puțin unul',
+  'Doctor’s name': 'Numele medicului', 'Specialty, e.g. paediatric neurology': 'Specialitatea, ex. neurologie pediatrică',
+  'Doctor {n}': 'Medicul {n}', 'Specialty of doctor {n}': 'Specialitatea medicului {n}', 'Add doctor': 'Adaugă medic',
+  Medication: 'Medicație', 'the drugs they take (optional)': 'medicamentele pe care le ia (opțional)', Drug: 'Medicament',
+  'Dose / when, e.g. 5 mg morning and evening': 'Doza / când, ex. 5 mg dimineața și seara', 'Drug {n}': 'Medicamentul {n}',
+  'Dose of drug {n}': 'Doza medicamentului {n}', 'Add drug': 'Adaugă medicament',
+  'Add at least one attending doctor': 'Adaugă cel puțin un medic curant',
+  'Each attending doctor needs a name and a specialty': 'Fiecare medic curant are nevoie de nume și specialitate',
+  'Each drug needs a name': 'Fiecare medicament are nevoie de un nume',
+  'No attending doctor yet — Edit to add one.': 'Niciun medic curant încă — Editează ca să adaugi unul.',
 };

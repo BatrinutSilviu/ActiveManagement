@@ -66,6 +66,50 @@ function Diagnoses({ rows, onChange, known }) {
   );
 }
 
+/** Their attending doctors (at least one): name and medical specialty; specialties used before are suggested. */
+function Doctors({ rows, onChange, specialties }) {
+  const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+  return (
+    <div className="field full">{t('Attending doctors')} <span className="hint">— {t('at least one')}</span>
+      <div className="stack" style={{ gap: 8 }}>
+        {rows.map((r, i) => (
+          <div key={i} className="other-therapy">
+            <input value={r.name || ''} onChange={change(i, 'name')} placeholder={t('Doctor’s name')} required maxLength={120}
+              aria-label={t('Doctor {n}', { n: i + 1 })} />
+            <input value={r.specialty || ''} onChange={change(i, 'specialty')} placeholder={t('Specialty, e.g. paediatric neurology')} required
+              maxLength={120} list="specialties" aria-label={t('Specialty of doctor {n}', { n: i + 1 })} />
+            {rows.length > 1 && <button type="button" className="icon-btn" aria-label={t('Remove')} onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>}
+          </div>
+        ))}
+        <datalist id="specialties">{specialties.map((s) => <option key={s} value={s} />)}</datalist>
+        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { name: '', specialty: '' }])}>{t('Add doctor')}</button></div>
+      </div>
+    </div>
+  );
+}
+
+/** The drugs they take: name and dose / when. Optional. */
+function Medications({ rows, onChange, known }) {
+  const change = (i, k) => (e) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+  return (
+    <div className="field full">{t('Medication')} <span className="hint">— {t('the drugs they take (optional)')}</span>
+      <div className="stack" style={{ gap: 8 }}>
+        {rows.map((r, i) => (
+          <div key={i} className="other-therapy">
+            <input value={r.name || ''} onChange={change(i, 'name')} placeholder={t('Drug')} required maxLength={120} list="medications"
+              aria-label={t('Drug {n}', { n: i + 1 })} />
+            <input value={r.dose || ''} onChange={change(i, 'dose')} placeholder={t('Dose / when, e.g. 5 mg morning and evening')} maxLength={200}
+              aria-label={t('Dose of drug {n}', { n: i + 1 })} />
+            <button type="button" className="icon-btn" aria-label={t('Remove')} onClick={() => onChange(rows.filter((_, j) => j !== i))}>×</button>
+          </div>
+        ))}
+        <datalist id="medications">{known.map((m) => <option key={m} value={m} />)}</datalist>
+        <div><button type="button" className="btn btn-sm" onClick={() => onChange([...rows, { name: '', dose: '' }])}>{t('Add drug')}</button></div>
+      </div>
+    </div>
+  );
+}
+
 export function PatientForm({ patient, onClose, onSaved }) {
   const { term, business } = useBusiness();
   const entities = business?.entities || [];
@@ -73,8 +117,12 @@ export function PatientForm({ patient, onClose, onSaved }) {
   const { data: all } = useApi('/clients');
   const associations = [...new Set((all || []).map((c) => c.association).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const knownDiagnoses = [...new Set((all || []).flatMap((c) => c.diagnoses || []))].sort((a, b) => a.localeCompare(b));
+  const sorted = (list) => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const specialties = sorted((all || []).flatMap((c) => (c.doctors || []).map((d) => d.specialty)));
+  const knownDrugs = sorted((all || []).flatMap((c) => (c.medications || []).map((m) => m.name)));
   const { f, setF, set, error, saving, save } = useForm(
-    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', conditions: [], other_therapies: [], ...(patient || {}), diagnoses: patient?.diagnoses?.length ? patient.diagnoses : [''], archived: !!patient?.archived },
+    { first_name: '', last_name: '', phone: '', email: '', address: '', birth_date: '', about: '', conditions: [], other_therapies: [], ...(patient || {}), diagnoses: patient?.diagnoses?.length ? patient.diagnoses : [''],
+      doctors: patient?.doctors?.length ? patient.doctors : [{ name: '', specialty: '' }], medications: patient?.medications || [], archived: !!patient?.archived },
     (v) => (patient ? api.put(`/clients/${patient.id}`, v) : api.post('/clients', v)), onSaved);
   return (
     <Modal title={patient ? t(`Edit ${term('person')}`) : t(`New ${term('person')}`)} onClose={onClose} onSubmit={save} footer={footer(onClose, saving)}>
@@ -108,6 +156,8 @@ export function PatientForm({ patient, onClose, onSaved }) {
           </div>
         )}
         <Diagnoses rows={f.diagnoses} onChange={(diagnoses) => setF({ ...f, diagnoses })} known={knownDiagnoses} />
+        <Doctors rows={f.doctors} onChange={(doctors) => setF({ ...f, doctors })} specialties={specialties} />
+        <Medications rows={f.medications} onChange={(medications) => setF({ ...f, medications })} known={knownDrugs} />
         <label className="field half">{t('Contract number')}<input value={f.contract_number || ''} onChange={set('contract_number')} /></label>
         <label className="field half">{t('Contract date')}<input type="date" value={f.contract_date || ''} onChange={set('contract_date')} /></label>
         <label className="field full">{t('Association')} <span className="hint">{t('— the sponsor they belong to, if any')}</span>

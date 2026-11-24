@@ -60,6 +60,8 @@ function Patient({ id }) {
             {c.association && <span className="badge">{c.association}</span>}
           </p>
           {c.diagnoses?.length > 0 && <p><strong>{t(c.diagnoses.length > 1 ? 'Diagnoses' : 'Diagnosis')}:</strong> {c.diagnoses.join('; ')}</p>}
+          {c.doctors?.length > 0 && <p><strong>{t(c.doctors.length > 1 ? 'Attending doctors' : 'Attending doctor')}:</strong> {c.doctors.map((d) => `${d.name} (${d.specialty})`).join('; ')}</p>}
+          {!c.doctors?.length && canEdit && <p className="neg">{t('No attending doctor yet — Edit to add one.')}</p>}
           {(c.tutor_name || c.tutor_phone || c.tutor_email) && (
             <p style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <span>{t('Tutor')}: {c.tutor_name || '—'}{c.tutor_relation ? ` (${c.tutor_relation})` : ''}</span>
@@ -80,6 +82,19 @@ function Patient({ id }) {
 
       <div className="grid grid-3-1" style={{ alignItems: 'start' }}>
         <div className="stack">
+          {c.medications?.length > 0 && (
+            <div className="card card-pad">
+              <div className="card-head"><h2>{t('Medication')}</h2></div>
+              <div className="stack" style={{ gap: 0 }}>
+                {c.medications.map((m, i) => (
+                  <div key={i} className="side-item">
+                    <div className="row-title">{m.name}</div>
+                    {m.dose && <div className="row-sub">{m.dose}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {c.other_therapies?.length > 0 && (
             <div className="card card-pad">
               <div className="card-head"><h2>{t('Other therapies')}</h2></div>
