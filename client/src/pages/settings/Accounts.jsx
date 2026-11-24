@@ -14,7 +14,18 @@ const ROLE_HELP = {
   editor: 'manages events, money, stock and settings',
   admin: 'everything, plus accounts and imports',
   parent: 'sees only their child’s page',
+  organizer: 'runs only their own events (and creates new ones)',
 };
+
+/** Who an organizer is (a person in People): they see and run the events that person has a task on. */
+function PersonSelect({ value, onChange, people, ...props }) {
+  return (
+    <Select className="select-sm" value={value ? String(value) : ''} searchable onChange={(e) => onChange(e.target.value)} {...props}>
+      <option value="">{t('Who are they?')}</option>
+      {people?.filter((p) => p.active || String(p.id) === String(value)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+    </Select>
+  );
+}
 
 /** The children a parent account can see: patients, added from a list and removed with ×. */
 function ChildrenPicker({ value, onChange, patients }) {
@@ -36,13 +47,14 @@ function ChildrenPicker({ value, onChange, patients }) {
   );
 }
 
-// Parent accounts only where there are patients (a practice).
-const roles = (practice) => Object.entries(ROLE_LABELS).filter(([k]) => k !== 'parent' || practice);
+// Parent accounts only where there are patients (a practice); organizer accounts only where there are events.
+const roles = ({ practice, events }) => Object.entries(ROLE_LABELS)
+  .filter(([k]) => (k !== 'parent' || practice) && (k !== 'organizer' || events));
 
-function RoleSelect({ value, onChange, practice, ...props }) {
+function RoleSelect({ value, onChange, parts, ...props }) {
   return (
     <Select className="select-sm" value={value} onChange={(e) => onChange(e.target.value)} {...props}>
-      {roles(practice).map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
+      {roles(parts).map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
     </Select>
   );
 }
@@ -51,9 +63,11 @@ export function Accounts({ user }) {
   const { data, reload } = useApi('/users');
   const { on } = useBusiness();
   const practice = on('practice');
+  const parts = { practice, events: on('events') };
   const { data: patients } = useApi(practice ? '/clients' : null);
+  const { data: people } = useApi(parts.events ? '/people' : null);
   const [error, run] = useAction(reload);
-  const blank = { name: '', email: '', password: '', role: 'viewer', children: [] };
+  const blank = { name: '', email: '', password: '', role: 'viewer', children: [], person_id: '' };
   const [f, setF] = useState(blank);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
@@ -61,7 +75,7 @@ export function Accounts({ user }) {
       <div className="card-head">
         <div>
           <h2>{t('Accounts')}</h2>
-          <p>{t('Who can sign in.')} {roles(practice).map(([k]) => `${t(ROLE_LABELS[k])}: ${t(ROLE_HELP[k])}`).join(' · ')}.</p>
+          <p>{t('Who can sign in.')} {roles(parts).map(([k]) => `${t(ROLE_LABELS[k])}: ${t(ROLE_HELP[k])}`).join(' · ')}.</p>
         </div>
       </div>
       {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
@@ -80,11 +94,18 @@ export function Accounts({ user }) {
                       {!u.children.length && <div className="row-sub neg">{t('No child picked: this account sees nothing')}</div>}
                     </div>
                   )}
+                  {u.role === 'organizer' && (
+                    <div style={{ marginTop: 6 }}>
+                      <PersonSelect value={u.person_id} people={people} style={{ maxWidth: 240 }} aria-label={t('Who {name} is', { name: u.name })}
+                        onChange={(person_id) => person_id && run(() => api.put(`/users/${u.id}/person`, { person_id }))} />
+                      {!u.person_id && <div className="row-sub neg">{t('Not linked to a person: this account sees no event')}</div>}
+                    </div>
+                  )}
                 </td>
                 <td className="secondary hide-sm">{u.email}</td>
                 <td>
                   {u.id === user.id ? <span className="badge">{t(ROLE_LABELS[u.role])}</span>
-                    : <RoleSelect value={u.role} practice={practice} style={{ width: 120 }} aria-label={t('Role of {name}', { name: u.name })}
+                    : <RoleSelect value={u.role} parts={parts} style={{ width: 120 }} aria-label={t('Role of {name}', { name: u.name })}
                         onChange={(role) => run(() => api.put(`/users/${u.id}/role`, { role }))} />}
                 </td>
                 <td className="muted hide-sm">{t('since {date}', { date: date(u.created_at.slice(0, 10)) })}</td>
@@ -105,9 +126,14 @@ export function Accounts({ user }) {
         <label className="field">{t('Initial password')}<input type="text" value={f.password} onChange={set('password')} minLength={8} required /></label>
         <label className="field">{t('Role')}
           <Select value={f.role} onChange={set('role')}>
-            {roles(practice).map(([k, label]) => <option key={k} value={k}>{t(label)} — {t(ROLE_HELP[k])}</option>)}
+            {roles(parts).map(([k, label]) => <option key={k} value={k}>{t(label)} — {t(ROLE_HELP[k])}</option>)}
           </Select>
         </label>
+        {f.role === 'organizer' && (
+          <label className="field">{t('Who they are')} <span className="hint">— {t('from People: they get the events this person has a task on')}</span>
+            <PersonSelect value={f.person_id} people={people} onChange={(person_id) => setF({ ...f, person_id })} required />
+          </label>
+        )}
         {f.role === 'parent' && (
           <div className="field full">{t('Their child (or children)')}
             <ChildrenPicker value={f.children} patients={patients} onChange={(children) => setF({ ...f, children })} />

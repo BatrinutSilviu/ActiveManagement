@@ -8,6 +8,7 @@ import { addTask, eventTaskShares, manualTaskPoints, TASKS } from '../domain/tas
 import { checkVersion } from '../domain/versions.js';
 import { unuseVoucher } from '../domain/vouchers.js';
 import { LIVE, loadEvents, taskLines } from '../finance.js';
+import { ORGANIZER } from '../domain/organizer.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -27,6 +28,8 @@ function readEvent(body) {
 
 router.get('/events', (req, res) => {
   const where = [], params = [];
+  // An organizer sees only their own events (the ones their person has a task on).
+  if (req.user.role === ORGANIZER) { where.push('e.id IN (SELECT event_id FROM event_tasks WHERE person_id = ?)'); params.push(req.user.person_id ?? -1); }
   if (req.query.year) { where.push("strftime('%Y', e.date) = ?"); params.push(String(req.query.year)); }
   if (req.query.type) { where.push('e.type_id = ?'); params.push(Number(req.query.type)); }
   if (req.query.status) { where.push('e.status = ?'); params.push(String(req.query.status)); }

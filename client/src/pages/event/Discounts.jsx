@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
-import { useAction, useApi, usePermissions } from '../../hooks.js';
+import { useAction, useApi, useCanRun } from '../../hooks.js';
 import { CURRENCY, discountLabel, money } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
@@ -22,7 +22,7 @@ export default function Discounts({ e, reload }) {
   const { data: discounts } = useApi('/discounts');
   const [f, setF] = useState({ name: '', discount_id: '', amount: '' });
   const [error, run] = useAction(reload);
-  const { canEdit } = usePermissions();
+  const canEdit = useCanRun(e);
 
   const taken = new Set(e.discountList.map((d) => fold(d.person_name)));
   // Anyone can be named; when the name is someone from People, their own discounts and member price apply.

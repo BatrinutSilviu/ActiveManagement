@@ -1023,4 +1023,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS parent_clients (
 // A patient's attending doctors (JSON [{ name, specialty }], at least one) and the drugs they take (JSON [{ name, dose }]).
 if (!columns('clients').includes('doctors')) db.exec('ALTER TABLE clients ADD COLUMN doctors TEXT');
 if (!columns('clients').includes('medications')) db.exec('ALTER TABLE clients ADD COLUMN medications TEXT');
+// Organizer accounts (community events): linked to a person in People, they see and run only that person's events
+// (domain/organizer.js). A flag next to role, like parent, since role's CHECK can't change without rebuilding users.
+if (!columns('users').includes('organizer')) db.exec('ALTER TABLE users ADD COLUMN organizer INTEGER NOT NULL DEFAULT 0');
+if (!columns('users').includes('person_id')) db.exec('ALTER TABLE users ADD COLUMN person_id INTEGER REFERENCES people(id) ON DELETE SET NULL');
 }

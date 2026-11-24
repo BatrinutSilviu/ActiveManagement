@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { db } from './db.js';
+import { ORGANIZER, organizerCheck } from './domain/organizer.js';
 
 const SESSION_DAYS = 14;
 const COOKIE = 'am_session';
@@ -48,7 +49,8 @@ export function currentUser(req) {
   const token = readCookie(req, COOKIE);
   if (!token) return null;
   return db.prepare(`
-    SELECT u.id, u.name, u.email, CASE WHEN u.parent = 1 THEN 'parent' ELSE u.role END AS role FROM sessions s JOIN users u ON u.id = s.user_id
+    SELECT u.id, u.name, u.email, CASE WHEN u.parent = 1 THEN 'parent' WHEN u.organizer = 1 THEN 'organizer' ELSE u.role END AS role,
+      u.person_id FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND s.expires_at > ?`).get(tokenHash(token), new Date().toISOString()) || null;
 }
 
@@ -76,13 +78,18 @@ export const ROLES = ['admin', 'editor', 'viewer'];
 export const PARENT = 'parent';
 
 // Viewers may only read; changing anything needs an editor. Accounts, imports and backups are admin-only.
-// Parents see only their children's pages.
+// Parents see only their children's pages; organizers only their own events.
 // Everyone may change their own password.
 export function checkRole(req, res, next) {
   const { role } = req.user;
   if (req.method === 'PUT' && req.path === '/users/me/password') return next();
   // A parent reaches nothing but their own children's pages (routes/parent.js, which checks the child is theirs),
   // and only to read: everything else is refused here, so no other route has to know about parents.
+  // An organizer reaches only their own events (domain/organizer.js lists what, and checks each event is theirs).
+  if (role === ORGANIZER) {
+    const refused = organizerCheck(req);
+    return refused ? res.status(403).json({ error: refused }) : next();
+  }
   if (role === PARENT) {
     if (['GET', 'HEAD'].includes(req.method) && /^\/parent(\/|$)/.test(req.path)) return next();
     return res.status(403).json({ error: 'Your account can only see your child’s page' });

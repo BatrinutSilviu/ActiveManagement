@@ -2,7 +2,7 @@ import { r2 } from '../util.js';
 import { useState } from 'react';
 import Modal from './Modal.jsx';
 import { api } from '../api.js';
-import { useApi } from '../hooks.js';
+import { useApi, usePermissions } from '../hooks.js';
 import { useBusiness } from '../business.js';
 import { CURRENCY, money, number, today } from '../format.js';
 import Select from './Select.jsx';
@@ -54,6 +54,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const [withCosts, setWithCosts] = useState(false);
   // A new event can start with one organiser on every task; tasks are changed on the event page.
   const [lead, setLead] = useState('');
+  const { isOrganizer } = usePermissions();
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   // With a fixed venue the per-person part follows people / total / price, until it's typed by hand.
@@ -220,7 +221,8 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
         </label>
         {rates && <p className="hint full" style={{ margin: 0 }}>{t('{n} points for the time', { n: number(Math.round(timePoints * 100) / 100) })}
           {rates.moneyStep > 0 && rates.moneyPoints > 0 ? ` + ${t('{n} per {step} {currency} of profit', { n: number(rates.moneyPoints * factor), step: number(rates.moneyStep), currency: CURRENCY })}` : ''}{factor !== 1 ? ` (${t('× {n} for this kind of event', { n: number(factor) })})` : ''}{event?.points_manual ? ` · ${t('this event’s points are set by hand on its page')}` : ''}</p>}
-        {!event && (
+        {/* An organizer's own events always have them on every task (the server sees to it). */}
+        {!event && !isOrganizer && (
           <label className="field">{t('Organiser')}
             <Select value={lead} onChange={(e) => setLead(e.target.value)}>
               <option value="">— {t('none yet')} —</option>
@@ -229,7 +231,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
             <span className="hint">{t('Put on every task; change who did what on the event page')}</span>
           </label>
         )}
-        {!event && allPeople && !active.length && <p className="hint full">{t('Add people in Settings → People to pick organisers.')}</p>}
+        {!event && !isOrganizer && allPeople && !active.length && <p className="hint full">{t('Add people in Settings → People to pick organisers.')}</p>}
         </>}
         <label className="field full">{t('Notes')}
           <textarea value={f.notes || ''} onChange={set('notes')} placeholder={t('Logistics, contacts, reminders…')} />

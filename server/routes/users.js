@@ -1,7 +1,8 @@
-// App accounts (admins, editors, viewers, and parents for a practice) and changing one's own password.
+// App accounts (admins, editors, viewers; parents for a practice, organizers for community events) and changing one's own password.
 import express from 'express';
 import { endSessions, hashPassword, PARENT, ROLES, verifyPassword } from '../auth.js';
 import { featureOn } from '../domain/business.js';
+import { ORGANIZER } from '../domain/organizer.js';
 import { db, tx } from '../db.js';
 import { httpError, idParam, need } from '../http.js';
 
@@ -9,12 +10,22 @@ export const router = express.Router({ caseSensitive: true });
 
 router.get('/users', (req, res) => {
   const kids = db.prepare('SELECT pc.user_id, c.id, c.name FROM parent_clients pc JOIN clients c ON c.id = pc.client_id ORDER BY c.name').all();
-  res.json(db.prepare(`SELECT id, name, email, CASE WHEN parent = 1 THEN 'parent' ELSE role END AS role, created_at FROM users ORDER BY name`).all()
+  res.json(db.prepare(`SELECT u.id, u.name, u.email, CASE WHEN u.parent = 1 THEN 'parent' WHEN u.organizer = 1 THEN 'organizer' ELSE u.role END AS role,
+      u.created_at, u.person_id, p.name AS person_name FROM users u LEFT JOIN people p ON p.id = u.person_id ORDER BY u.name`).all()
     .map((u) => ({ ...u, children: u.role === PARENT ? kids.filter((k) => k.user_id === u.id).map(({ id, name }) => ({ id, name })) : [] })));
 });
 
-// A parent account: only where there are patients (a practice), and stored as a viewer flagged parent.
-const roleOk = (role) => ROLES.includes(role) || (role === PARENT && featureOn('practice'));
+// A parent account: only where there are patients (a practice); an organizer: only where there are events. Both are
+// stored as a viewer with their flag (parent / organizer), so without the flag they'd still change nothing.
+const roleOk = (role) => ROLES.includes(role) || (role === PARENT && featureOn('practice')) || (role === ORGANIZER && featureOn('events'));
+const flags = (role) => ({ role: [PARENT, ORGANIZER].includes(role) ? 'viewer' : role, parent: role === PARENT ? 1 : 0, organizer: role === ORGANIZER ? 1 : 0 });
+/** The person (People) an organizer account is: required for one. */
+function personFor(role, personId) {
+  if (role !== ORGANIZER) return null;
+  const id = Number(personId);
+  need(id && db.prepare('SELECT 1 FROM people WHERE id = ?').get(id), 'Pick who this organizer is (from People)');
+  return id;
+}
 
 /** Links a parent to exactly these patients (their children). */
 function setChildren(userId, ids) {
@@ -29,11 +40,12 @@ router.post('/users', (req, res) => {
   need(name && email && password?.length >= 8, 'Name, email and a password of at least 8 characters are required');
   need(roleOk(role), 'Invalid role');
   if (role === PARENT) need(Array.isArray(req.body.children) && req.body.children.length, 'Pick the child (or children) this parent can see');
+  const person = personFor(role, req.body.person_id), fl = flags(role);
   tx(() => {
     let id;
     try {
-      id = Number(db.prepare('INSERT INTO users (name, email, password_hash, role, parent) VALUES (?, ?, ?, ?, ?)')
-        .run(name.trim(), email.trim().toLowerCase(), hashPassword(password), role === PARENT ? 'viewer' : role, role === PARENT ? 1 : 0).lastInsertRowid);
+      id = Number(db.prepare('INSERT INTO users (name, email, password_hash, role, parent, organizer, person_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(name.trim(), email.trim().toLowerCase(), hashPassword(password), fl.role, fl.parent, fl.organizer, person).lastInsertRowid);
     } catch {
       throw httpError(400, 'An account with this email already exists');
     }
@@ -48,11 +60,21 @@ router.put('/users/:id/role', (req, res) => {
   need(roleOk(role), 'Invalid role');
   need(idParam(req) !== req.user.id, "You can't change your own role");
   // Becoming a parent starts with no child (they see nothing until one is picked); leaving it drops the links.
+  // Becoming an organizer needs the person they are (person_id), else they see no event.
+  const fl = flags(role);
   tx(() => {
-    db.prepare('UPDATE users SET role = ?, parent = ? WHERE id = ?').run(role === PARENT ? 'viewer' : role, role === PARENT ? 1 : 0, idParam(req));
+    const person = role === ORGANIZER ? (req.body.person_id ? personFor(role, req.body.person_id) : null) : null;
+    db.prepare('UPDATE users SET role = ?, parent = ?, organizer = ?, person_id = ? WHERE id = ?').run(fl.role, fl.parent, fl.organizer, person, idParam(req));
     if (role !== PARENT) db.prepare('DELETE FROM parent_clients WHERE user_id = ?').run(idParam(req));
   });
   endSessions(idParam(req)); // the new role counts from their next sign-in
+  res.json({ ok: true });
+});
+
+// Who an organizer account is (People): they see and run that person's events.
+router.put('/users/:id/person', (req, res) => {
+  need(db.prepare('SELECT organizer FROM users WHERE id = ?').get(idParam(req))?.organizer, 'Only an organizer account is linked to a person');
+  db.prepare('UPDATE users SET person_id = ? WHERE id = ?').run(personFor(ORGANIZER, req.body.person_id), idParam(req));
   res.json({ ok: true });
 });
 

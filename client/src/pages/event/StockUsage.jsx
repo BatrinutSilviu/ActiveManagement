@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
-import { useAction, useApi, usePermissions } from '../../hooks.js';
+import { useAction, useApi, useCanRun } from '../../hooks.js';
 import { money, number } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { confirmDelete } from '../../components/Modal.jsx';
@@ -20,7 +20,7 @@ export default function StockUsage({ e, reload }) {
   const { data: stock, reload: reloadStock } = useApi('/stock');
   const [f, setF] = useState({ item_id: '', person_id: '', qty: '', kept: 'kept' });
   const [error, run] = useAction(() => { reload(); reloadStock(); });
-  const { canEdit } = usePermissions();
+  const canEdit = useCanRun(e);
   const item = stock?.find((i) => String(i.id) === String(f.item_id));
   const holder = item?.holdings.find((h) => String(h.person_id) === String(f.person_id));
   const cost = item && !item.prepaid && Number(f.qty) > 0 ? item.unit_price * Number(f.qty) : 0;

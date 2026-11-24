@@ -5,6 +5,7 @@ import { db, tx } from '../db.js';
 import { r2, toRon } from '../domain/money.js';
 import { IS_MEMBER_SQL } from '../domain/pricing.js';
 import { purchaseLines, taskLines } from '../finance.js';
+import { ORGANIZER } from '../domain/organizer.js';
 import { httpError, idParam, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -22,7 +23,10 @@ router.get('/people', (req, res) => {
       (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounted_events
     FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({
     ...p, points: r2(points.get(p.id) || 0), stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
-  })));
+  })).map((p) => (req.user.role === ORGANIZER
+    // An organizer only needs the names (and who's a member, for prices and discounts): not points, stock or money.
+    ? { id: p.id, name: p.name, active: p.active, is_founder: p.is_founder, is_premium: p.is_premium, is_member: p.is_member, discount_ids: p.discount_ids }
+    : p)));
 });
 
 function readPerson(body) {

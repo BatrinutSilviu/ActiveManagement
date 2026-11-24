@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { useApi, usePermissions } from '../hooks.js';
+import { useApi, useCanRun, usePermissions } from '../hooks.js';
 import { useBusiness } from '../business.js';
 import { date, money0 } from '../format.js';
 import EventForm from '../components/EventForm.jsx';
@@ -36,6 +36,7 @@ function EventDetail() {
   const [copying, setCopying] = useState(false);
   const [txForm, setTxForm] = useState(null); // { kind } | { tx }
   const { canEdit } = usePermissions();
+  const canRun = useCanRun(e); // organizers run their own events too, until they're finalized
   const { on, Term } = useBusiness();
 
   if (error) return <div className="error-box">{error}</div>;
@@ -74,12 +75,12 @@ function EventDetail() {
             <span>· {t('{n} people × {fee}', { n: e.participants, fee: money0(e.participation_fee) })}{e.venue_mode === 'fixed' ? (e.venue_total > 0 ? ` · ${t('venue {amount} fixed', { amount: money0(e.venue_total) })}` : '') : e.venue_fee > 0 ? ` (${t('{amount} to the venue', { amount: money0(e.venue_fee) })})` : ''}</span>
           </p>
         </div>
-        {canEdit && <div className="page-actions">
-          {e.status === 'planned' && <button className="btn btn-primary" onClick={() => setStatus('completed')}><IconCheck width="16" />{t('Finalize event')}</button>}
-          {e.status === 'completed' && <button className="btn" onClick={() => setStatus('planned')}>{t('Reopen as live')}</button>}
-          <button className="btn" onClick={() => setEditing(true)}><IconEdit width="15" />{t('Edit')}</button>
+        {(canEdit || canRun) && <div className="page-actions">
+          {canEdit && e.status === 'planned' && <button className="btn btn-primary" onClick={() => setStatus('completed')}><IconCheck width="16" />{t('Finalize event')}</button>}
+          {canEdit && e.status === 'completed' && <button className="btn" onClick={() => setStatus('planned')}>{t('Reopen as live')}</button>}
+          {canRun && <button className="btn" onClick={() => setEditing(true)}><IconEdit width="15" />{t('Edit')}</button>}
           <button className="btn" onClick={() => setCopying(true)}><IconCopy width="15" />{t('Duplicate')}</button>
-          <button className="btn btn-danger" onClick={del}><IconTrash width="15" />{t('Delete')}</button>
+          {canEdit && <button className="btn btn-danger" onClick={del}><IconTrash width="15" />{t('Delete')}</button>}
         </div>}
       </div>
 
@@ -88,7 +89,7 @@ function EventDetail() {
           <div className="card">
             <div className="card-pad card-head" style={{ marginBottom: 0 }}>
               <div><h2>{t('Costs & extra income')}</h2><p>{t('Categories decide whether a cost is organizing or a benefit')}</p></div>
-              {canEdit && (
+              {canRun && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'expense' })}><IconPlus width="14" />{t('Cost')}</button>
                   <button className="btn btn-sm" onClick={() => setTxForm({ kind: 'income' })}><IconPlus width="14" />{t('Income')}</button>
@@ -96,7 +97,7 @@ function EventDetail() {
               )}
             </div>
             <div className="table-wrap">
-              <TxTable rows={txs} showEvent={false} showGroup compact onEdit={(tx) => setTxForm({ tx })} onDelete={delTx}
+              <TxTable rows={txs} showEvent={false} showGroup compact editable={canRun} onEdit={(tx) => setTxForm({ tx })} onDelete={delTx}
                 empty={t('No costs recorded yet. Fee income comes from people × fee.')} />
             </div>
           </div>

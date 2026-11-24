@@ -14,8 +14,10 @@ function Where({ t }) {
 
 // On phones (`hide-sm` / `show-sm`) only category, amount and actions stay as columns;
 // the date and description move under the category.
-export default function TxTable({ rows, showEvent = true, showGroup = false, compact = false, onEdit, onDelete, empty }) {
-  const { canEdit } = usePermissions();
+// editable: whether the rows can be changed (default: the user's role allows it); an event's page passes its own.
+export default function TxTable({ rows, showEvent = true, showGroup = false, compact = false, onEdit, onDelete, empty, editable }) {
+  const { canEdit: roleCanEdit } = usePermissions();
+  const canEdit = editable ?? roleCanEdit;
   if (!rows.length) return <div className="empty">{empty ?? tr('No transactions yet.')}</div>;
   return (
     <table>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
-import { useAction, useApi, usePermissions } from '../../hooks.js';
+import { useAction, useApi, useCanRun } from '../../hooks.js';
 import { money } from '../../format.js';
 import CardError from '../../components/CardError.jsx';
 import { IconTrash } from '../../components/Icons.jsx';
@@ -14,7 +14,7 @@ export default function Attendees({ e, reload }) {
   const { data: people } = useApi('/people');
   const [name, setName] = useState('');
   const [error, run] = useAction(reload);
-  const { canEdit } = usePermissions();
+  const canEdit = useCanRun(e);
 
   const listed = new Set(e.attendees.map((a) => fold(a.name)));
   const discountOf = new Map(e.discountList.map((d) => [fold(d.person_name), d.amount]));

@@ -145,4 +145,17 @@ export default {
   'Unknown currency or number format': 'Monedă sau format de numere necunoscut',
   'The currency must be a 3-letter code, e.g. RON or EUR': 'Moneda trebuie să fie un cod din 3 litere, ex. RON sau EUR',
   'Unknown language': 'Limbă necunoscută',
+  // Organizer accounts
+  Organizer: 'Organizator', 'runs only their own events (and creates new ones)': 'se ocupă doar de evenimentele lui (și creează altele noi)',
+  'Who are they?': 'Cine este?', 'Who {name} is': 'Cine este {name}', 'Who they are': 'Cine este',
+  'from People: they get the events this person has a task on': 'din Oameni: primește evenimentele în care persoana are o sarcină',
+  'Not linked to a person: this account sees no event': 'Nelegat de o persoană: contul acesta nu vede niciun eveniment',
+  'Pick who this organizer is (from People)': 'Alege cine este acest organizator (din Oameni)',
+  'Only an organizer account is linked to a person': 'Doar un cont de organizator este legat de o persoană',
+  'This isn’t one of your events': 'Acesta nu este unul dintre evenimentele tale',
+  'This event is finalized: only an admin can change it now': 'Evenimentul este finalizat: doar un admin îl mai poate modifica',
+  'Your account can only see your events': 'Contul tău poate vedea doar evenimentele tale',
+  'Your account can only run your own events': 'Contul tău se poate ocupa doar de evenimentele tale',
+  'Your account isn’t linked to a person yet': 'Contul tău nu este legat încă de o persoană',
+  'Only costs and income of your events': 'Doar costuri și venituri ale evenimentelor tale',
 };

@@ -3,12 +3,19 @@ import { api } from './api.js';
 
 export const UserContext = createContext(null);
 
-export const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer', parent: 'Parent' };
+export const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer', parent: 'Parent', organizer: 'Organizer' };
 
 /** What the signed-in user may do: viewers only read, editors change data, admins also manage accounts. */
 export function usePermissions() {
   const role = useContext(UserContext)?.role;
-  return { canEdit: role === 'admin' || role === 'editor', isAdmin: role === 'admin' };
+  return { canEdit: role === 'admin' || role === 'editor', isAdmin: role === 'admin', isOrganizer: role === 'organizer' };
+}
+
+/** Whether the signed-in user may change this event: editors and admins always; an organizer (who only ever gets their
+ *  own events) while it isn't finalized. Without an event: whether they may run events at all (e.g. create one). */
+export function useCanRun(event) {
+  const { canEdit, isOrganizer } = usePermissions();
+  return canEdit || (isOrganizer && event?.status !== 'completed');
 }
 
 export function useApi(url) {

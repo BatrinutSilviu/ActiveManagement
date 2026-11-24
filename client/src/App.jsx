@@ -121,7 +121,9 @@ export default function App() {
       </BusinessContext.Provider>
     );
   }
-  const nav = NAV.filter((n) => (!n.adminOnly || isAdmin) && on(n.feature))
+  // An organizer sees only their own events (and Settings, for their password).
+  const isOrganizer = auth.user.role === 'organizer';
+  const nav = NAV.filter((n) => (!n.adminOnly || isAdmin) && on(n.feature) && (!isOrganizer || ['/events', '/settings'].includes(n.to)))
     .map((n) => ({ ...n, label: t(n.label || (b?.terms?.[n.term] ?? n.term).replace(/^./, (c) => c.toUpperCase())) }));
 
   return (
@@ -138,7 +140,7 @@ export default function App() {
           <span className="brand-mark"><IconActivity width="19" height="19" color="#fff" /></span>
           <div>{b?.name}{b?.tagline && <small>{b.tagline}</small>}</div>
         </div>
-        <AccountBalance path={location.pathname} />
+        {!isOrganizer && <AccountBalance path={location.pathname} />}
         <div className="nav-section">{t('Overview')}</div>
         {nav.filter((n) => n.overview).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className="nav-link"><Icon />{label}</NavLink>
@@ -160,7 +162,12 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <Routes>
+        {isOrganizer ? <Routes>
+          <Route path="/events" element={<Events />} />
+          <Route path="/events/:id" element={<EventDetail />} />
+          <Route path="/settings" element={<Settings user={auth.user} />} />
+          <Route path="*" element={<Navigate to="/events" />} />
+        </Routes> : <Routes>
           <Route path="/" element={on('practice') && !on('events') ? <PracticeOverview /> : <Dashboard />} />
           {on('events') && <Route path="/events" element={<Events />} />}
           {on('events') && <Route path="/events/:id" element={<EventDetail />} />}
@@ -183,7 +190,7 @@ export default function App() {
           {isAdmin && on('server') && <Route path="/server" element={<Server />} />}
           <Route path="/settings" element={<Settings user={auth.user} />} />
           <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        </Routes>}
       </main>
     </div>
     </UserContext.Provider>

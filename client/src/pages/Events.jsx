@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, qs } from '../api.js';
-import { useApi, usePermissions, usePersistentState } from '../hooks.js';
+import { useApi, useCanRun, usePermissions, usePersistentState } from '../hooks.js';
 import { date, money0, number, signedMoney } from '../format.js';
 import EventForm from '../components/EventForm.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
@@ -20,6 +20,7 @@ export default function Events() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null); // the full event being edited from the list
   const { canEdit } = usePermissions();
+  const canCreate = useCanRun(); // organizers create their own events
   const { term, Term } = useBusiness();
 
   const list = events || [];
@@ -36,7 +37,7 @@ export default function Events() {
           <h1>{t(Term('events'))}</h1>
           <p>{t(`Every ${term('event')} with its fees, costs and profit. Live ${term('events')} don’t count in the money until finalized.`)}</p>
         </div>
-        {canEdit && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
+        {canCreate && <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus width="16" />{t(`New ${term('event')}`)}</button>}
       </div>
 
       <div className="filters">
