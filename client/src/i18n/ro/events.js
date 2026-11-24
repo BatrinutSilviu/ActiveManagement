@@ -221,6 +221,16 @@ export default {
     'The list has {n} people but the event counts {count} participants — the money uses the count (Edit to change it).':
     'Lista are {n} persoane, dar evenimentul socotește {count} participanți — banii se calculează după număr (Editează ca să-l schimbi).',
   'Attendee name': 'Numele participantului',
+  Advance: 'Avans', 'Paid in full': 'Plătit integral', 'Left to pay': 'Rest de plată',
+  'Advance: {amount}': 'Avans: {amount}',
+  '{paid} of {n} paid the advance': '{paid} din {n} au plătit avansul',
+  '{name} paid the advance': '{name} a plătit avansul',
+  'Optional — list who came and tick who has paid the advance and who has paid in full':
+    'Opțional — notează cine a venit și bifează cine a plătit avansul și cine a plătit integral',
+  'The list follows the {app} app’s sign-ups (advance ticked = confirmed there); names added here stay.':
+    'Lista urmează înscrierile din aplicația {app} (avans bifat = confirmat acolo); numele adăugate aici rămân.',
+  'Advance per person': 'Avans de persoană',
+  'Paid to hold a place, part of the price · 0 = none': 'Plătit ca să-și păstreze locul, parte din preț · 0 = fără',
   'Signed up in the {app} app: kept in step with its list': 'Înscris în aplicația {app}: ținut la zi după lista de acolo',
   'The list follows the {app} app’s sign-ups (ticked = confirmed there); names added here stay.':
     'Lista urmează înscrierile din aplicația {app} (bifat = confirmat acolo); numele adăugate aici rămân.',

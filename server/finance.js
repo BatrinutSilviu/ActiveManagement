@@ -101,7 +101,7 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   const auto = eventPoints(e, profit, rates);
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
-    ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), venue_total: toRon(e.venue_total),
+    ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), advance_fee: toRon(e.advance_fee), venue_total: toRon(e.venue_total),
     fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
     income, expenses, profit, split: splitProfit(profit, split),
   };

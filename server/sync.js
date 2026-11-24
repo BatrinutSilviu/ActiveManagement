@@ -24,10 +24,14 @@ const prizeList = (list) => (Array.isArray(list) ? list : [])
     partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null,
   }));
 
-// The sign-up list an app sends: [{ name, paid }], or null when it doesn't send one (older pushes).
-const playerList = (list) => (Array.isArray(list)
-  ? [...new Map(list.filter((p) => p && typeof p.name === 'string' && p.name.trim())
-    .map((p) => { const name = p.name.trim().replace(/\s+/g, ' ').slice(0, 120); return [name.toLowerCase(), { name, paid: !!p.paid }]; })).values()]
+// The sign-up list an app sends: [{ name, paid }] (paid = confirmed there), or null when it doesn't send one (older
+// pushes). It becomes [{ name, <tick>: true/false }]: with an advance, being confirmed means the advance is paid
+// (paying the rest is ticked here); without one, it means paid in full.
+const playerList = (list, advance) => (Array.isArray(list)
+  ? [...new Map(list.filter((p) => p && typeof p.name === 'string' && p.name.trim()).map((p) => {
+    const name = p.name.trim().replace(/\s+/g, ' ').slice(0, 120);
+    return [name.toLowerCase(), { name, [advance ? 'advance_paid' : 'paid']: !!p.paid }];
+  })).values()]
   : null);
 
 const PADEL_TYPES = {
@@ -39,7 +43,7 @@ const PADEL_LEVELS = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3', 4: 'Level 4', 5
 /**
  * A padel tournament (padel app's Tournament + confirmedCount + players + url). Every tournament type counts.
  * Its sign-up list (players: everyone signed up, paid = confirmed by an admin, i.e. off the waiting list) becomes
- * the event's attendees (see syncAttendees in domain/eventSync.js).
+ * the event's attendees (see syncAttendees in domain/eventSync.js); its advance per person comes along too.
  * Price = its entry fee per person. Its location, start/end times and prizes
  * (a labelled list, each offered by us or by a named partner) come along; partner prizes also become
  * partner prize records (see syncPartnerPrizes in domain/eventSync.js).
@@ -63,11 +67,12 @@ function mapPadel(t) {
     participants: planned ?? confirmed,
     participation_fee: num(t.entryFee),
     venue_fee: null, // not known in the padel app: set on the event here
+    advance_fee: num(t.advanceFee),
     status: 'planned',
     // Shown on the public calendar (routes/publicCalendar.js): padel tournaments have no drafts.
     listed: t.status !== 'CANCELLED',
     prizes: prizeList(t.prizes),
-    players: playerList(t.players),
+    players: playerList(t.players, num(t.advanceFee) > 0),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
       planned !== null
@@ -137,4 +142,4 @@ export const SOURCES = {
 // The fields a source owns. A field is overwritten only when the source's value for it changed since
 // the last push, so whatever was corrected by hand here (e.g. the venue part, notes) is kept otherwise.
 export const SYNCED_FIELDS = ['name', 'date', 'end_date', 'start_time', 'end_time', 'location', 'participants', 'participation_fee',
-  'venue_fee', 'notes', 'status', 'prizes'];
+  'venue_fee', 'advance_fee', 'notes', 'status', 'prizes'];

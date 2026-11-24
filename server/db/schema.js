@@ -986,5 +986,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS client_history (
 db.exec('CREATE INDEX IF NOT EXISTS client_history_client ON client_history (client_id)');
 // An attendee that came from the event's app (the padel app's sign-up list): kept in step with that list on each push,
 // while the ones added here by hand are left alone.
+// The advance each person pays to hold their place (bani, 0 = none), part of the price; and which attendees paid it.
+if (!columns('events').includes('advance_fee')) db.exec('ALTER TABLE events ADD COLUMN advance_fee INTEGER NOT NULL DEFAULT 0');
+if (!columns('event_attendees').includes('advance_paid')) db.exec('ALTER TABLE event_attendees ADD COLUMN advance_paid INTEGER NOT NULL DEFAULT 0');
 if (!columns('event_attendees').includes('synced')) db.exec('ALTER TABLE event_attendees ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
 }

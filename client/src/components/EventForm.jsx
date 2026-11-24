@@ -45,7 +45,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const { data: activities } = useApi(on('payouts') ? '/activities' : null);
   const [f, setF] = useState(() => linkPrices({
     name: '', type_id: '', activity_id: '', date: today(), end_date: '', location: '', status: 'planned',
-    start_time: '', end_time: '', participants: '', participation_fee: '', venue_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
+    start_time: '', end_time: '', participants: '', participation_fee: '', venue_fee: '', advance_fee: '', venue_mode: 'per_person', training: 0, venue_total: '', budget: '', notes: '', community: '', ...(src || {}),
     ...(src?.price_parts ? { community: String(src.community_fee) } : {}),
   }, src?.price_parts ? 'parts' : 'total', true));
   // Which side was typed last: the two parts (stored as such: fees = venue total + community part × people,
@@ -95,7 +95,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
     try {
       // Members never pay more than the price (nothing for a free event).
       const { community, ...rest } = f;
-      const body = { ...rest, type_id: sportId, venue_fee: Math.min(Number(f.venue_fee) || 0, Number(f.participation_fee) || 0),
+      const body = { ...rest, advance_fee: Number(f.advance_fee) || 0, type_id: sportId, venue_fee: Math.min(Number(f.venue_fee) || 0, Number(f.participation_fee) || 0),
         price_parts: from === 'parts', community_fee: Number(community) || 0 };
       if (event) {
         await api.put(`/events/${event.id}`, body);
@@ -172,6 +172,11 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
             </label>
           </div>
         </div>
+        <label className="field">{t('Advance per person')} ({CURRENCY})
+          <input type="number" min="0" step="0.01" value={f.advance_fee || ''} onChange={set('advance_fee')} placeholder="0" />
+          <span className="hint">{t('Paid to hold a place, part of the price · 0 = none')}</span>
+        </label>
+        <div className="hide-sm" />
         <div className="full fee-preview">
           {t('Income from fees:')} <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({people} × {money(fee)})</span>

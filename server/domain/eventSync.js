@@ -71,10 +71,10 @@ export function upsertSyncedEvent(source, externalId, record) {
     const venue = Math.min(m.venue_fee == null ? sport.default_venue_fee || 0 : toBani(m.venue_fee), fee);
     const id = Number(db.prepare(`
       INSERT INTO events (name, type_id, activity_id, date, end_date, start_time, end_time, location, status, participants, participation_fee,
-        venue_fee, notes, prizes, source, external_id, external_url, sync_data, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
+        venue_fee, advance_fee, notes, prizes, source, external_id, external_url, sync_data, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`).run(
       m.name, sport.id, activity?.id ?? null, m.date, m.end_date, m.start_time ?? null, m.end_time ?? null, m.location, m.status,
-      m.participants, fee, venue, m.notes || null, m.prizes ? JSON.stringify(m.prizes) : null,
+      m.participants, fee, venue, Math.min(toBani(m.advance_fee), fee), m.notes || null, m.prizes ? JSON.stringify(m.prizes) : null,
       source, externalId, url, JSON.stringify(m)).lastInsertRowid);
     syncPartnerPrizes(id, source, externalId, m);
     syncAttendees(id, m, {});
@@ -85,7 +85,7 @@ export function upsertSyncedEvent(source, externalId, record) {
   const changed = SYNCED_FIELDS.filter((k) => k in m && JSON.stringify(m[k]) !== JSON.stringify(before[k]));
   const set = {};
   for (const k of changed) {
-    if (k === 'participation_fee') set[k] = toBani(m[k]);
+    if (k === 'participation_fee' || k === 'advance_fee') set[k] = toBani(m[k]);
     else if (k === 'venue_fee') { if (m[k] != null) set[k] = toBani(m[k]); }
     else if (k === 'status') { if (m.status === 'cancelled' || ev.status === 'cancelled') set.status = m.status; }
     else if (k === 'prizes') set[k] = m[k] ? JSON.stringify(m[k]) : null;
@@ -95,6 +95,7 @@ export function upsertSyncedEvent(source, externalId, record) {
     const fee = set.participation_fee ?? ev.participation_fee;
     set.venue_fee = Math.min(set.venue_fee ?? ev.venue_fee, fee);
   }
+  if ('participation_fee' in set || 'advance_fee' in set) set.advance_fee = Math.min(set.advance_fee ?? ev.advance_fee, set.participation_fee ?? ev.participation_fee);
   // Its type changed in that app (e.g. a general event moved from Running to Social): move it here too.
   if (m.sport && before.sport && foldName(m.sport) !== foldName(before.sport)) {
     const type = eventType(m.sport, source);
@@ -112,13 +113,14 @@ export function upsertSyncedEvent(source, externalId, record) {
 
 // The app's sign-up list (m.players) becomes the event's attendees, on every push: who signed up is added, who
 // left is taken off. Only the attendees that came from the app (synced) are ever taken off — the ones added here
-// by hand stay; a name already on the list by hand becomes the app's. The paid tick follows the app's (confirmed
-// off the waiting list) only when it changed there since the last push, so a tick set here is kept otherwise.
+// by hand stay; a name already on the list by hand becomes the app's. Each tick the app sends (paid, advance_paid)
+// follows the app's only when it changed there since the last push, so a tick set here is kept otherwise.
 // Returns whether anything changed.
+const TICKS = ['paid', 'advance_paid'];
 function syncAttendees(eventId, m, before) {
   if (!Array.isArray(m.players)) return false;
-  const wasPaid = new Map((before.players || []).map((p) => [foldName(p.name), p.paid]));
-  const rows = db.prepare('SELECT id, name, paid, synced FROM event_attendees WHERE event_id = ?').all(eventId);
+  const was = new Map((before.players || []).map((p) => [foldName(p.name), p]));
+  const rows = db.prepare('SELECT * FROM event_attendees WHERE event_id = ?').all(eventId);
   const byName = new Map(rows.map((r) => [foldName(r.name), r]));
   const want = new Set(m.players.map((p) => foldName(p.name)));
   let changed = false;
@@ -126,15 +128,20 @@ function syncAttendees(eventId, m, before) {
     const row = byName.get(foldName(p.name));
     if (!row) {
       const who = whoIs({ name: p.name });
-      db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, synced) VALUES (?, ?, ?, ?, 1)').run(eventId, who.person_id, who.name, p.paid ? 1 : 0);
+      db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, advance_paid, synced) VALUES (?, ?, ?, ?, ?, 1)')
+        .run(eventId, who.person_id, who.name, p.paid ? 1 : 0, p.advance_paid ? 1 : 0);
       changed = true;
       continue;
     }
-    const same = wasPaid.has(foldName(p.name)) && wasPaid.get(foldName(p.name)) === p.paid;
-    // Unchanged in the app: keep ours. A hand-added row the app now has too: ticked if either says paid.
-    const paid = same ? row.paid : !row.synced ? (row.paid || p.paid ? 1 : 0) : p.paid ? 1 : 0;
-    if (!row.synced || paid !== row.paid) {
-      db.prepare('UPDATE event_attendees SET synced = 1, paid = ? WHERE id = ?').run(paid, row.id);
+    const next = { synced: 1 };
+    for (const k of TICKS) {
+      if (typeof p[k] !== 'boolean' || was.get(foldName(p.name))?.[k] === p[k]) continue;
+      // A hand-added row the app now has too: ticked if either says so.
+      next[k] = !row.synced && row[k] ? 1 : p[k] ? 1 : 0;
+    }
+    const keys = Object.keys(next).filter((k) => next[k] !== row[k]);
+    if (keys.length) {
+      db.prepare(`UPDATE event_attendees SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => next[k]), row.id);
       changed = true;
     }
   }

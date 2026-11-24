@@ -68,6 +68,15 @@ function savePriceParts(id, b) {
   db.prepare('UPDATE events SET price_parts = ?, community_fee = ? WHERE id = ?').run(b.price_parts ? 1 : 0, b.price_parts ? toBani(b.community_fee) : 0, id);
 }
 
+// The advance each person pays to hold their place: part of the price, so never more than it.
+function saveAdvance(id, b) {
+  if (!('advance_fee' in b)) return;
+  const fee = db.prepare('SELECT participation_fee FROM events WHERE id = ?').get(id).participation_fee;
+  need(!(Number(b.advance_fee) < 0), 'The advance can’t be negative');
+  need(toBani(b.advance_fee) <= fee, 'The advance can’t be more than the price');
+  db.prepare('UPDATE events SET advance_fee = ? WHERE id = ?').run(toBani(b.advance_fee), id);
+}
+
 // Venue paid per participant, or one fixed amount for the event.
 function saveVenue(id, b) {
   const mode = b.venue_mode === 'fixed' ? 'fixed' : 'per_person';
@@ -103,6 +112,7 @@ router.post('/events', (req, res) => {
     savePriceParts(id, req.body);
     saveTraining(id, req.body);
     saveTimes(id, req.body);
+    saveAdvance(id, req.body);
     // A copy of another event: same skipped tasks, and optionally its own cost / income lines, dated on the new day.
     const src = req.body.copy_from ? db.prepare('SELECT * FROM events WHERE id = ?').get(Number(req.body.copy_from)) : null;
     if (req.body.copy_from) need(src, 'The event to copy no longer exists');
@@ -132,6 +142,7 @@ router.put('/events/:id', (req, res) => {
     savePriceParts(idParam(req), req.body);
     saveTraining(idParam(req), req.body);
     saveTimes(idParam(req), req.body);
+    saveAdvance(idParam(req), req.body);
     repriceEvent(idParam(req));
   });
   res.json({ ok: true });

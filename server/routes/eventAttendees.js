@@ -1,4 +1,5 @@
-// An event's optional attendee list, with a tick for who has paid (the money still follows the participant count).
+// An event's optional attendee list, with ticks for who has paid the advance and who has paid in full
+// (the money still follows the participant count).
 import express from 'express';
 import { db } from '../db.js';
 import { whoIs } from '../domain/people.js';
@@ -18,8 +19,11 @@ router.post('/events/:id/attendees', (req, res) => {
   res.json({ ok: true });
 });
 
+// Either tick: { paid } (in full) and / or { advance_paid }.
 router.put('/event-attendees/:id', (req, res) => {
-  db.prepare('UPDATE event_attendees SET paid = ? WHERE id = ?').run(req.body.paid ? 1 : 0, idParam(req));
+  for (const k of ['paid', 'advance_paid']) {
+    if (k in req.body) db.prepare(`UPDATE event_attendees SET ${k} = ? WHERE id = ?`).run(req.body[k] ? 1 : 0, idParam(req));
+  }
   res.json({ ok: true });
 });
 
