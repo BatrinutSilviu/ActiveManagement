@@ -173,10 +173,10 @@ function Notes({ c, reload }) {
 }
 
 /** What was done with them before the app: per service, either the hours done or the days it was done on. */
-function History({ c, reload }) {
+export function History({ c, reload }) {
   const { canEdit } = usePermissions();
   const { term } = useBusiness();
-  const { data: types } = useApi('/event-types');
+  const { data: types } = useApi(canEdit ? '/event-types' : null);
   const [f, setF] = useState(null); // { id?, kind: 'hours' | 'dates', service_id, hours, dates, day }
   const [err, run] = useAction(reload);
   const save = async (e) => {
@@ -351,8 +351,8 @@ function Invoices({ c, canEdit, run, onNew, onEdit }) {
   );
 }
 
-/** Downloads the sessions done with them between two dates, as a PDF. */
-function SessionsPdf({ c, onClose }) {
+/** Downloads the sessions done with them between two dates, as a PDF (pdfUrl: where from, for the parent's page). */
+export function SessionsPdf({ c, onClose, pdfUrl = `/api/clients/${c.id}/sessions.pdf` }) {
   const { term } = useBusiness();
   const today = localToday();
   const [f, setF] = useState({ from: `${today.slice(0, 7)}-01`, to: today, history: c.history.length > 0 });
@@ -361,7 +361,7 @@ function SessionsPdf({ c, onClose }) {
   const download = async () => {
     setBusy(true); setErr(null);
     try {
-      const res = await fetch(`/api/clients/${c.id}/sessions.pdf?from=${f.from}&to=${f.to}&history=${f.history ? 1 : 0}`, { credentials: 'same-origin' });
+      const res = await fetch(`${pdfUrl}?from=${f.from}&to=${f.to}&history=${f.history ? 1 : 0}`, { credentials: 'same-origin' });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(t(d.error) || t('Request failed ({status})', { status: res.status })); }
       const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'sessions.pdf';
       const url = URL.createObjectURL(await res.blob());

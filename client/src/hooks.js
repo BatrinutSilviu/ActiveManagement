@@ -3,7 +3,7 @@ import { api } from './api.js';
 
 export const UserContext = createContext(null);
 
-export const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+export const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer', parent: 'Parent' };
 
 /** What the signed-in user may do: viewers only read, editors change data, admins also manage accounts. */
 export function usePermissions() {

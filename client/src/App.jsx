@@ -27,6 +27,7 @@ import Patient from './pages/practice/Patient.jsx';
 import Invoices from './pages/practice/Invoices.jsx';
 import Trips from './pages/practice/Trips.jsx';
 import Statistics from './pages/practice/Statistics.jsx';
+import ParentApp from './pages/parent/ParentApp.jsx';
 
 // `term`: the label is what the business calls it (Events / Sessions…); `feature`: shown only when that part is on.
 // `overview`: in the top group of the menu.
@@ -112,6 +113,14 @@ export default function App() {
   const on = (f) => !f || !!b?.features?.[f];
   const logout = async () => { await api.post('/auth/logout'); refresh(); };
   const isAdmin = auth.user.role === 'admin';
+  // A parent / tutor sees only their child's page, nothing else of the app.
+  if (auth.user.role === 'parent') {
+    return (
+      <BusinessContext.Provider value={b}>
+        <UserContext.Provider value={auth.user}><ParentApp user={auth.user} onLogout={logout} /></UserContext.Provider>
+      </BusinessContext.Provider>
+    );
+  }
   const nav = NAV.filter((n) => (!n.adminOnly || isAdmin) && on(n.feature))
     .map((n) => ({ ...n, label: t(n.label || (b?.terms?.[n.term] ?? n.term).replace(/^./, (c) => c.toUpperCase())) }));
 

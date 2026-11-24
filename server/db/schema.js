@@ -1012,4 +1012,12 @@ if (!columns('event_attendees').includes('dropped'))
 // An attendee that came from the event's app (the padel app's sign-up list): kept in step with that list on each push,
 // while the ones added here by hand are left alone.
 if (!columns('event_attendees').includes('synced')) db.exec('ALTER TABLE event_attendees ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
+// Parent / tutor accounts (practices): they sign in to see only their own children (patients), and change nothing.
+// Kept as a flag next to role (which stays 'viewer'), since role's CHECK can't change without rebuilding users.
+if (!columns('users').includes('parent')) db.exec('ALTER TABLE users ADD COLUMN parent INTEGER NOT NULL DEFAULT 0');
+db.exec(`CREATE TABLE IF NOT EXISTS parent_clients (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, client_id)
+)`);
 }

@@ -178,19 +178,21 @@ router.delete('/client-notes/:id', (req, res) => {
 });
 
 // The sessions done with a patient between two dates (both included), as a PDF to download.
-router.get('/clients/:id/sessions.pdf', (req, res) => {
-  const id = idParam(req);
+router.get('/clients/:id/sessions.pdf', (req, res) => sendSessionsPdf(res, idParam(req), req.query));
+
+/** Sends a patient's sessions PDF; query: { from, to, history } (also for parents, routes/parent.js). */
+export function sendSessionsPdf(res, id, query) {
   const client = getClient(id);
-  const { from, to } = req.query;
+  const { from, to } = query;
   need(isDate(from) && isDate(to), 'Choose the start and end dates');
   need(from <= to, 'The start date is after the end date');
   const sessions = loadAppointments("WHERE a.client_id = ? AND a.status = 'done' AND a.date BETWEEN ? AND ?", [id, from, to]);
   const file = `${client.name.normalize('NFD').replace(/[^\w -]/g, '').trim().replace(/\s+/g, '-') || 'patient'}-${from}-${to}.pdf`;
   res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${file}"`, 'Cache-Control': 'no-store' });
   // The history from before the app goes in too, unless left out (history=0).
-  const history = req.query.history === '0' ? [] : loadHistory(id);
+  const history = query.history === '0' ? [] : loadHistory(id);
   writeSessionsPdf(res, { business: getBusiness(), client, from, to, sessions, history });
-});
+}
 
 /* ------------------------------------------------------------------ history from before the app */
 
@@ -211,7 +213,7 @@ function readHistory(body) {
 }
 
 /** A patient's history from before the app, oldest entry first; duration = the service's, in minutes (for dated entries). */
-const loadHistory = (clientId) => db.prepare(`SELECT h.id, h.service_id, h.hours, h.dates, et.name AS service_name, et.duration
+export const loadHistory = (clientId) => db.prepare(`SELECT h.id, h.service_id, h.hours, h.dates, et.name AS service_name, et.duration
   FROM client_history h LEFT JOIN event_types et ON et.id = h.service_id WHERE h.client_id = ? ORDER BY h.id`).all(clientId)
   .map((h) => ({ ...h, kind: h.dates ? 'dates' : 'hours', dates: h.dates ? JSON.parse(h.dates) : [] }));
 
@@ -267,7 +269,7 @@ const countsOf = (packageId, exceptId = 0) => new Map(db.prepare(`SELECT type_id
 
 const slotsOf = db.prepare(`SELECT id, date, start_time, type_id FROM appointments WHERE package_id = ? AND status != 'cancelled'`);
 
-function loadPackages(where, params) {
+export function loadPackages(where, params) {
   return db.prepare(`
     SELECT p.*, c.name AS client_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid,
       (SELECT COUNT(*) FROM appointments a WHERE a.package_id = p.id AND a.status = 'done') AS used,
@@ -410,7 +412,7 @@ router.delete('/packages/:id', (req, res) => {
 
 /* ------------------------------------------------------------------------------------------- sessions */
 
-function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time') {
+export function loadAppointments(where, params, order = 'ORDER BY a.date, a.start_time') {
   return db.prepare(`
     SELECT a.*, c.name AS client_name, c.phone AS client_phone, CASE WHEN a.venue = 'practice' THEN NULL ELSE COALESCE(a.address, c.address) END AS place,
       et.name AS type_name, et.color AS type_color, et.duration AS type_duration, p.name AS package_name, i.number AS invoice_number, i.kind AS invoice_kind, i.paid AS invoice_paid, s.until AS series_until
@@ -618,7 +620,7 @@ router.delete('/appointments/:id', (req, res) => {
 
 /* -------------------------------------------------------------------------------- invoices and receipts */
 
-function loadInvoices(where, params) {
+export function loadInvoices(where, params) {
   return db.prepare(`
     SELECT i.*, c.name AS client_name,
       (SELECT COUNT(*) FROM appointments a WHERE a.invoice_id = i.id) AS sessions,

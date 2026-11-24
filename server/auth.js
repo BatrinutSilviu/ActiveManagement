@@ -48,7 +48,7 @@ export function currentUser(req) {
   const token = readCookie(req, COOKIE);
   if (!token) return null;
   return db.prepare(`
-    SELECT u.id, u.name, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+    SELECT u.id, u.name, u.email, CASE WHEN u.parent = 1 THEN 'parent' ELSE u.role END AS role FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND s.expires_at > ?`).get(tokenHash(token), new Date().toISOString()) || null;
 }
 
@@ -72,12 +72,21 @@ export function requireAuth(req, res, next) {
 }
 
 export const ROLES = ['admin', 'editor', 'viewer'];
+// A parent (practices only) is a separate kind of account: see checkRole and routes/parent.js.
+export const PARENT = 'parent';
 
 // Viewers may only read; changing anything needs an editor. Accounts, imports and backups are admin-only.
+// Parents see only their children's pages.
 // Everyone may change their own password.
 export function checkRole(req, res, next) {
   const { role } = req.user;
   if (req.method === 'PUT' && req.path === '/users/me/password') return next();
+  // A parent reaches nothing but their own children's pages (routes/parent.js, which checks the child is theirs),
+  // and only to read: everything else is refused here, so no other route has to know about parents.
+  if (role === PARENT) {
+    if (['GET', 'HEAD'].includes(req.method) && /^\/parent(\/|$)/.test(req.path)) return next();
+    return res.status(403).json({ error: 'Your account can only see your child’s page' });
+  }
   // Routes match case-sensitively (every router is created with caseSensitive), and this check is
   // case-insensitive too, so /api/Users can't slip past it.
   const adminOnly = /^\/(users|imports?|backups|server|business)(\/|$)/i.test(req.path);

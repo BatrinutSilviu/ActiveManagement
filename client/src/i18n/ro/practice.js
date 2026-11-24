@@ -267,4 +267,14 @@ export default {
   'Include the history from before the app': 'Include istoricul de dinainte de aplicație',
   'PDF of the sessions done': 'PDF cu ședințele efectuate', 'Choose the start and end dates': 'Alege data de început și de sfârșit',
   'The start date is after the end date': 'Data de început e după data de sfârșit', Download: 'Descarcă',
+  // Parent / tutor accounts
+  Parent: 'Părinte', 'sees only their child’s page': 'vede doar pagina copilului său', 'Add a child': 'Adaugă un copil', '+ child…': '+ copil…',
+  'No child picked: this account sees nothing': 'Niciun copil ales: contul acesta nu vede nimic',
+  'Their child (or children)': 'Copilul (sau copiii)',
+  'No child is linked to your account yet. Ask the therapist to add them.': 'Niciun copil nu este legat încă de contul tău. Roagă terapeutul să-l adauge.',
+  'Coming up': 'Urmează', 'Nothing planned.': 'Nimic programat.', 'Nothing yet.': 'Nimic încă.', Booked: 'Programate', Left: 'Rămase',
+  'Your account can only see your child’s page': 'Contul tău poate vedea doar pagina copilului tău',
+  'Pick the child (or children) this parent can see': 'Alege copilul (sau copiii) pe care îi poate vedea acest părinte',
+  'Only a parent account has children to pick': 'Doar un cont de părinte are copii de ales',
+  'Only for parent accounts': 'Doar pentru conturile de părinte',
 };
