@@ -368,7 +368,7 @@ export default {
   'A discount with this name already exists': 'Există deja o reducere cu acest nume',
   'Event not found': 'Evenimentul nu a fost găsit',
   'Set the venue cost per person on this event first — members pay only that': 'Setează mai întâi costul locației de persoană la acest eveniment — membrii plătesc doar atât',
-  'Only founders, premium people and organisers get the member price': 'Doar fondatorii, persoanele premium și organizatorii primesc prețul de membru',
+  'Only founders, premium people and organisers count as members': 'Doar fondatorii, persoanele premium și organizatorii sunt membri',
   'Choose which kind of free entry': 'Alege ce fel de intrare gratuită',
   'Discount not found': 'Reducerea nu a fost găsită',
   'Enter the discount amount': 'Introdu valoarea reducerii',

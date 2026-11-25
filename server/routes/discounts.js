@@ -66,7 +66,7 @@ router.post('/events/:id/discounts', (req, res) => {
   if (member) {
     need(ev.venue_fee > 0, 'Set the venue cost per person on this event first — members pay only that');
     need(waive || (who.person_id && db.prepare(`SELECT 1 FROM people p WHERE p.id = ? AND ${IS_MEMBER_SQL}`).get(who.person_id)),
-      'Only founders, premium people and organisers get the member price');
+      'Only founders, premium people and organisers count as members');
     kind = 'fixed';
     value = memberReduction(ev.participation_fee, ev.venue_fee);
   } else if (free) {

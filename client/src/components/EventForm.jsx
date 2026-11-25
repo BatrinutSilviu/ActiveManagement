@@ -183,7 +183,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
           <span className="muted"> ({people} × {money(fee)})</span>
           {venueCost > 0 && <> · {t('venue:')} <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ` (${t('fixed')})` : ` (${people} × ${money(venue)})`}</span></>}
           <span className="muted">{event?.member_discounts || event?.fund_paid
-            ? `${event.member_discounts ? ` · − ${t('{amount} member prices', { amount: money(event.member_discounts) })}` : ''}${event.fund_paid ? ` · ${t('{amount} discounts paid by the general fund', { amount: money(event.fund_paid) })}` : ''}`
+            ? `${event.member_discounts ? ` · − ${t('{amount} let off to people paying only the venue', { amount: money(event.member_discounts) })}` : ''}${event.fund_paid ? ` · ${t('{amount} discounts paid by the general fund', { amount: money(event.fund_paid) })}` : ''}`
             : ` · ${t('members and discounts are added on the event page')}`}</span>
         </div>
         <label className="field">{t('Starts at')} <span className="hint">{t('(optional)')}</span>

@@ -10,10 +10,11 @@ import { fold } from '../../util.js';
 import { t } from '../../i18n/index.js';
 
 // Free entry: 'skip' = doesn't pay and isn't counted (as if not signed up), 'paid' = we pay their venue
-// part (the general fund pays it) and their community part is let off.
-const FREE_LABELS = { skip: 'Free — not counted', paid: 'Free — we pay' }; // English; translated where shown
+// part (the general fund pays it) and their community part is let off; with no venue part it costs nothing.
+const FREE_LABELS = { skip: 'Free, not counted', paid: 'Free, the fund pays the venue' }; // English; translated where shown
 const isFree = (d) => !!d.free;
-const discountName = (d) => (d.member ? t(d.note === 'No community part' ? d.note : 'Member price') : t(FREE_LABELS[d.free]) || d.discount_name || t('One-off'));
+const discountName = (d, venuePart) => (d.member ? t(d.note === 'No community part' ? 'Only the venue' : 'Only the venue (member)')
+  : d.free === 'paid' && !(venuePart > 0) ? t('Free, counted') : t(FREE_LABELS[d.free]) || d.discount_name || t('One-off'));
 const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
 
 /** People who paid less (or nothing) at this event, with the discount they got. */
@@ -62,15 +63,21 @@ export default function Discounts({ e, reload }) {
     if (await run(() => api.post(`/events/${e.id}/discounts`, body))) setF({ name: '', discount_id: '', amount: '' });
   };
 
+  // Pays only the venue: members always can; anyone else by having the community part let off.
+  const venueOnly = !memberPrice ? null
+    : person?.is_member ? <option value="member">{t('Only the venue ({amount}) — member, the community part is let off', { amount: money(e.venue_fee) })}</option>
+    : named && memberOff > 0 ? <option value="waive">{t('Only the venue ({amount}) — the community part is let off (−{off})', { amount: money(e.venue_fee), off: money(memberOff) })}</option>
+    : null;
+
   return (
     <div className="card">
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
         <div>
           <h2>{t('Members & discounts')}</h2>
           <p>{t('{n} of {count} people paid less · price {price}', { n: e.discountList.filter((d) => !d.dropped).length, count: e.participants, price: money(e.participation_fee) })}
-            {memberPrice ? ` · ${t('members pay {amount}', { amount: money(e.venue_fee) })}` : ''}. {t('Member prices and community parts let off are money we don’t get; discounts and the venue part of free people we pay for are paid by the general fund, not this event.')}</p>
+            {memberPrice ? ` · ${t('members pay {amount}', { amount: money(e.venue_fee) })}` : ''}. {t('Community parts let off (people who pay only the venue, or nothing while counted) are money we don’t get; discounts, and the venue part of free people the fund pays for, are paid by the general fund, not this event.')}</p>
         </div>
-        {e.member_discounts + (e.covered_waived || 0) > 0 && <span className="neg" title={t('Member prices and community parts let off: money we don’t get')}>−{money(e.member_discounts + (e.covered_waived || 0))}</span>}
+        {e.member_discounts + (e.covered_waived || 0) > 0 && <span className="neg" title={t('Community parts let off: money we don’t get')}>−{money(e.member_discounts + (e.covered_waived || 0))}</span>}
       </div>
       <CardError error={error} />
       {e.discountList.length > 0 && (
@@ -80,8 +87,8 @@ export default function Discounts({ e, reload }) {
             <tbody>
               {e.discountList.map((d) => (
                 <tr key={d.id} className={d.dropped ? 'muted' : undefined}>
-                  <td>{d.person_name}{!!d.dropped && <div className="row-sub">{t('Dropped out: not counted')}</div>}<div className="row-sub show-sm">{discountName(d)} · {t('paid {amount}', { amount: money(Math.max(e.participation_fee - d.amount, 0)) })}</div></td>
-                  <td className="secondary hide-sm">{d.member || isFree(d) ? discountName(d) : <>{discountName(d)} <span className="muted">{discountLabel(d)}</span></>}</td>
+                  <td>{d.person_name}{!!d.dropped && <div className="row-sub">{t('Dropped out: not counted')}</div>}<div className="row-sub show-sm">{discountName(d, venuePart)} · {t('paid {amount}', { amount: money(Math.max(e.participation_fee - d.amount, 0)) })}</div></td>
+                  <td className="secondary hide-sm">{d.member || isFree(d) ? discountName(d, venuePart) : <>{discountName(d, venuePart)} <span className="muted">{discountLabel(d)}</span></>}</td>
                   <td className="r hide-sm">{money(Math.max(e.participation_fee - d.amount, 0))}</td>
                   <td className={d.dropped ? "r" : "r kind-expense"}>{d.dropped ? <s>−{money(d.amount)}</s> : <>−{money(d.amount)}</>}</td>
                   {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-discounts/${d.id}`))}><IconTrash /></button></td>}
@@ -98,12 +105,11 @@ export default function Discounts({ e, reload }) {
         </div>
         <Select className="select-sm" value={f.discount_id} onChange={(ev) => setF({ ...f, discount_id: ev.target.value })} disabled={!named} required>
           <option value="" disabled={named}>{t('Discount…')}</option>
-          <option value="free-skip">{t('Free — doesn’t pay, not counted (no cost to us)')}</option>
-          <option value="free-paid">{venuePart > 0 ? t('Free — we pay only their venue part ({amount}, a cost); the community part is let off', { amount: money(venuePart) }) : t('Free — we pay only their venue part (nothing: no venue part); the community part is let off')}</option>
-          {memberPrice && person?.is_member && <option value="member">{t('Member price (pays {amount})', { amount: money(e.venue_fee) })}</option>}
-          {memberPrice && named && !person?.is_member && memberOff > 0 && (
-            <option value="waive">{t('No community part — pays only the venue ({amount}, −{off})', { amount: money(e.venue_fee), off: money(memberOff) })}</option>
-          )}
+          {venueOnly && <optgroup label={t('Pays only the venue')}>{venueOnly}</optgroup>}
+          <optgroup label={t('Pays nothing')}>
+            <option value="free-paid">{venuePart > 0 ? t('Nothing — the general fund pays their venue part ({amount}, a cost)', { amount: money(venuePart) }) : t('Nothing — counted, at no cost (this event has no venue part)')}</option>
+            <option value="free-skip">{t('Nothing — not counted as a participant (no cost to us)')}</option>
+          </optgroup>
           {own.length > 0 && (
             <optgroup label={t('{name}’s discounts', { name: person.name })}>
               {own.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}
