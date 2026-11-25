@@ -4,7 +4,7 @@ import express from 'express';
 import { db, tx } from '../db.js';
 import { r2, toRon } from '../domain/money.js';
 import { IS_MEMBER_SQL } from '../domain/pricing.js';
-import { purchaseLines, taskLines } from '../finance.js';
+import { discountDroppedSql, purchaseLines, taskLines } from '../finance.js';
 import { ORGANIZER } from '../domain/organizer.js';
 import { httpError, idParam, need } from '../http.js';
 
@@ -19,8 +19,10 @@ router.get('/people', (req, res) => {
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
         WHERE h.person_id = p.id) AS stock_value,
       (SELECT json_group_array(pd.discount_id) FROM person_discounts pd WHERE pd.person_id = p.id) AS discount_ids,
-      (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounts_received,
-      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0) AS discounted_events
+      (SELECT COALESCE(SUM(ed.amount), 0) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0
+        AND NOT ${discountDroppedSql('ed')}) AS discounts_received,
+      (SELECT COUNT(*) FROM event_discounts ed WHERE ed.person_id = p.id AND ed.member = 0
+        AND NOT ${discountDroppedSql('ed')}) AS discounted_events
     FROM people p ORDER BY p.active DESC, p.is_founder DESC, p.name`).all().map((p) => ({
     ...p, points: r2(points.get(p.id) || 0), stock_value: toRon(p.stock_value), discounts_received: toRon(p.discounts_received), discount_ids: JSON.parse(p.discount_ids),
   })).map((p) => (req.user.role === ORGANIZER

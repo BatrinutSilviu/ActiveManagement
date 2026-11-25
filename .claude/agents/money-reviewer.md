@@ -49,8 +49,18 @@ this file gets updated. If neither explains the difference, report it as a possi
   benefits (benefit transactions + stock used).
 
 **Fees, members, discounts, free entries** (most often broken, so read these twice)
-- Fee income = people × fee − member reductions − waived community parts + advances kept from people who
-  dropped out (an advance, or the full price if paid in full, when "kept").
+- Fee income = people × fee − member reductions − waived community parts + what we kept from people who
+  dropped out.
+- Dropped out (user, 2026-11-25): "kept" = exactly what **they** paid (their own price after member price /
+  discount / we-pay if in full, else the advance capped at that; `paidInSql`). Once someone is dropped out
+  (any choice), their member price, discount or we-pay row **stops counting**: no fund pays for someone who
+  didn't come. The venue never charges for them: all kept money is profit. Rows are matched by folded name.
+- Who is counted (user, 2026-11-25): on a **hand-made** event the typed number of participants is the truth; the
+  attendee list never changes it (the organiser lowers it when someone drops out). Kept money is its own automatic
+  line ("Kept from people who dropped out"). On an event **from the padel or hikes app**, that app is the source of
+  truth: dropping out = leaving the app's list; a drop or "coming after all" can't be set here for its sign-ups.
+- Vouchers aren't tied to events (since 2026-11-05 "use" records only a date and what we paid), so dropping out of
+  an event doesn't touch them. The user's rule if they ever are: a voucher of someone who didn't come stops counting.
 - Members = founders, Premium people, and **anyone who has organised any event**. They pay only the
   venue's part (Hyrox: 50 = 40 venue + 10 community → a member pays 40). Stored as an `event_discounts`
   row with `member = 1`, worth price − venue part. That reduction is money we **don't get**: it lowers fee

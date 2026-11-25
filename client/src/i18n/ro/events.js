@@ -240,6 +240,7 @@ export default {
   'Not decided yet': 'Nehotărât încă', 'Kept it': 'L-am păstrat', 'Refunded it': 'L-am returnat',
   'Coming after all': 'Vine totuși',
   'Kept from people who dropped out': 'Păstrat de la cei care s-au retras',
+  'Dropped out: not counted': 'S-a retras: nu se mai socotește',
   'Paid to hold a place, part of the price · 0 = none': 'Plătit ca să-și păstreze locul, parte din preț · 0 = fără',
   'Signed up in the {app} app: kept in step with its list': 'Înscris în aplicația {app}: ținut la zi după lista de acolo',
   'The list follows the {app} app’s sign-ups (ticked = confirmed there); names added here stay.':
@@ -411,6 +412,7 @@ export default {
   'Choose what was special': 'Alege ce a fost special',
   'Say who or what it was': 'Spune cine sau ce a fost',
   'This person is already on the list': 'Această persoană e deja pe listă',
+  'This person signed up in the other app: whether they come is decided there': 'Această persoană s-a înscris în cealaltă aplicație: acolo se hotărăște dacă vine',
   'An activity with this name already exists': 'Există deja o activitate cu acest nume',
   'Choose a person': 'Alege o persoană',
   'Event name is required': 'Numele evenimentului e obligatoriu',

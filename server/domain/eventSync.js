@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { db, foldName } from '../db/connection.js';
 import { log } from '../log.js';
 import { isDate, need, today } from '../http.js';
 import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from '../sync.js';
@@ -9,7 +9,6 @@ import { repriceEvent } from './pricing.js';
 // Applies the records pushed by the community's other apps (POST /api/integrations/events, see routes/integrations.js)
 // to our events; sync.js turns each app's record into the fields of an event.
 
-const foldName = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const nameWords = (v) => new Set(foldName(v).split(/[^a-z0-9#]+/).filter((w) => w.length > 1 || /\d/.test(w)));
 /** A hand-made event (not from any app) that is this record: same day and sport, and the same name,
  *  the same tournament number (#95) or mostly the same words. */
@@ -125,7 +124,8 @@ function syncAttendees(eventId, m, before) {
   const want = new Set(m.players.map((p) => foldName(p.name)));
   let changed = false;
   for (const p of m.players) {
-    const row = byName.get(foldName(p.name));
+    const key = foldName(p.name), prev = was.get(key);
+    const row = byName.get(key);
     if (!row) {
       const who = whoIs({ name: p.name });
       db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, advance_paid, synced) VALUES (?, ?, ?, ?, ?, 1)')
@@ -133,9 +133,11 @@ function syncAttendees(eventId, m, before) {
       changed = true;
       continue;
     }
-    const next = { synced: 1, dropped: null }; // signed up again after dropping out: coming after all
+    // The app is the source of truth: someone on its list is coming (signed up again after dropping out, or a
+    // drop marked here by hand), and only leaving the app's list makes them dropped out (see below).
+    const next = { synced: 1, dropped: null };
     for (const k of TICKS) {
-      if (typeof p[k] !== 'boolean' || was.get(foldName(p.name))?.[k] === p[k]) continue;
+      if (typeof p[k] !== 'boolean' || prev?.[k] === p[k]) continue;
       // A hand-added row the app now has too: ticked if either says so.
       next[k] = !row.synced && row[k] ? 1 : p[k] ? 1 : 0;
     }

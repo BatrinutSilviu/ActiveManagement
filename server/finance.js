@@ -13,12 +13,44 @@ import { errorFields, log } from './log.js';
 export const FINALIZED = 'completed';
 export const LIVE = 'planned';
 
-// People let in free "as if they hadn't signed up" don't bring in a fee (nor a per-person venue cost).
-const SKIPPED = "(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'skip')";
+// Discount rows and attendees are matched by name (rows keep the People name, renames included), folded.
+/** SQL: discount row `d` is for someone who dropped out (any choice). It no longer counts: no member price lowers
+ *  the fees and no fund pays a discount for someone who didn't come. */
+export const discountDroppedSql = (d = 'd') => `fold(${d}.name) IN (SELECT fold(a.name) FROM event_attendees a
+  WHERE a.event_id = ${d}.event_id AND a.dropped IS NOT NULL)`;
+// People let in free "as if they hadn't signed up" don't bring in a fee (nor a per-person venue cost); one who
+// dropped out isn't let in at all, so isn't taken off.
+const SKIPPED = `(SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'skip' AND NOT ${discountDroppedSql()})`;
 const COUNTED = `MAX(e.participants - ${SKIPPED}, 0)`;
 // The venue's part of one person's price: with a two-part price, the price less the community part;
 // otherwise the venue cost per person (with a fixed venue: what members pay).
 const VENUE_PART = 'MIN(e.participation_fee, CASE WHEN e.price_parts = 1 THEN MAX(e.participation_fee - e.community_fee, 0) ELSE e.venue_fee END)';
+
+/** SQL: attendee `a`'s own price at event `e`: the price less their member price, discount or what we pay for them. */
+export const ownPriceSql = (a = 'a', e = 'e') => `MAX(${e}.participation_fee - COALESCE((SELECT SUM(d.amount) FROM event_discounts d
+  WHERE d.event_id = ${a}.event_id AND fold(d.name) = fold(${a}.name)), 0), 0)`;
+/** SQL: what attendee `a` paid us at event `e`: their own price if in full, the advance (at most that) if only the
+ *  advance, else 0. */
+export function paidInSql(a = 'a', e = 'e') {
+  const own = ownPriceSql(a, e);
+  return `CASE WHEN ${a}.paid = 1 THEN ${own} WHEN ${a}.advance_paid = 1 THEN MIN(${e}.advance_fee, ${own}) ELSE 0 END`;
+}
+
+// The reduced prices that count, summed per event in one pass (a dropped person's row is left out, see above).
+// Free, we pay: the general fund pays only their venue part; the community part is let off (we don't pay
+// ourselves what they'd have paid us), like a member price.
+const DISCOUNT_SUMS = `
+  SELECT d.event_id,
+    SUM(CASE WHEN d.member = 0 AND d.free IS NULL THEN d.amount ELSE 0 END) AS discounts,
+    COUNT(CASE WHEN d.member = 0 AND d.free IS NULL THEN 1 END) AS discount_count,
+    SUM(CASE WHEN d.free = 'paid' THEN MIN(d.amount, ${VENUE_PART}) ELSE 0 END) AS covered_fees,
+    SUM(CASE WHEN d.free = 'paid' THEN d.amount - MIN(d.amount, ${VENUE_PART}) ELSE 0 END) AS covered_waived,
+    COUNT(CASE WHEN d.free = 'paid' THEN 1 END) AS covered_count,
+    SUM(CASE WHEN d.member = 1 THEN d.amount ELSE 0 END) AS member_discounts,
+    COUNT(CASE WHEN d.member = 1 THEN 1 END) AS member_count
+  FROM event_discounts d JOIN events e ON e.id = d.event_id
+  WHERE NOT ${discountDroppedSql()} GROUP BY d.event_id`;
+const SUM_COLS = ['discounts', 'discount_count', 'covered_fees', 'covered_waived', 'covered_count', 'member_discounts', 'member_count'];
 
 const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
@@ -27,20 +59,11 @@ const EVENT_SQL = `
       THEN ROUND(e.venue_total * ${COUNTED} * 1.0 / e.participants) + ${COUNTED} * e.community_fee
       ELSE ${COUNTED} * e.participation_fee END AS fee_gross,
     CASE WHEN e.venue_mode = 'fixed' THEN e.venue_total ELSE ${COUNTED} * e.venue_fee END AS venue_cost,
-    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discounts,
-    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 0 AND d.free IS NULL) AS discount_count,
-    -- Free, we pay: the general fund pays only their venue part; the community part is let off (we
-    -- don't pay ourselves what they'd have paid us), like a member price.
-    (SELECT COALESCE(SUM(MIN(d.amount, ${VENUE_PART})), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_fees,
-    (SELECT COALESCE(SUM(d.amount - MIN(d.amount, ${VENUE_PART})), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_waived,
-    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.free = 'paid') AS covered_count,
-    (SELECT COALESCE(SUM(d.amount), 0) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_discounts,
-    (SELECT COUNT(*) FROM event_discounts d WHERE d.event_id = e.id AND d.member = 1) AS member_count,
+    ${SUM_COLS.map((c) => `COALESCE(ds.${c}, 0) AS ${c}`).join(', ')},
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t WHERE t.event_id = e.id AND t.kind = 'income') AS other_income,
-    -- What we kept from people who dropped out (the price if they'd paid in full, else the advance): fee income on
-    -- top of the counted participants.
-    (SELECT COALESCE(SUM(CASE WHEN a.paid = 1 THEN e.participation_fee ELSE e.advance_fee END), 0) FROM event_attendees a
-       WHERE a.event_id = e.id AND a.dropped = 'kept') AS kept_advances,
+    -- What we kept from people who dropped out: exactly what they paid (see paidInSql), fee income on top of the
+    -- counted participants. The venue never charges for them, so all of it is profit.
+    (SELECT COALESCE(SUM(${paidInSql()}), 0) FROM event_attendees a WHERE a.event_id = e.id AND a.dropped = 'kept') AS kept_advances,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
        WHERE t.event_id = e.id AND t.kind = 'expense' AND COALESCE(c.cost_group, 'organizing') = 'organizing') AS organizing,
     (SELECT COALESCE(SUM(t.amount), 0) FROM transactions t JOIN categories c ON c.id = t.category_id
@@ -49,7 +72,8 @@ const EVENT_SQL = `
        WHERE s.event_id = e.id AND i.prepaid = 0) AS stock_cost,
     (SELECT COUNT(*) FROM transactions t WHERE t.event_id = e.id) AS tx_count,
     (SELECT COALESCE(SUM(h.points), 0) FROM event_highlights h WHERE h.event_id = e.id) AS impact_points
-  FROM events e JOIN event_types et ON et.id = e.type_id LEFT JOIN activities a ON a.id = e.activity_id`;
+  FROM events e JOIN event_types et ON et.id = e.type_id LEFT JOIN activities a ON a.id = e.activity_id
+  LEFT JOIN (${DISCOUNT_SUMS}) ds ON ds.event_id = e.id`;
 
 /** Split a profit (RON) into founders' and community parts. Losses split the same way. */
 function splitProfit(profit, split = getSplit()) {
@@ -85,8 +109,8 @@ function eventPoints(e, profit, rates = getPointsRates()) {
 function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
-  // Fee income = people × fee − what members don't pay (they pay only the venue's part), plus the advances
-  // kept from people who dropped out.
+  // Fee income = people × fee − what members don't pay (they pay only the venue's part), plus what we kept from
+  // people who dropped out (what they paid). A dropped person's member price or discount doesn't count.
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
   // without signing up aren't counted at all.
   // Discounts and the venue part of people let in free that we pay for come out of the general

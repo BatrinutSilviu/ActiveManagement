@@ -67,7 +67,7 @@ export default function Discounts({ e, reload }) {
       <div className="card-pad card-head" style={{ marginBottom: 0 }}>
         <div>
           <h2>{t('Members & discounts')}</h2>
-          <p>{t('{n} of {count} people paid less · price {price}', { n: e.discountList.length, count: e.participants, price: money(e.participation_fee) })}
+          <p>{t('{n} of {count} people paid less · price {price}', { n: e.discountList.filter((d) => !d.dropped).length, count: e.participants, price: money(e.participation_fee) })}
             {memberPrice ? ` · ${t('members pay {amount}', { amount: money(e.venue_fee) })}` : ''}. {t('Member prices and community parts let off are money we don’t get; discounts and the venue part of free people we pay for are paid by the general fund, not this event.')}</p>
         </div>
         {e.member_discounts + (e.covered_waived || 0) > 0 && <span className="neg" title={t('Member prices and community parts let off: money we don’t get')}>−{money(e.member_discounts + (e.covered_waived || 0))}</span>}
@@ -79,11 +79,11 @@ export default function Discounts({ e, reload }) {
             <thead><tr><th>{t('Person')}</th><th className="hide-sm">{t('Discount')}</th><th className="r hide-sm">{t('Paid')}</th><th className="r">{t('Amount off')}</th>{canEdit && <th />}</tr></thead>
             <tbody>
               {e.discountList.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.person_name}<div className="row-sub show-sm">{discountName(d)} · {t('paid {amount}', { amount: money(Math.max(e.participation_fee - d.amount, 0)) })}</div></td>
+                <tr key={d.id} className={d.dropped ? 'muted' : undefined}>
+                  <td>{d.person_name}{!!d.dropped && <div className="row-sub">{t('Dropped out: not counted')}</div>}<div className="row-sub show-sm">{discountName(d)} · {t('paid {amount}', { amount: money(Math.max(e.participation_fee - d.amount, 0)) })}</div></td>
                   <td className="secondary hide-sm">{d.member || isFree(d) ? discountName(d) : <>{discountName(d)} <span className="muted">{discountLabel(d)}</span></>}</td>
                   <td className="r hide-sm">{money(Math.max(e.participation_fee - d.amount, 0))}</td>
-                  <td className="r kind-expense">−{money(d.amount)}</td>
+                  <td className={d.dropped ? "r" : "r kind-expense"}>{d.dropped ? <s>−{money(d.amount)}</s> : <>−{money(d.amount)}</>}</td>
                   {canEdit && <td className="r actions"><button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-discounts/${d.id}`))}><IconTrash /></button></td>}
                 </tr>
               ))}

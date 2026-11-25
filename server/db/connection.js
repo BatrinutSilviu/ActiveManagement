@@ -11,6 +11,11 @@ export const DB_PATH = process.env.DB_PATH || resolve(root, 'data/active.db');
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
+
+/** A name as it's matched across lists (attendees, discounts, the other apps): no accents, lower case, like the
+ *  client's fold() in util.js. The same rule is fold(name) in SQL. */
+export const foldName = (v) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+db.function('fold', { deterministic: true }, (v) => (v == null ? null : foldName(v)));
 // busy_timeout: another connection writing (a script run with docker exec, a backup) makes us wait up to 5 s
 // for the lock instead of failing at once. synchronous = FULL: a committed change survives a power cut too
 // (with WAL, NORMAL could lose the last transactions) — worth it for money, the app writes little.

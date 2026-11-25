@@ -17,8 +17,7 @@ export default function Attendees({ e, reload }) {
   const canEdit = useCanRun(e);
 
   const listed = new Set(e.attendees.map((a) => fold(a.name)));
-  const discountOf = new Map(e.discountList.map((d) => [fold(d.person_name), d.amount]));
-  const owes = (a) => Math.max(e.participation_fee - (discountOf.get(fold(a.name)) || 0), 0);
+  const owes = (a) => a.own_price; // their price, less their member price or discount (from the server)
   const advance = e.advance_fee || 0;
   // What's still to come from someone: nothing once paid in full, the rest once the advance is in.
   const left = (a) => (a.paid ? 0 : a.advance_paid ? Math.max(owes(a) - advance, 0) : owes(a));
@@ -28,9 +27,9 @@ export default function Attendees({ e, reload }) {
   const paid = coming.filter((a) => a.paid);
   const advanced = coming.filter((a) => a.paid || a.advance_paid);
   const toCollect = coming.reduce((s, a) => s + left(a), 0);
-  // What a dropped-out person had paid: the price if in full, else the advance.
-  const paidIn = (a) => (a.paid ? owes(a) : a.advance_paid ? advance : 0);
   const setDropped = (a, dropped) => run(() => api.put(`/event-attendees/${a.id}`, { dropped }));
+  // Signed up in the other app: it decides who is coming (they drop out by leaving its list), not this page.
+  const fromApp = (a) => !!(a.synced && e.source);
   const undecided = dropped.filter((a) => a.dropped === 'undecided').length;
   const tick = (a, k, label) => (
     <input type="checkbox" checked={!!a[k]} disabled={!canEdit} aria-label={label}
@@ -71,7 +70,7 @@ export default function Attendees({ e, reload }) {
                   <td className={`r ${a.paid ? 'secondary' : ''}`}>{money(owes(a))}</td>
                   <td className={`r hide-sm ${left(a) ? '' : 'secondary'}`}>{money(left(a))}</td>
                   {canEdit && <td className="r actions">
-                    {(a.paid || a.advance_paid) ? <button className="link-btn" style={{ marginRight: 8 }} onClick={() => setDropped(a, 'undecided')}
+                    {(a.paid || a.advance_paid) && !fromApp(a) ? <button className="link-btn" style={{ marginRight: 8 }} onClick={() => setDropped(a, 'undecided')}
                       title={t('They paid but won’t come: decide whether we keep what they paid or refund it')}>{t('Dropped out')}</button> : null}
                     <button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button>
                   </td>}
@@ -96,7 +95,7 @@ export default function Attendees({ e, reload }) {
                 {dropped.map((a) => (
                   <tr key={a.id}>
                     <td>{a.name}{a.synced && e.source ? <span className="badge hide-sm" style={{ marginLeft: 6 }}>{e.source}</span> : null}</td>
-                    <td className="r">{money(paidIn(a))} <span className="muted hide-sm">{t(a.paid ? 'in full' : 'advance')}</span></td>
+                    <td className="r">{money(a.paid_in)} <span className="muted hide-sm">{t(a.paid ? 'in full' : 'advance')}</span></td>
                     <td>
                       <Select className="select-sm" value={a.dropped} disabled={!canEdit} onChange={(ev) => setDropped(a, ev.target.value)}>
                         <option value="undecided">{t('Not decided yet')}</option>
@@ -105,7 +104,7 @@ export default function Attendees({ e, reload }) {
                       </Select>
                     </td>
                     {canEdit && <td className="r actions">
-                      <button className="link-btn" style={{ marginRight: 8 }} onClick={() => setDropped(a, null)}>{t('Coming after all')}</button>
+                      {!fromApp(a) && <button className="link-btn" style={{ marginRight: 8 }} onClick={() => setDropped(a, null)}>{t('Coming after all')}</button>}
                       <button className="icon-btn" aria-label={t('Remove')} onClick={() => run(() => api.del(`/event-attendees/${a.id}`))}><IconTrash /></button>
                     </td>}
                   </tr>

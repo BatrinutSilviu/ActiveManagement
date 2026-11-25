@@ -7,7 +7,7 @@ import { returnStock } from '../domain/stock.js';
 import { addTask, eventTaskShares, manualTaskPoints, TASKS } from '../domain/tasks.js';
 import { checkVersion } from '../domain/versions.js';
 import { unuseVoucher } from '../domain/vouchers.js';
-import { LIVE, loadEvents, taskLines } from '../finance.js';
+import { discountDroppedSql, LIVE, loadEvents, ownPriceSql, paidInSql, taskLines } from '../finance.js';
 import { ORGANIZER } from '../domain/organizer.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
@@ -51,11 +51,17 @@ router.get('/events/:id', (req, res) => {
   e.taskPoints = manualTaskPoints(e.task_points);
   e.highlights = db.prepare(`SELECT h.*, p.name AS partner_name FROM event_highlights h LEFT JOIN partners p ON p.id = h.partner_id
     WHERE h.event_id = ? ORDER BY h.id`).all(e.id);
-  e.discountList = db.prepare(`SELECT ed.*, COALESCE(p.name, ed.name) AS person_name, d.name AS discount_name FROM event_discounts ed
+  e.discountList = db.prepare(`SELECT ed.*, COALESCE(p.name, ed.name) AS person_name, d.name AS discount_name, ${discountDroppedSql('ed')} AS dropped
+    FROM event_discounts ed
     LEFT JOIN people p ON p.id = ed.person_id LEFT JOIN discounts d ON d.id = ed.discount_id WHERE ed.event_id = ? ORDER BY ed.member DESC, person_name`)
     .all(e.id).map((d) => ({ ...d, amount: toRon(d.amount), value: d.kind === 'fixed' ? toRon(d.value) : d.value }));
-  e.attendees = db.prepare(`SELECT a.*, COALESCE(p.name, a.name) AS name, p.id IS NOT NULL AND ${IS_MEMBER_SQL} AS is_member FROM event_attendees a
-    LEFT JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY COALESCE(p.name, a.name)`).all(e.id);
+  // own_price: what they pay (price less their discount); paid_in: what they've paid us (for someone who dropped
+  // out: what we keep or refund).
+  e.attendees = db.prepare(`SELECT a.*, COALESCE(p.name, a.name) AS name, p.id IS NOT NULL AND ${IS_MEMBER_SQL} AS is_member,
+      ${ownPriceSql('a', 'ev')} AS own_price, ${paidInSql('a', 'ev')} AS paid_in
+    FROM event_attendees a JOIN events ev ON ev.id = a.event_id
+    LEFT JOIN people p ON p.id = a.person_id WHERE a.event_id = ? ORDER BY COALESCE(p.name, a.name)`).all(e.id)
+    .map((a) => ({ ...a, own_price: toRon(a.own_price), paid_in: toRon(a.paid_in) }));
   e.stock = db.prepare(`SELECT s.*, i.name AS item_name, i.unit, i.prepaid, p.name AS person_name FROM event_stock s
     JOIN stock_items i ON i.id = s.item_id LEFT JOIN people p ON p.id = s.person_id WHERE s.event_id = ? ORDER BY s.id`)
     .all(e.id).map((s) => ({ ...s, unit_price: toRon(s.unit_price), cost: s.prepaid ? 0 : r2(s.qty * toRon(s.unit_price)) }));

@@ -4,6 +4,7 @@ import { db, tx } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
 import { discountAmount, IS_MEMBER_SQL, memberReduction } from '../domain/pricing.js';
 import { syncTrainingVouchers } from '../domain/vouchers.js';
+import { discountDroppedSql } from '../finance.js';
 import { whoIs } from '../domain/people.js';
 import { httpError, idParam, need } from '../http.js';
 
@@ -81,7 +82,8 @@ router.post('/events/:id/discounts', (req, res) => {
     kind = 'fixed';
     value = toBani(amount);
   }
-  const given = db.prepare('SELECT COUNT(*) n FROM event_discounts WHERE event_id = ?').get(ev.id).n;
+  // Someone who dropped out no longer takes up a place.
+  const given = db.prepare(`SELECT COUNT(*) n FROM event_discounts d WHERE d.event_id = ? AND NOT ${discountDroppedSql()}`).get(ev.id).n;
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
   tx(() => {
     try {
