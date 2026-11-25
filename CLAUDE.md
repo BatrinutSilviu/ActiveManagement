@@ -22,8 +22,11 @@ in this order, without asking:
 3. `/security-review`: looks for security holes in the changes (missing login or role checks, one
    user reading or changing another user's data, injection, secrets in code, unsafe uploads). Fix what
    it finds. Skip it only when the change is purely visual (styles, text, layout).
+4. Only when the change touches money or points (fees, discounts, funds, payouts, profit split, stock,
+   vouchers, event/task/dev points): run the `money-reviewer` agent on it, fix what's wrong, and ask the
+   user about anything it marks as needing a decision.
 
-Then commit. In the final message, list what the three passes changed or found (one line each, plain
+Then commit. In the final message, list what the passes changed or found (one line each, plain
 words). If a finding needs the user's decision, ask instead of guessing. Skip all three only for commits
 with no code (an empty redeploy commit, docs or skill files only).
 
@@ -31,3 +34,8 @@ with no code (an empty redeploy commit, docs or skill files only).
 
 - `/deploy`: push to main (Active + Kidokinetiq deploy on their own; not watched).
 - `/vps`: work on the production server over SSH.
+
+## Agents
+
+- `money-reviewer` (`.claude/agents/`): checks money and points maths against the community's rules.
+  Read-only; it reports and Claude fixes.
