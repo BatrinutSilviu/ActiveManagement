@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Push the current work to main and watch the GitHub Actions deploy to the VPS (Active's management app and the Kidokinetiq copy) until it finishes; if the server step fails, run the deploy script on the VPS directly. Use when the user says "push", "deploy", "ship it" or "put it live" in this project.
+description: Push the current work to main and let the GitHub Actions deploy put it on the VPS (Claude doesn't watch it). Only if the user says it isn't live: check the run, and if the server step failed, run the deploy script on the VPS directly. Use when the user says "push", "deploy", "ship it" or "put it live" in this project.
 ---
 
 # Deploy ActiveManagement
@@ -21,9 +21,10 @@ Report in plain words (is it live or not, and what to do), not in CI jargon.
 ## Steps
 
 1. **Commit.** `git fetch -q`, then `git status -sb`.
-   - If there are uncommitted code changes, first run the two passes from CLAUDE.md ("Before every
-     commit"): the `simplify` skill, then the `code-review` skill with args `high --fix`. Let them
-     apply their fixes.
+   - If there are uncommitted code changes, first run the passes from CLAUDE.md ("Before every
+     commit"): the `simplify` skill, the `code-review` skill with args `high --fix`, then the
+     `security-review` skill (skipped for purely visual changes). Let them apply their fixes. A hook
+     runs the tests / type check / lint on `git commit` and blocks it if they fail: fix and commit again.
    - Then stage the changes and commit with a message that says what changed for the people using
      the app (the style of `git log`: one long sentence, no prefix), ending with the attribution lines
      from the system reminder.
@@ -35,29 +36,28 @@ Report in plain words (is it live or not, and what to do), not in CI jargon.
 
 3. **Push.** `timeout 90 git push`. If it's rejected because origin moved, go back to step 2.
 
-4. **Watch the deploy** in the background (`run_in_background: true`) so the user isn't blocked, and
-   tell them it's running. The repo is public, so the API needs no login:
+4. **Tell the user it's deploying, and stop.** Say it'll be live on both sites (Active and Kidokinetiq)
+   in a few minutes and to reload the page then. Don't watch the GitHub Actions run or poll its API, not even in
+   the background: the user asked not to (it was slow, noisy and hit GitHub's rate limit).
 
-   ```bash
-   sleep 20; sha=$(git rev-parse HEAD); for i in $(seq 1 55); do
-     r=$(curl -s "https://api.github.com/repos/BatrinutSilviu/ActiveManagement/actions/runs?head_sha=$sha" \
-       | python3 -c "import sys,json;w=json.load(sys.stdin)['workflow_runs'];print(w[0]['status'],w[0]['conclusion'],w[0]['id'],w[0]['html_url']) if w else print('none')" 2>/dev/null)
-     case "$r" in completed*) echo "$r"; exit 0;; esac; sleep 30
-   done; echo "still: $r"
-   ```
+## Only if the user says it isn't live (or asks how the deploy went)
 
-   To see which step failed (public too):
-   `curl -s https://api.github.com/repos/BatrinutSilviu/ActiveManagement/actions/runs/<id>/jobs | python3 -c "import sys,json;[print(s['name'],s['conclusion']) for j in json.load(sys.stdin)['jobs'] for s in j['steps']]"`
+Look at the run once (the repo is public, so the API needs no login):
 
-5. **Report.**
-   - `completed success`: tell the user it's live on both sites and to reload the page they were on.
-   - Failed at the **build** (npm ci / build / lint): it's in the code. Fix it, commit, push, watch again.
-   - Failed at **"Deploy over SSH"**: the VPS often resets SSH connections from GitHub. The user has
-     allowed running the deploy on the server directly (see the `vps` skill for the connection):
-     `ssh -o BatchMode=yes active-vps '/root/deploy-activemanagement.sh > /root/deploy-activemanagement-last.log 2>&1; echo exit=$?; tail -30 /root/deploy-activemanagement-last.log'`
-     If the connection itself is reset, retry it a few times. If the script fails, read its output: a
-     failed backup, `git pull --ff-only` refused (a change made by hand on the server), a build error,
-     or a container that never became healthy (its last logs are printed). Report that to the user.
+```bash
+curl -s "https://api.github.com/repos/BatrinutSilviu/ActiveManagement/actions/runs?head_sha=$(git rev-parse HEAD)" \
+  | python3 -c "import sys,json;w=json.load(sys.stdin)['workflow_runs'];print(w[0]['status'],w[0]['conclusion'],w[0]['id'],w[0]['html_url']) if w else print('none')"
+```
+
+Which step failed: `curl -s https://api.github.com/repos/BatrinutSilviu/ActiveManagement/actions/runs/<id>/jobs | python3 -c "import sys,json;[print(s['name'],s['conclusion']) for j in json.load(sys.stdin)['jobs'] for s in j['steps']]"`
+
+- Failed at the **build** (npm ci / build / lint): it's in the code. Fix it, commit and push.
+- Failed at **"Deploy over SSH"**: the VPS often resets SSH connections from GitHub. The user has
+  allowed running the deploy on the server directly (see the `vps` skill for the connection):
+  `ssh -o BatchMode=yes active-vps '/root/deploy-activemanagement.sh > /root/deploy-activemanagement-last.log 2>&1; echo exit=$?; tail -30 /root/deploy-activemanagement-last.log'`
+  If the connection itself is reset, retry it a few times. If the script fails, read its output: a
+  failed backup, `git pull --ff-only` refused (a change made by hand on the server), a build error,
+  or a container that never became healthy (its last logs are printed). Report that to the user.
 
 ## Don't
 
