@@ -3,6 +3,11 @@
 Management app for the Active community (people, events, money, points). The same code also runs as
 separate copies for other businesses (Kidokinetiq: a physical-therapy practice). See README.md.
 
+## Push automatically
+
+When a change is finished (and committed after the two passes below), push it and watch the deploy
+with the `deploy` skill, without asking: the user wants every finished change live.
+
 ## Before every commit: clean up, then review
 
 Every commit Claude makes in this repo goes through two passes over the uncommitted changes first,
