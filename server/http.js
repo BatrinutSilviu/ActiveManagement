@@ -13,3 +13,5 @@ export const idParam = (req) => Number(req.params.id);
 
 /** Today as YYYY-MM-DD (UTC, like the dates the database writes). */
 export const today = () => new Date().toISOString().slice(0, 10);
+/** "YYYY-MM-DD" of a moment (ms, Date or ISO text), in Romanian time; null when it isn't a valid moment. */
+export const localDay = (v = Date.now()) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Bucharest' }); };

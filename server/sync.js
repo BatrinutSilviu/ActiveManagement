@@ -3,6 +3,8 @@
 // from hikes.activetimisoara.ro. Each app sends its own record as it is; this file turns it into the
 // fields of an event. See upsertSyncedEvent in domain/eventSync.js for how they're applied.
 
+import { localDay } from './http.js';
+
 // Events dated before this aren't created (older ones were imported from the spreadsheet).
 export const SYNC_FROM = process.env.SYNC_FROM || '2026-11-04';
 
@@ -24,15 +26,20 @@ const prizeList = (list) => (Array.isArray(list) ? list : [])
     partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null,
   }));
 
-// The sign-up list an app sends: [{ name, paid }] (paid = confirmed there), or null when it doesn't send one (older
-// pushes). It becomes [{ name, <tick>: true/false }]: with an advance, being confirmed means the advance is paid
-// (paying the rest is ticked here); without one, it means paid in full.
-const playerList = (list, advance) => (Array.isArray(list)
+// A list of people an app sends: [{ name, paid }] (paid = confirmed there), or null when it doesn't send one (older
+// pushes). It becomes [{ name, <tick>: true/false }], one per name (the last one sent): with an advance, being
+// confirmed means the advance is paid (paying the rest is ticked here); without one, it means paid in full.
+// `more` adds fields from the app's entry.
+const personList = (list, advance, more = () => ({})) => (Array.isArray(list)
   ? [...new Map(list.filter((p) => p && typeof p.name === 'string' && p.name.trim()).map((p) => {
     const name = p.name.trim().replace(/\s+/g, ' ').slice(0, 120);
-    return [name.toLowerCase(), { name, [advance ? 'advance_paid' : 'paid']: !!p.paid }];
+    return [name.toLowerCase(), { name, [advance ? 'advance_paid' : 'paid']: !!p.paid, ...more(p) }];
   })).values()]
   : null);
+
+// Who pulled out, as an app sends it: [{ name, at, byAdmin, paid }] (the latest time for each person not on its list
+// now), or null. It becomes [{ name, date, by_admin, <tick>: true/false }], the tick as in personList.
+const withdrawalList = (list, advance) => personList(list, advance, (w) => ({ date: w.at ? localDay(w.at) : null, by_admin: !!w.byAdmin }));
 
 const PADEL_TYPES = {
   AMERICANO: 'Americano', AMERICANO_CHAMPIONS: 'Americano Champions', AMERICANO_GIRLS: 'Americano Girls',
@@ -72,7 +79,8 @@ function mapPadel(t) {
     // Shown on the public calendar (routes/publicCalendar.js): padel tournaments have no drafts.
     listed: t.status !== 'CANCELLED',
     prizes: prizeList(t.prizes),
-    players: playerList(t.players, num(t.advanceFee) > 0),
+    players: personList(t.players, num(t.advanceFee) > 0),
+    withdrawals: withdrawalList(t.withdrawals, num(t.advanceFee) > 0),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
       planned !== null

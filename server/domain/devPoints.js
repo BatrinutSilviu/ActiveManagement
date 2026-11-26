@@ -14,13 +14,11 @@ import { db, tx } from '../db/connection.js';
 import { getDevPoints, getDevStatus, setDevStatus } from '../db/settings.js';
 import { errorFields, log } from '../log.js';
 import { featureOn } from './business.js';
+import { localDay } from '../http.js';
 
 const ACTIVITY = 'Development & programming';
-const TZ = 'Europe/Bucharest';
 const DAY = 86_400_000;
 
-/** "YYYY-MM-DD" of a moment, in Romanian time. */
-const localDay = (ms) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ });
 /** ISO week of a day ("2026-W48") and its Sunday. */
 function isoWeek(day) {
   const d = new Date(`${day}T12:00:00Z`);

@@ -1050,4 +1050,8 @@ if (!columns('event_discounts').includes('one_off')) {
   db.exec('ALTER TABLE event_discounts ADD COLUMN one_off INTEGER NOT NULL DEFAULT 0');
   db.exec("UPDATE event_discounts SET one_off = 1 WHERE member = 0 AND free IS NULL AND discount_id IS NULL AND kind = 'fixed'");
 }
+// Every drop-out is noted (domain/eventSync.js): the day they dropped out and a note (e.g. taken off by the app's
+// admin). Someone who dropped out having paid nothing is 'refunded': there's nothing to keep.
+if (!columns('event_attendees').includes('dropped_at')) db.exec('ALTER TABLE event_attendees ADD COLUMN dropped_at TEXT');
+if (!columns('event_attendees').includes('drop_note')) db.exec('ALTER TABLE event_attendees ADD COLUMN drop_note TEXT');
 }

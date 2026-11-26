@@ -109,6 +109,9 @@ Tournaments created in the padel app (padel.activetimisoara.ro) and hikes / via 
 
 - Created as live events (hike drafts too, noted as drafts); nothing dated before `SYNC_FROM` (default 2026-11-04).
 - Padel: name, date, entry fee, confirmed players, type and level (in the notes); sport Padel. No location or venue part.
+  Its sign-up list becomes the event's attendees. Everyone who leaves it is kept as **dropped out** (paid or not), on
+  the day padel says they withdrew, noted when a padel admin took them off; someone who'd paid waits for "keep or
+  refund", someone who paid nothing has nothing to keep. Drop-outs can also be added by hand on any event.
 - Hikes: title, dates, destination, confirmed participants, price (hike: entry fee + accommodation, with the
   accommodation as the venue part; via ferrata: its total price); sport Hiking, kind of event Day hike /
   Weekend at a cabin + hike / Via ferrata. Drafts too. Not the hike's notes or description (they're for participants).
