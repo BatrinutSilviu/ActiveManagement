@@ -54,7 +54,7 @@ router.delete('/discounts/:id', (req, res) => {
 
 // Give a person a discount at an event: the member price, free entry (e.g. a founder or organiser —
 // either not counted at all, or with the fee paid by us),
-// one of their saved discounts, or a one-off amount.
+// one of their saved discounts (paid by the general fund), or a one-off amount (comes out of the event's profit).
 router.post('/events/:id/discounts', (req, res) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(idParam(req));
   if (!ev) throw httpError(404, 'Event not found');
@@ -87,9 +87,10 @@ router.post('/events/:id/discounts', (req, res) => {
   need(!ev.participants || given < ev.participants, `All ${ev.participants} participants already have a discount — raise the number of people first`);
   tx(() => {
     try {
-      db.prepare(`INSERT INTO event_discounts (event_id, person_id, name, discount_id, kind, value, amount, note, member, free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      db.prepare(`INSERT INTO event_discounts (event_id, person_id, name, discount_id, kind, value, amount, note, member, free, one_off) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(ev.id, who.person_id, who.name, !member && !free && discount_id ? Number(discount_id) : null, kind, value,
-          discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null);
+          discountAmount(kind, value, ev.participation_fee), note?.trim() || (waive ? 'No community part' : null), member ? 1 : 0, !member && free ? free : null,
+          !member && !free && !discount_id ? 1 : 0); // one-off: comes out of the event's profit
     } catch (e) {
       if (e.status) throw e;
       throw httpError(400, 'This person already pays a reduced price at this event');

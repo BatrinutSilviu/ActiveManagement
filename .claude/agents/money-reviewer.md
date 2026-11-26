@@ -65,8 +65,11 @@ this file gets updated. If neither explains the difference, report it as a possi
   venue's part (Hyrox: 50 = 40 venue + 10 community → a member pays 40). Stored as an `event_discounts`
   row with `member = 1`, worth price − venue part. That reduction is money we **don't get**: it lowers fee
   income and is **never** paid by a fund. Anyone can also be let off the community part the same way.
-- Saved/one-off discounts are paid by the **general fund**: the event counts the fee as paid in full,
+- Saved discounts are paid by the **general fund**: the event counts the fee as paid in full,
   and `fund_paid` is spent from the general fund once the event is finalized.
+- One-off discount amounts (typed by hand; `event_discounts.one_off = 1`) come out of the **event**: like a
+  member price they lower fee income (`oneoff_discounts`, part of `let_off`) and no fund pays them. A saved
+  discount that is later deleted keeps `one_off = 0`, so it stays paid by the general fund.
 - Free entry, two kinds:
   - "**doesn't pay**": as if they never signed up. No fee, **no per-person venue cost**, not counted at
     all. They must never touch venue costs (the user was frustrated when this was misread).

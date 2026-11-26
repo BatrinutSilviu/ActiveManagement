@@ -38,11 +38,14 @@ export function paidInSql(a = 'a', e = 'e') {
 
 // The reduced prices that count, summed per event in one pass (a dropped person's row is left out, see above).
 // Free, we pay: the general fund pays only their venue part; the community part is let off (we don't pay
-// ourselves what they'd have paid us), like a member price.
+// ourselves what they'd have paid us), like a member price. Discounts (`discounts`: all given) are paid by the
+// general fund, except one-off amounts (one_off, only ever set on a discount): they come out of the event.
 const DISCOUNT_SUMS = `
   SELECT d.event_id,
     SUM(CASE WHEN d.member = 0 AND d.free IS NULL THEN d.amount ELSE 0 END) AS discounts,
     COUNT(CASE WHEN d.member = 0 AND d.free IS NULL THEN 1 END) AS discount_count,
+    SUM(CASE WHEN d.one_off = 1 THEN d.amount ELSE 0 END) AS oneoff_discounts,
+    COUNT(CASE WHEN d.one_off = 1 THEN 1 END) AS oneoff_count,
     SUM(CASE WHEN d.free = 'paid' THEN MIN(d.amount, ${VENUE_PART}) ELSE 0 END) AS covered_fees,
     SUM(CASE WHEN d.free = 'paid' THEN d.amount - MIN(d.amount, ${VENUE_PART}) ELSE 0 END) AS covered_waived,
     COUNT(CASE WHEN d.free = 'paid' THEN 1 END) AS covered_count,
@@ -50,7 +53,7 @@ const DISCOUNT_SUMS = `
     COUNT(CASE WHEN d.member = 1 THEN 1 END) AS member_count
   FROM event_discounts d JOIN events e ON e.id = d.event_id
   WHERE NOT ${discountDroppedSql()} GROUP BY d.event_id`;
-const SUM_COLS = ['discounts', 'discount_count', 'covered_fees', 'covered_waived', 'covered_count', 'member_discounts', 'member_count'];
+const SUM_COLS = ['discounts', 'discount_count', 'oneoff_discounts', 'oneoff_count', 'covered_fees', 'covered_waived', 'covered_count', 'member_discounts', 'member_count'];
 
 const EVENT_SQL = `
   SELECT e.*, et.name AS type_name, et.is_sport, et.points_factor, a.name AS activity_name, a.organizer_points AS activity_points,
@@ -109,20 +112,23 @@ function eventPoints(e, profit, rates = getPointsRates()) {
 function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   // Not a sport (e.g. Social): no sport fund, the community's share all goes to the general fund.
   if (e.is_sport === 0) split = { ...split, generalShare: 100 };
-  // Fee income = people × fee − what members don't pay (they pay only the venue's part), plus what we kept from
+  // Fee income = people × fee − what members don't pay (they pay only the venue's part) − one-off discount
+  // amounts (they come out of the event), plus what we kept from
   // people who dropped out (what they paid). A dropped person's member price or discount doesn't count.
   // The venue (people × venue fee, or a fixed total) is an organizing cost. People let in free
   // without signing up aren't counted at all.
-  // Discounts and the venue part of people let in free that we pay for come out of the general
+  // Saved discounts and the venue part of people let in free that we pay for come out of the general
   // community fund, not the event: its fees count those as paid, and `fund_paid` is spent from the
   // general fund once the event is finalized (see computeFunds / computeYear). Their community part is
   // let off (covered_waived): money we don't get, like a member price — we don't pay it to ourselves.
   const feeGross = toRon(e.fee_gross), discounts = toRon(e.discounts), memberDiscounts = toRon(e.member_discounts);
-  const coveredWaived = toRon(e.covered_waived);
+  const coveredWaived = toRon(e.covered_waived), oneoffDiscounts = toRon(e.oneoff_discounts);
   const keptAdvances = toRon(e.kept_advances);
-  const feeIncome = r2(feeGross - memberDiscounts - coveredWaived + keptAdvances), otherIncome = toRon(e.other_income);
+  const letOff = r2(memberDiscounts + coveredWaived + oneoffDiscounts); // money we don't get
+  const feeIncome = r2(feeGross - letOff + keptAdvances), otherIncome = toRon(e.other_income);
   const venueCost = toRon(e.venue_cost), stockCost = toRon(e.stock_cost), coveredFees = toRon(e.covered_fees);
-  const fundPaid = r2(discounts + coveredFees);
+  const fundDiscounts = r2(discounts - oneoffDiscounts);
+  const fundPaid = r2(fundDiscounts + coveredFees);
   const organizing = r2(toRon(e.organizing) + venueCost);
   const benefits = r2(toRon(e.benefit_tx) + stockCost);
   const income = r2(feeIncome + otherIncome), expenses = r2(organizing + benefits);
@@ -132,7 +138,7 @@ function shapeEvent(e, split = getSplit(), rates = getPointsRates()) {
   return {
     points_auto: auto, points: e.points_manual ? pointsSet : auto.total,
     ...rest, budget: toRon(e.budget), community_fee: toRon(e.community_fee), participation_fee: toRon(e.participation_fee), venue_fee: toRon(e.venue_fee), advance_fee: toRon(e.advance_fee), venue_total: toRon(e.venue_total),
-    fee_gross: feeGross, discounts, member_discounts: memberDiscounts, venue_cost: venueCost, kept_advances: keptAdvances, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
+    fee_gross: feeGross, discounts, oneoff_discounts: oneoffDiscounts, fund_discounts: fundDiscounts, fund_discount_count: e.discount_count - e.oneoff_count, let_off: letOff, member_discounts: memberDiscounts, venue_cost: venueCost, kept_advances: keptAdvances, fee_income: feeIncome, other_income: otherIncome, organizing, benefits, stock_cost: stockCost, covered_fees: coveredFees, covered_waived: coveredWaived, fund_paid: fundPaid,
     income, expenses, profit, split: splitProfit(profit, split),
   };
 }

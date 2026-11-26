@@ -14,7 +14,7 @@ import { t } from '../../i18n/index.js';
 const FREE_LABELS = { skip: 'Free, not counted', paid: 'Free, the fund pays the venue' }; // English; translated where shown
 const isFree = (d) => !!d.free;
 const discountName = (d, venuePart) => (d.member ? t(d.note === 'No community part' ? 'Only the venue' : 'Only the venue (member)')
-  : d.free === 'paid' && !(venuePart > 0) ? t('Free, counted') : t(FREE_LABELS[d.free]) || d.discount_name || t('One-off'));
+  : d.free === 'paid' && !(venuePart > 0) ? t('Free, counted') : t(FREE_LABELS[d.free]) || d.discount_name || t(d.one_off ? 'One-off' : 'Deleted discount'));
 const discountWorth = (d, fee) => (d.kind === 'percent' ? (fee * d.value) / 100 : Math.min(d.value, fee));
 
 /** People who paid less (or nothing) at this event, with the discount they got. */
@@ -75,9 +75,9 @@ export default function Discounts({ e, reload }) {
         <div>
           <h2>{t('Members & discounts')}</h2>
           <p>{t('{n} of {count} people paid less · price {price}', { n: e.discountList.filter((d) => !d.dropped).length, count: e.participants, price: money(e.participation_fee) })}
-            {memberPrice ? ` · ${t('members pay {amount}', { amount: money(e.venue_fee) })}` : ''}. {t('Community parts let off (people who pay only the venue, or nothing while counted) are money we don’t get; discounts, and the venue part of free people the fund pays for, are paid by the general fund, not this event.')}</p>
+            {memberPrice ? ` · ${t('members pay {amount}', { amount: money(e.venue_fee) })}` : ''}. {t('Community parts let off (people who pay only the venue, or nothing while counted) are money we don’t get; one-off amounts come out of this event too; saved discounts, and the venue part of free people the fund pays for, are paid by the general fund, not this event.')}</p>
         </div>
-        {e.member_discounts + (e.covered_waived || 0) > 0 && <span className="neg" title={t('Community parts let off: money we don’t get')}>−{money(e.member_discounts + (e.covered_waived || 0))}</span>}
+        {e.let_off > 0 && <span className="neg" title={t('Community parts let off and one-off amounts: money we don’t get')}>−{money(e.let_off)}</span>}
       </div>
       <CardError error={error} />
       {e.discountList.length > 0 && (
@@ -120,7 +120,7 @@ export default function Discounts({ e, reload }) {
               {others.map((d) => <option key={d.id} value={d.id}>{d.name} ({discountLabel(d)})</option>)}
             </optgroup>
           )}
-          <option value="custom">{t('One-off amount…')}</option>
+          <option value="custom">{t('One-off amount… (comes out of this event’s profit)')}</option>
         </Select>
         {f.discount_id === 'custom' && (
           <input className="select-sm num-input" type="number" min="0.01" step="0.01" placeholder={CURRENCY} value={f.amount}

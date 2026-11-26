@@ -90,7 +90,7 @@ router.get('/stats', (req, res) => {
   const incomeByCategory = byCategory('income');
   const feeIncome = sumBy(held, (e) => e.fee_income);
   const discountsGiven = sumBy(held, (e) => e.discounts);
-  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × price − member prices)', total: feeIncome });
+  if (feeIncome) incomeByCategory.push({ name: 'Participation fees (people × price − member prices and one-off discounts)', total: feeIncome });
   const merge = (list) => [...list.reduce((m, x) => m.set(x.name, (m.get(x.name) || 0) + x.total), new Map())]
     .map(([name, total]) => ({ name, total: r2(total) })).sort((a, b) => b.total - a.total);
 

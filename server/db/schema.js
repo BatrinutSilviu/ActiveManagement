@@ -1042,4 +1042,12 @@ db.exec(`CREATE TABLE IF NOT EXISTS dev_weeks (
   commits INTEGER NOT NULL,
   updated_at TEXT NOT NULL
 )`);
+// One-off discount amounts (typed by hand, not a saved discount) come out of the event's profit, like a member
+// price; saved discounts are paid by the general fund (finance.js). A flag rather than discount_id IS NULL, since
+// deleting a saved discount sets discount_id to NULL. Rows from before: fixed amounts without a saved discount (a %
+// row with none is a deleted saved discount; a deleted fixed saved discount can't be told apart).
+if (!columns('event_discounts').includes('one_off')) {
+  db.exec('ALTER TABLE event_discounts ADD COLUMN one_off INTEGER NOT NULL DEFAULT 0');
+  db.exec("UPDATE event_discounts SET one_off = 1 WHERE member = 0 AND free IS NULL AND discount_id IS NULL AND kind = 'fixed'");
+}
 }

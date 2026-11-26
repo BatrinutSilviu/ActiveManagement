@@ -89,6 +89,14 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
   const feeIncome = people * fee;
   const fixedVenue = f.venue_mode === 'fixed';
   const venueCost = fixedVenue ? Number(f.venue_total) || 0 : people * venue;
+  // What the event page took off the fees (members, free people's community part, one-off amounts) and what the
+  // general fund pays.
+  const reductions = [
+    event?.member_discounts && `− ${t('{amount} let off to people paying only the venue', { amount: money(event.member_discounts) })}`,
+    event?.covered_waived && `− ${t('{amount} community part let off to free people', { amount: money(event.covered_waived) })}`,
+    event?.oneoff_discounts && `− ${t('{amount} one-off discounts', { amount: money(event.oneoff_discounts) })}`,
+    event?.fund_paid && t('{amount} paid by the general fund (discounts, venue part of free people)', { amount: money(event.fund_paid) }),
+  ].filter(Boolean);
   const active = allPeople?.filter((p) => p.active) || [];
 
   const save = async () => {
@@ -182,9 +190,7 @@ export default function EventForm({ event, copyOf, copyCosts = 0, onClose, onSav
           {t('Income from fees:')} <strong>{money(feeIncome)}</strong>
           <span className="muted"> ({people} × {money(fee)})</span>
           {venueCost > 0 && <> · {t('venue:')} <strong>−{money(venueCost)}</strong><span className="muted">{fixedVenue ? ` (${t('fixed')})` : ` (${people} × ${money(venue)})`}</span></>}
-          <span className="muted">{event?.member_discounts || event?.fund_paid
-            ? `${event.member_discounts ? ` · − ${t('{amount} let off to people paying only the venue', { amount: money(event.member_discounts) })}` : ''}${event.fund_paid ? ` · ${t('{amount} discounts paid by the general fund', { amount: money(event.fund_paid) })}` : ''}`
-            : ` · ${t('members and discounts are added on the event page')}`}</span>
+          <span className="muted">{reductions.length ? reductions.map((r) => ` · ${r}`).join('') : ` · ${t('members and discounts are added on the event page')}`}</span>
         </div>
         <label className="field">{t('Starts at')} <span className="hint">{t('(optional)')}</span>
           <input type="time" value={f.start_time || ''} onChange={set('start_time')} />

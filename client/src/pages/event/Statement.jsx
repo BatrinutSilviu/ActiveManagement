@@ -23,6 +23,7 @@ export default function Statement({ e, split }) {
           : `${e.counted_participants} × ${money(e.participation_fee)}`}{e.free_skip_count > 0 ? ` · ${t('{n} free not counted', { n: e.free_skip_count })}` : ''}</span></dt><dd>{money(e.fee_gross)}</dd>
         {e.member_discounts > 0 && <><dt>{t('Paid only the venue')} <span className="muted">{t('{n} paid {amount} each; the community part is let off', { n: e.member_count, amount: money(e.venue_fee) })}</span></dt><dd className="neg">−{money(e.member_discounts)}</dd></>}
         {e.covered_waived > 0 && <><dt>{t(e.covered_fees > 0 ? 'Free, the fund pays the venue' : 'Free, counted')} <span className="muted">{e.covered_fees > 0 ? t('{n} free; the fund pays their venue ({amount}), the community part is let off', { n: e.covered_count, amount: money(e.covered_fees) }) : t('{n} free; the community part is let off', { n: e.covered_count })}</span></dt><dd className="neg">−{money(e.covered_waived)}</dd></>}
+        {e.oneoff_discounts > 0 && <><dt>{t('One-off discounts')} <span className="muted">{tn(e.oneoff_count, '{n} person paid less; this event pays it', '{n} people paid less; this event pays it')}</span></dt><dd className="neg">−{money(e.oneoff_discounts)}</dd></>}
         {e.kept_advances > 0 && <><dt>{t('Kept from people who dropped out')}</dt><dd>{money(e.kept_advances)}</dd></>}
         {e.other_income > 0 && <><dt>{t('Other income')} <span className="muted">{t('sponsors, etc.')}</span></dt><dd>{money(e.other_income)}</dd></>}
         <dt>{t('Organizing costs')} <span className="muted">{e.venue_cost > 0 ? `${e.venue_mode === 'fixed' ? t('venue {amount} fixed', { amount: money(e.venue_cost) }) : t('venue {n} × {fee}', { n: e.counted_participants, fee: money(e.venue_fee) })}${e.organizing > e.venue_cost ? ` + ${t('other costs')}` : ''}` : t('venues, trainers…')}</span></dt><dd className={e.organizing ? 'neg' : ''}>{e.organizing ? '−' : ''}{money(e.organizing)}</dd>
@@ -32,7 +33,7 @@ export default function Statement({ e, split }) {
       {e.fund_paid > 0 && (
         <p className="hint" style={{ margin: '10px 0 0' }}>
           {t(e.status === 'completed' ? 'Paid by the general community fund, not this event:' : 'Paid by the general community fund when finalized, not this event:')} <b>{money(e.fund_paid)}</b>
-          {' '}({[e.discounts > 0 && tn(e.discount_count, '{amount} discounts for {n} person', '{amount} discounts for {n} people', { amount: money(e.discounts) }),
+          {' '}({[e.fund_discounts > 0 && tn(e.fund_discount_count, '{amount} discounts for {n} person', '{amount} discounts for {n} people', { amount: money(e.fund_discounts) }),
             e.covered_fees > 0 && tn(e.covered_count, '{amount} venue part of {n} free person', '{amount} venue part of {n} free people', { amount: money(e.covered_fees) })].filter(Boolean).join(' · ')}).
           {' '}{t('The fees above count that as paid.')}
         </p>
