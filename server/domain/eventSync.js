@@ -5,6 +5,7 @@ import { SOURCES, SYNC_FROM, SYNCED_FIELDS } from '../sync.js';
 import { toBani } from './money.js';
 import { whoIs } from './people.js';
 import { repriceEvent } from './pricing.js';
+import { LIVE } from '../finance.js';
 
 // Applies the records pushed by the community's other apps (POST /api/integrations/events, see routes/integrations.js)
 // to our events; sync.js turns each app's record into the fields of an event.
@@ -110,6 +111,24 @@ export function upsertSyncedEvent(source, externalId, record) {
   return { action: keys.length ? 'updated' : 'unchanged', id: ev.id, fields: keys };
 }
 
+/**
+ * An app's list of the events it still has from `from` on (its nightly check): our live events from that app in that
+ * range that aren't on it were deleted there while a push was lost, so they're cancelled like a delete push. An empty
+ * list changes nothing (it may be a broken query rather than no events). Finalized events are never touched, nor
+ * ones pushed in the last hour: one created there after the app read its list would otherwise be cancelled (and a
+ * cancelled event isn't brought back by later pushes).
+ */
+export function cancelMissing(source, ids, from) {
+  need(Array.isArray(ids), 'ids must be a list');
+  need(isDate(from), 'from must be a date');
+  if (!ids.length) return [];
+  const known = new Set(ids.map(String));
+  return db.prepare(`SELECT external_id FROM events WHERE source = ? AND date >= ? AND status = ?
+    AND (synced_at IS NULL OR synced_at < datetime('now', '-1 hour'))`).all(source, from, LIVE)
+    .filter((e) => !known.has(e.external_id))
+    .map((e) => ({ ...upsertSyncedEvent(source, e.external_id, null), external_id: e.external_id }));
+}
+
 // The app's sign-up list (m.players) becomes the event's attendees, on every push: who signed up is added, who
 // left is kept as dropped out (every drop-out is noted, paid or not; see dropOut). Only the attendees that came from
 // the app (synced) are ever dropped — the ones added here by hand stay; a name already on the list by hand becomes
@@ -119,24 +138,59 @@ export function upsertSyncedEvent(source, externalId, record) {
 const TICKS = ['paid', 'advance_paid'];
 function syncAttendees(eventId, m, before) {
   if (!Array.isArray(m.players)) return false;
-  const was = new Map((before.players || []).map((p) => [foldName(p.name), p]));
-  const rows = db.prepare('SELECT * FROM event_attendees WHERE event_id = ?').all(eventId);
-  const byName = new Map(rows.map((r) => [foldName(r.name), r]));
-  const want = new Set(m.players.map((p) => foldName(p.name)));
-  let changed = false;
-  for (const p of m.players) {
-    const key = foldName(p.name), prev = was.get(key);
-    const row = byName.get(key);
-    if (!row) {
-      const who = whoIs({ name: p.name });
-      db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, advance_paid, synced) VALUES (?, ?, ?, ?, ?, 1)')
-        .run(eventId, who.person_id, who.name, p.paid ? 1 : 0, p.advance_paid ? 1 : 0);
-      changed = true;
-      continue;
+  // People are matched by the app's id for them (ref) when it sends one, else by name — but never to someone with a
+  // different id (two people with the same name stay two).
+  const index = (list) => {
+    const refOf = (x) => x.ref ?? x.external_ref ?? null;
+    const byRef = new Map(), byName = new Map();
+    for (const x of list) {
+      if (refOf(x)) byRef.set(refOf(x), x);
+      byName.set(foldName(x.name), x);
     }
+    return (p) => {
+      const ref = refOf(p), same = byName.get(foldName(p.name));
+      return (ref && byRef.get(ref)) || (same && (!ref || !refOf(same) || refOf(same) === ref) ? same : undefined);
+    };
+  };
+  const prevOf = index(before.players || []);
+  const rows = db.prepare('SELECT * FROM event_attendees WHERE event_id = ?').all(eventId);
+  let rowOf = index(rows);
+  const onList = new Set(); // ids of the rows the app lists now
+  let changed = false;
+  const insert = (p, extra = {}) => {
+    let who = whoIs({ name: p.name });
+    // Someone else here already has this name (two people with the same name there): "Name (2)", not linked to People.
+    const taken = (n) => rows.some((r) => foldName(r.name) === foldName(n));
+    if (taken(who.name)) {
+      let k = 2;
+      while (taken(`${who.name} (${k})`)) k++;
+      who = { person_id: null, name: `${who.name} (${k})` };
+    }
+    const row = { event_id: eventId, person_id: who.person_id, name: who.name, paid: p.paid ? 1 : 0, advance_paid: p.advance_paid ? 1 : 0,
+      synced: 1, external_ref: p.ref ?? null, ...extra };
+    const keys = Object.keys(row);
+    row.id = Number(db.prepare(`INSERT INTO event_attendees (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`)
+      .run(...keys.map((k) => row[k])).lastInsertRowid);
+    rows.push(row);
+    rowOf = index(rows);
+    changed = true;
+    return row;
+  };
+  for (const p of m.players) {
+    const prev = prevOf(p);
+    const row = rowOf(p);
+    if (!row) { onList.add(insert(p).id); continue; }
+    onList.add(row.id);
     // The app is the source of truth: someone on its list is coming (signed up again after dropping out, or a
     // drop marked here by hand), and only leaving the app's list makes them dropped out (see below).
-    const next = { synced: 1, dropped: null, dropped_at: null, drop_note: null };
+    const next = { synced: 1, dropped: null, dropped_at: null, drop_note: null, external_ref: p.ref ?? row.external_ref };
+    // Renamed there (matched by ref): someone from People keeps their People name (their discount rows use it);
+    // anyone else takes the new name, and so do their discount rows at this event, unless someone else has it.
+    if (!row.person_id && foldName(p.name) !== foldName(row.name) && !rows.some((r) => r !== row && foldName(r.name) === foldName(p.name))) {
+      const who = whoIs({ name: p.name });
+      db.prepare('UPDATE event_discounts SET name = ? WHERE event_id = ? AND fold(name) = ?').run(who.name, eventId, foldName(row.name));
+      Object.assign(next, { name: who.name, person_id: who.person_id });
+    }
     for (const k of TICKS) {
       if (typeof p[k] !== 'boolean' || prev?.[k] === p[k]) continue;
       // A hand-added row the app now has too: ticked if either says so.
@@ -145,29 +199,30 @@ function syncAttendees(eventId, m, before) {
     const keys = Object.keys(next).filter((k) => next[k] !== row[k]);
     if (keys.length) {
       db.prepare(`UPDATE event_attendees SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => next[k]), row.id);
+      Object.assign(row, next);
       changed = true;
     }
   }
   // Gone from the app's list: dropped out, on the day the app says (else today), with who took them off.
-  const withdrawn = new Map((Array.isArray(m.withdrawals) ? m.withdrawals : []).map((w) => [foldName(w.name), w]));
+  const withdrawals = Array.isArray(m.withdrawals) ? m.withdrawals : [];
+  const withdrawalOf = index(withdrawals);
   for (const r of rows) {
-    if (!r.synced || want.has(foldName(r.name)) || r.dropped) continue;
+    if (!r.synced || onList.has(r.id) || r.dropped) continue;
     // The app says they'd been confirmed (paid) but that never reached us (e.g. confirmed and withdrawn between two
     // pushes): ticked now, so keeping or refunding it can be decided here. A tick the app had sent and someone
     // cleared here stays cleared.
-    const key = foldName(r.name), w = withdrawn.get(key);
-    const fromApp = (k) => (r[k] || (w?.[k] && was.get(key)?.[k] !== true) ? 1 : 0);
+    const w = withdrawalOf(r), prev = prevOf(r);
+    const fromApp = (k) => (r[k] || (w?.[k] && prev?.[k] !== true) ? 1 : 0);
     const ticks = { paid: fromApp('paid'), advance_paid: fromApp('advance_paid') };
     db.prepare('UPDATE event_attendees SET paid = ?, advance_paid = ?, dropped = ?, dropped_at = ?, drop_note = ? WHERE id = ?')
       .run(ticks.paid, ticks.advance_paid, ...dropOut(ticks, w), r.id);
     changed = true;
   }
-  for (const [key, w] of withdrawn) {
-    if (byName.has(key) || want.has(key)) continue;
-    const who = whoIs({ name: w.name });
-    db.prepare('INSERT INTO event_attendees (event_id, person_id, name, paid, advance_paid, synced, dropped, dropped_at, drop_note) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)')
-      .run(eventId, who.person_id, who.name, w.paid ? 1 : 0, w.advance_paid ? 1 : 0, ...dropOut(w, w));
-    changed = true;
+  // Someone the app says pulled out whom we never had.
+  for (const w of withdrawals) {
+    if (rowOf(w)) continue;
+    const [dropped, dropped_at, drop_note] = dropOut(w, w);
+    insert(w, { dropped, dropped_at, drop_note });
   }
   return changed;
 }

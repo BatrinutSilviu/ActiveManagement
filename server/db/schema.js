@@ -1054,4 +1054,7 @@ if (!columns('event_discounts').includes('one_off')) {
 // admin). Someone who dropped out having paid nothing is 'refunded': there's nothing to keep.
 if (!columns('event_attendees').includes('dropped_at')) db.exec('ALTER TABLE event_attendees ADD COLUMN dropped_at TEXT');
 if (!columns('event_attendees').includes('drop_note')) db.exec('ALTER TABLE event_attendees ADD COLUMN drop_note TEXT');
+// The app's own id for a synced attendee (padel player, events-site sign-up): matched before the name, so someone
+// renamed there stays the same attendee here.
+if (!columns('event_attendees').includes('external_ref')) db.exec('ALTER TABLE event_attendees ADD COLUMN external_ref TEXT');
 }

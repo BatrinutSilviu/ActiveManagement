@@ -103,8 +103,8 @@ and fund movements as one import that can be undone from the Import page. Runnin
 
 ## Events from the padel and hikes apps
 
-Tournaments created in the padel app (padel.activetimisoara.ro) and hikes / via ferratas published in the hikes app
-(hikes.activetimisoara.ro) become events here automatically. Both apps push every change to
+Tournaments created in the padel app (padel.activetimisoara.ro) and hikes, via ferratas and general events (member
+events too) from the events site (hikes.activetimisoara.ro) become events here automatically. Both apps push every change to
 `POST /api/integrations/events` with a shared secret; the mapping is in `server/sync.js`.
 
 - Created as live events (hike drafts too, noted as drafts); nothing dated before `SYNC_FROM` (default 2026-11-04).
@@ -115,8 +115,15 @@ Tournaments created in the padel app (padel.activetimisoara.ro) and hikes / via 
 - Hikes: title, dates, destination, confirmed participants, price (hike: entry fee + accommodation, with the
   accommodation as the venue part; via ferrata: its total price); sport Hiking, kind of event Day hike /
   Weekend at a cabin + hike / Via ferrata. Drafts too. Not the hike's notes or description (they're for participants).
+  General events: their event type, entry fee, meeting point and times.
+- Both apps send their sign-up lists (everyone signed up, friends and waiting list too; ticked paid when confirmed)
+  and who pulled out (from padel's withdrawals / the events site's sign-up history), so the attendees and drop-outs
+  here stay in step. The money still uses the confirmed count.
 - Later changes only update the fields that changed in that app, so corrections made here are kept.
   Finalized events are never changed. Cancelled or deleted there → cancelled here (never deleted).
+- Nightly, both apps send every event from 7 days ago on again (and the events site every one still running), and
+  padel sends the ids it still has (`POST /api/integrations/events/known`): live padel events it no longer has are
+  cancelled here, in case a delete push was lost.
 - The event page links back to the tournament / hike.
 
 Setup — one secret shared by the three apps (e.g. `openssl rand -hex 32`):

@@ -26,20 +26,25 @@ const prizeList = (list) => (Array.isArray(list) ? list : [])
     partner: typeof p.partner === 'string' && p.partner.trim() ? p.partner.trim() : null,
   }));
 
-// A list of people an app sends: [{ name, paid }] (paid = confirmed there), or null when it doesn't send one (older
-// pushes). It becomes [{ name, <tick>: true/false }], one per name (the last one sent): with an advance, being
-// confirmed means the advance is paid (paying the rest is ticked here); without one, it means paid in full.
-// `more` adds fields from the app's entry.
-const personList = (list, advance, more = () => ({})) => (Array.isArray(list)
+// A list of people an app sends: [{ name, ref, paid }] (ref = the app's own id for that person, so a rename stays the
+// same attendee; paid = confirmed there), or null when it doesn't send one (older pushes). It becomes
+// [{ name, ref, <tick>: true/false }], one per person (the last one sent). `tick` (see tickFor) is the box being
+// confirmed ticks; on a free event (null) confirmed only means coming, so nothing is paid. `more` adds fields from
+// the app's entry.
+const personList = (list, tick, more = () => ({})) => (Array.isArray(list)
   ? [...new Map(list.filter((p) => p && typeof p.name === 'string' && p.name.trim()).map((p) => {
     const name = p.name.trim().replace(/\s+/g, ' ').slice(0, 120);
-    return [name.toLowerCase(), { name, [advance ? 'advance_paid' : 'paid']: !!p.paid, ...more(p) }];
+    const ref = typeof p.ref === 'string' && p.ref ? p.ref.slice(0, 64) : null;
+    return [ref ?? name.toLowerCase(), { name, ref, ...(tick ? { [tick]: !!p.paid } : { paid: false }), ...more(p) }];
   })).values()]
   : null);
+/** What being confirmed ticks: with an advance the advance (paying the rest is ticked here), else paid in full;
+ *  nothing on a free event. */
+const tickFor = (price, advance) => (price > 0 ? (advance > 0 ? 'advance_paid' : 'paid') : null);
 
 // Who pulled out, as an app sends it: [{ name, at, byAdmin, paid }] (the latest time for each person not on its list
-// now), or null. It becomes [{ name, date, by_admin, <tick>: true/false }], the tick as in personList.
-const withdrawalList = (list, advance) => personList(list, advance, (w) => ({ date: w.at ? localDay(w.at) : null, by_admin: !!w.byAdmin }));
+// now), or null. It becomes [{ name, ref, date, by_admin, <tick>: true/false }], the tick as in personList.
+const withdrawalList = (list, tick) => personList(list, tick, (w) => ({ date: w.at ? localDay(w.at) : null, by_admin: !!w.byAdmin }));
 
 const PADEL_TYPES = {
   AMERICANO: 'Americano', AMERICANO_CHAMPIONS: 'Americano Champions', AMERICANO_GIRLS: 'Americano Girls',
@@ -79,8 +84,8 @@ function mapPadel(t) {
     // Shown on the public calendar (routes/publicCalendar.js): padel tournaments have no drafts.
     listed: t.status !== 'CANCELLED',
     prizes: prizeList(t.prizes),
-    players: personList(t.players, num(t.advanceFee) > 0),
-    withdrawals: withdrawalList(t.withdrawals, num(t.advanceFee) > 0),
+    players: personList(t.players, tickFor(num(t.entryFee), num(t.advanceFee))),
+    withdrawals: withdrawalList(t.withdrawals, tickFor(num(t.entryFee), num(t.advanceFee))),
     notes: lines(
       `${type}${level ? ` · ${level}` : ''}`,
       planned !== null
@@ -118,6 +123,7 @@ function mapHike(h) {
     venue_fee: lodging || null,
     status: h.status === 'cancelled' ? 'cancelled' : 'planned',
     listed: h.status !== 'draft' && h.status !== 'cancelled',
+    ...signUps(h, price),
     // No notes: a hike's details and description are written for its participants, not for this app.
   };
 }
@@ -139,8 +145,12 @@ function mapGeneralEvent(h) {
     venue_fee: null,
     status: h.status === 'cancelled' ? 'cancelled' : 'planned',
     listed: h.status !== 'draft' && h.status !== 'cancelled',
+    ...signUps(h, num(h.entryFee)),
   };
 }
+
+// The events site's sign-up list (everyone signed up, friends too; paid = confirmed) and who pulled out, like padel's.
+const signUps = (h, price) => ({ players: personList(h.players, tickFor(price, 0)), withdrawals: withdrawalList(h.withdrawals, tickFor(price, 0)) });
 
 export const SOURCES = {
   padel: { label: 'Padel app', map: mapPadel },
