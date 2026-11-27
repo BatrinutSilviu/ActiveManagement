@@ -97,7 +97,7 @@ this file gets updated. If neither explains the difference, report it as a possi
 - Purchases give the buyer points (two kinds, each with its own points-per-RON rate in Settings: usual
   items/prizes and partnership merchandise). Those points join the month's pool. Merch's rate is 0 by the
   user's decision (2026-11-27): merch work is given points by hand (new product/partnership 3–8, ordering 1,
-  pick-up and distribution 0.5 each).
+  pick-up & distribution 1 per batch).
 - Sales (`stock_sales`, `saleLines`): selling stock takes it off the founder who had it; the money is income
   in the fund of the product's category (like its purchases) — never in event profit or the monthly pool.
   The seller gets points = profit ÷ salesStep × salesPoints (default 1 per 100 RON), profit = (sale price −
