@@ -38,7 +38,7 @@ export function ContributionForm({ month, item, onClose, onSaved }) {
     <Modal title={item ? t('Edit contribution') : t('Add points')} onClose={onClose} onSubmit={save}
       footer={<><button type="button" className="btn" onClick={onClose}>{t('Cancel')}</button><button className="btn btn-primary">{t('Save')}</button></>}>
       {error && <div className="error-box">{error}</div>}
-      <p className="hint" style={{ margin: 0 }}>{t('For work that isn’t an event in the app — a partnership, a promo event, a free event with a partner club. People get points for event tasks on the event page.')}</p>
+      <p className="hint" style={{ margin: 0 }}>{t('For work that isn’t an event in the app — a partnership, a promo event, a free event with a partner club, testing the site, a bug found, an idea that got built, picking up or handing out merch. For a per-hour activity, type hours × its points, rounded to half hours. People get points for event tasks on the event page.')}</p>
       <div className="form-grid">
         <label className="field">{t('Person')}
           <Select value={f.person_id} onChange={set('person_id')} required>

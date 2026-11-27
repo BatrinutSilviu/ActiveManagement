@@ -72,6 +72,24 @@ function addActivities() {
   ].forEach(([name, op, omax, cp, cmax, s], i) => ins.run(name, op, omax, cp, cmax, sport(s), i));
 }
 
+// Points for helping outside events, given by hand as contributions (Payouts → Add points): picking the activity
+// fills in its points, which stay editable (e.g. hours of testing × the per-hour points). Buying merch earns points on
+// its own (the merch rate in Settings → Points); these are for the other work around the site and the merch.
+const HELP_ACTIVITIES = [
+  ['Testing the site (per hour)', 1],
+  ['Bug found', 1],
+  ['Idea that got built', 2],
+  ['Merch pick-up', 1],
+  ['Merch distribution (per session)', 1],
+];
+function addHelpActivities() {
+  const ins = db.prepare(`INSERT INTO activities (name, organizer_points, co_points, sort)
+    SELECT ?, ?, 0, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities) WHERE NOT EXISTS (SELECT 1 FROM activities WHERE name = ?)`);
+  for (const [name, pts] of HELP_ACTIVITIES) ins.run(name, pts, name);
+  // Added once: one an admin deletes stays deleted.
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('migrated:help-activities', ?)").run(new Date().toISOString());
+}
+
 /** The starting data for a new business of this type, added at first-run setup (on an empty database). */
 export function seedBusiness(type) {
   tx(() => {
@@ -84,6 +102,7 @@ export function seedBusiness(type) {
       db.prepare(`INSERT INTO activities (name, organizer_points, co_points, people_step, people_points, money_step, money_points, sort,
         sport_id) VALUES ('Social event', 1, 1, 10, 1, 500, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities),
         (SELECT id FROM event_types WHERE name = 'Social'))`).run();
+      addHelpActivities();
     } else {
       // A practice adds its own services in Settings (where a session happens is its venue, not a service).
       addCategories(PRACTICE_CATEGORIES);
@@ -1057,4 +1076,6 @@ if (!columns('event_attendees').includes('drop_note')) db.exec('ALTER TABLE even
 // The app's own id for a synced attendee (padel player, events-site sign-up): matched before the name, so someone
 // renamed there stays the same attendee here.
 if (!columns('event_attendees').includes('external_ref')) db.exec('ALTER TABLE event_attendees ADD COLUMN external_ref TEXT');
+// The help activities (testing, bugs, ideas, merch pick-up and distribution) for a community from before them.
+if (community && !db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:help-activities'").get()) addHelpActivities();
 }
