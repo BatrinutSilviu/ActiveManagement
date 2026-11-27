@@ -76,9 +76,8 @@ function addActivities() {
 // fills in its points, which stay editable (e.g. hours of testing × the per-hour points). Buying merch earns points on
 // its own (the merch rate in Settings → Points); these are for the other work around the site and the merch.
 const HELP_ACTIVITIES = [
-  ['Testing the site (per hour)', 1],
-  ['Bug found', 1],
-  ['Idea that got built', 2],
+  ['Ideas & research (per hour)', 1],   // research, finding new features and ideas
+  ['Testing & bugs (per hour)', 1],     // testing the apps and finding bugs
   ['Merch pick-up', 1],
   ['Merch distribution (per session)', 1],
 ];
@@ -1076,6 +1075,6 @@ if (!columns('event_attendees').includes('drop_note')) db.exec('ALTER TABLE even
 // The app's own id for a synced attendee (padel player, events-site sign-up): matched before the name, so someone
 // renamed there stays the same attendee here.
 if (!columns('event_attendees').includes('external_ref')) db.exec('ALTER TABLE event_attendees ADD COLUMN external_ref TEXT');
-// The help activities (testing, bugs, ideas, merch pick-up and distribution) for a community from before them.
+// The help activities (HELP_ACTIVITIES) for a community from before them.
 if (community && !db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:help-activities'").get()) addHelpActivities();
 }
