@@ -72,19 +72,22 @@ function addActivities() {
   ].forEach(([name, op, omax, cp, cmax, s], i) => ins.run(name, op, omax, cp, cmax, sport(s), i));
 }
 
-// Points for helping outside events, given by hand as contributions (Payouts → Add points): picking the activity
-// fills in its points, which stay editable (e.g. hours of testing × the per-hour points). Buying merch earns points on
-// its own (the merch rate in Settings → Points); these are for the other work around the site and the merch.
+// Points for helping outside events, given by hand as contributions (Payouts → Add points): picking the activity fills
+// in its points (or the lower end of its range), which stay editable (e.g. hours × the per-hour points). Merch is
+// rewarded for the work, not what it cost (buying it earns no points, see merchPoints): setting up a product or
+// partnership is the hard part, then each batch ordered, then picking it up and handing it out.
 const HELP_ACTIVITIES = [
   ['Ideas & research (per hour)', 1],   // research, finding new features and ideas
   ['Testing & bugs (per hour)', 1],     // testing the apps and finding bugs
-  ['Merch pick-up', 1],
-  ['Merch distribution (per session)', 1],
+  ['New merch product or partnership', 3, 8], // research, supplier, samples, design
+  ['Merch: taking orders & ordering (per batch)', 2],
+  ['Merch pick-up', 0.5],
+  ['Merch distribution (per session)', 0.5],
 ];
 function addHelpActivities() {
-  const ins = db.prepare(`INSERT INTO activities (name, organizer_points, co_points, sort)
-    SELECT ?, ?, 0, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities) WHERE NOT EXISTS (SELECT 1 FROM activities WHERE name = ?)`);
-  for (const [name, pts] of HELP_ACTIVITIES) ins.run(name, pts, name);
+  const ins = db.prepare(`INSERT INTO activities (name, organizer_points, organizer_max, co_points, sort)
+    SELECT ?, ?, ?, 0, (SELECT COALESCE(MAX(sort), 0) + 1 FROM activities) WHERE NOT EXISTS (SELECT 1 FROM activities WHERE name = ?)`);
+  for (const [name, pts, max = null] of HELP_ACTIVITIES) ins.run(name, pts, max, name);
   // Added once: one an admin deletes stays deleted.
   db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('migrated:help-activities', ?)").run(new Date().toISOString());
 }

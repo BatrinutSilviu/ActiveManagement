@@ -81,6 +81,7 @@ export default {
   'Paid earlier, already counted in the budget: don’t take it out of the fund again': 'Plătit mai demult, deja socotit în buget: nu-l mai scoate din fond',
   '{n} points': '{n} puncte',
   '{pts} per {step} {currency} for {kind}': '{pts} la fiecare {step} {currency} pentru {kind}',
+  'No points for buying merch: the work on it is given points in Payouts → Add points (a new product or partnership, ordering, pick-up, distribution).': 'Cumpărarea merch-ului nu aduce puncte: munca pentru el primește puncte din Plăți → Adaugă puncte (un produs sau parteneriat nou, comanda, ridicarea, împărțirea).',
   'Delete this purchase? {qty} {unit} of {item} are taken back from {holder} and {person} loses its {points} points.': 'Ștergi această achiziție? {qty} {unit} de {item} se iau înapoi de la {holder}, iar {person} pierde cele {points} puncte.',
   'the holder': 'cel care le ține',
   'Points': 'Puncte',
@@ -455,8 +456,8 @@ export default {
   // where stock comes from (PurchaseFields, MoveForm), and correcting a purchase that wasn't one (Purchases)
   'Bought now': 'Cumpărat acum', 'From another founder': 'De la alt fondator', 'We already had it (no cost)': 'Îl aveam deja (fără cost)',
   'Where does it come from?': 'De unde vine?', 'Choose where it comes from': 'Alege de unde vine',
-  'Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points.':
-    'Plătit din fondul categoriei sale (categoria unui sport → fondul acelui sport, altfel fondul general); cumpărătorul primește puncte.',
+  'Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points for usual items and prizes.':
+    'Plătit din fondul categoriei sale (categoria unui sport → fondul acelui sport, altfel fondul general); cumpărătorul primește puncte pentru obiectele obișnuite și premii.',
   'Passed on between founders: no money, no points.': 'Dat de la un fondator la altul: fără bani, fără puncte.',
   'Already ours, or given to us: no money, no points.': 'Era deja al nostru sau ne-a fost dat: fără bani, fără puncte.',
   'Choose one: only “Bought now” spends money.': 'Alege una: doar „Cumpărat acum” cheltuiește bani.',

@@ -19,7 +19,7 @@ function writeSetting(key, value) {
 // (points per so many people, in full only when the event made at least `peopleProfit` RON per person), profit (points per so many RON, scaled to the month's profit on the 1st)
 // and impact (what was special: a collaboration, a special guest…, see event_highlights).
 const DEFAULT_POINTS_RATES = { moneyStep: 100, moneyPoints: 1,
-  itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 1,
+  itemsStep: 200, itemsPoints: 1, merchStep: 100, merchPoints: 0, // merch: points for the work, by hand (schema.js)
   peopleStep: 10, peoplePoints: 1, peopleProfit: 20, collabPoints: 3, guestPoints: 3, specialPoints: 3,
   wTime: 1, wPeople: 1, wProfit: 1, wImpact: 1 };
 export const POINTS_RATE_KEYS = Object.keys(DEFAULT_POINTS_RATES);

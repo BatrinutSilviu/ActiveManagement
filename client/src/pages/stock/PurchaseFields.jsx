@@ -33,7 +33,7 @@ export function PurchaseFields({ p, setP, people, holder, qty, price, ways = ['b
               onClick={() => setP({ ...p, how: k })}>{t(HOW[k])}</button>
           ))}
         </div>
-        <span className="hint">{p.how === 'bought' ? t('Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points.')
+        <span className="hint">{p.how === 'bought' ? t('Spent from the fund of its category (a sport’s category → that sport’s fund, otherwise the general fund); the buyer gets points for usual items and prizes.')
           : p.how === 'moved' ? t('Passed on between founders: no money, no points.')
           : p.how === 'had' ? t('Already ours, or given to us: no money, no points.') : t('Choose one: only “Bought now” spends money.')}</span>
       </div>
@@ -59,7 +59,9 @@ export function PurchaseFields({ p, setP, people, holder, qty, price, ways = ['b
             <input type="checkbox" checked={!!p.paid_before} onChange={(e) => setP({ ...p, paid_before: e.target.checked })} />
             {t('Paid earlier, already counted in the budget: don’t take it out of the fund again')}
           </label>
-          <p className="hint full" style={{ margin: 0 }}>{t('{n} points', { n: number(points) })}{rates && step > 0 ? ` (${t('{pts} per {step} {currency} for {kind}', { pts: number(pts), step: number(step), currency: CURRENCY, kind: t(PURCHASE_KINDS[p.kind]).toLowerCase() })})` : ''}</p>
+          <p className="hint full" style={{ margin: 0 }}>{p.kind === 'merch' && !(step > 0 && pts > 0)
+            ? t('No points for buying merch: the work on it is given points in Payouts → Add points (a new product or partnership, ordering, pick-up, distribution).')
+            : <>{t('{n} points', { n: number(points) })}{rates && step > 0 ? ` (${t('{pts} per {step} {currency} for {kind}', { pts: number(pts), step: number(step), currency: CURRENCY, kind: t(PURCHASE_KINDS[p.kind]).toLowerCase() })})` : ''}</>}</p>
         </>
       )}
     </>
