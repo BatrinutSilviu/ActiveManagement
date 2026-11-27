@@ -77,7 +77,7 @@ function addActivities() {
 // rewarded for the work, not what it cost (buying it earns no points, see merchPoints): setting up a product or
 // partnership is the hard part, then each batch ordered, then picking it up and handing it out.
 const HELP_ACTIVITIES = [
-  ['Ideas & research (per hour)', 1],   // research, finding new features and ideas
+  ['Ideas & research (per hour)', 1.5], // research, finding new features and ideas
   ['Testing & bugs (per hour)', 1],     // testing the apps and finding bugs
   ['New merch product or partnership', 3, 8], // research, supplier, samples, design
   ['Merch: taking orders & ordering (per batch)', 2],

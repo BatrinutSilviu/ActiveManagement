@@ -54,7 +54,7 @@ export function ContributionForm({ month, item, onClose, onSaved }) {
           </Select>
         </label>
         <label className="field">{t('Points')}
-          <input type="number" min="0" step="0.5" value={f.points} onChange={set('points')} required />
+          <input type="number" min="0" step="0.25" value={f.points} onChange={set('points')} required />
           {act?.organizer_max && <span className="hint">{t('Between {min} and {max} depending on complexity', { min: number(act.organizer_points), max: number(act.organizer_max) })}</span>}
         </label>
         <label className="field">{t('Note')}<input value={f.note || ''} onChange={set('note')} placeholder={t('e.g. Partnership with Padel Arena')} /></label>
