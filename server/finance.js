@@ -5,6 +5,7 @@ import { eventTaskShares, manualTaskPoints, TASKS } from './domain/tasks.js';
 import { openVouchers } from './domain/vouchers.js';
 import { r2, sumBy, toBani, toRon } from './domain/money.js';
 import { currency } from './domain/business.js';
+import { hasStockSales } from './domain/stock.js';
 import { httpError } from './http.js';
 import { errorFields, log } from './log.js';
 
@@ -306,6 +307,21 @@ export function purchaseLines(where = '1', params = []) {
   });
 }
 
+/** Stock sales with the points they earn the seller: profit (price − cost, frozen on the sale) ÷ step × points; none at a loss. */
+export function saleLines(where = '1', params = []) {
+  if (!hasStockSales()) return [];
+  const { salesStep: step, salesPoints: pts } = getPointsRates();
+  return db.prepare(`
+    SELECT ss.*, p.name AS person_name, i.name AS item_name, i.unit FROM stock_sales ss
+    JOIN people p ON p.id = ss.seller_id JOIN stock_items i ON i.id = ss.item_id
+    WHERE ${where} ORDER BY ss.date DESC, ss.id DESC`).all(...params).map((l) => {
+    // From bani, rounded like the sale's transaction, so the revenue is what the fund got.
+    const revenue = toRon(Math.round(l.unit_price * l.qty)), profit = toRon(Math.round((l.unit_price - l.unit_cost) * l.qty));
+    return { ...l, person_id: l.seller_id, unit_price: toRon(l.unit_price), unit_cost: toRon(l.unit_cost), revenue, profit,
+      points: step > 0 && profit > 0 ? r2((profit / step) * pts) : 0 };
+  });
+}
+
 /**
  * Money earned by tasks done for free — and by tasks nobody is on — per finalized event: the
  * organisers' pool of its month is shared by points, and those points' part goes to the event's
@@ -332,7 +348,7 @@ function freeTaskMoney() {
     add(free, id, pts);
   }
   for (const c of db.prepare("SELECT strftime('%Y-%m', date) AS ym, SUM(points) AS n FROM contributions GROUP BY ym").all()) add(points, c.ym, c.n);
-  for (const l of purchaseLines()) add(points, l.date.slice(0, 7), l.points);
+  for (const l of [...purchaseLines(), ...saleLines()]) add(points, l.date.slice(0, 7), l.points);
   const money = new Map();
   for (const [id, fp] of free) {
     const ym = monthOfEvent.get(id), total = points.get(ym);
@@ -490,6 +506,9 @@ export function computeFounders(ym) {
     ...purchaseLines("strftime('%Y-%m', sp.date) = ?", [ym]).filter((l) => l.points).map((l) => ({
       source: 'purchase', id: l.id, person_id: l.person_id, person_name: l.person_name, task: null, kind: l.kind, points: l.points,
       event_id: null, title: `Bought ${l.qty} ${l.unit} ${l.item_name} · ${l.amount} ${currency()}`, date: l.date, activity_name: null })),
+    ...saleLines("strftime('%Y-%m', ss.date) = ?", [ym]).filter((l) => l.points).map((l) => ({
+      source: 'sale', id: l.id, person_id: l.person_id, person_name: l.person_name, task: null, points: l.points,
+      event_id: null, title: `Sold ${l.qty} ${l.unit} ${l.item_name} · profit ${l.profit} ${currency()}`, date: l.date, activity_name: null })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const pendingPoints = sumBy(linesOf(live), (l) => l.points);
   // Tasks nobody was on: their points count in the month's total, but their money goes to the funds.

@@ -4,8 +4,9 @@ import express from 'express';
 import { db, tx } from '../db.js';
 import { r2, toRon } from '../domain/money.js';
 import { IS_MEMBER_SQL } from '../domain/pricing.js';
-import { discountDroppedSql, purchaseLines, taskLines } from '../finance.js';
+import { discountDroppedSql, purchaseLines, saleLines, taskLines } from '../finance.js';
 import { ORGANIZER } from '../domain/organizer.js';
+import { hasStockSales } from '../domain/stock.js';
 import { httpError, idParam, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
@@ -13,7 +14,7 @@ export const router = express.Router({ caseSensitive: true });
 router.get('/people', (req, res) => {
   // Points earned on event tasks (not those done for free).
   const points = new Map();
-  for (const l of [...taskLines('t.free = 0'), ...purchaseLines()]) points.set(l.person_id, (points.get(l.person_id) || 0) + l.points);
+  for (const l of [...taskLines('t.free = 0'), ...purchaseLines(), ...saleLines()]) points.set(l.person_id, (points.get(l.person_id) || 0) + l.points);
   res.json(db.prepare(`
     SELECT p.*, ${IS_MEMBER_SQL} AS is_member, (SELECT COUNT(DISTINCT t.event_id) FROM event_tasks t WHERE t.person_id = p.id) AS events,
       (SELECT COALESCE(SUM(h.qty * i.unit_price), 0) FROM stock_holdings h JOIN stock_items i ON i.id = h.item_id
@@ -68,6 +69,8 @@ router.delete('/people/:id', (req, res) => {
     'This person still has equipment — give it to someone else first');
   need(!db.prepare('SELECT 1 FROM stock_purchases WHERE person_id = ?').get(idParam(req)),
     'This person bought stock — mark them inactive instead, so their points history is kept');
+  need(!hasStockSales() || !db.prepare('SELECT 1 FROM stock_sales WHERE seller_id = ?').get(idParam(req)),
+    'This person sold stock — mark them inactive instead, so their points history is kept');
   need(!db.prepare('SELECT 1 FROM event_tasks WHERE person_id = ?').get(idParam(req)),
     'This person has organized events — mark them inactive instead, so their points history is kept');
   // Their vouchers, attendances and discounts stay, under their name.

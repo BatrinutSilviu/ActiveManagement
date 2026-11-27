@@ -2,6 +2,7 @@
 import express from 'express';
 import { db, tx } from '../db.js';
 import { toBani, toRon } from '../domain/money.js';
+import { hasStockSales } from '../domain/stock.js';
 import { checkVersion } from '../domain/versions.js';
 import { httpError, idParam, isDate, need } from '../http.js';
 
@@ -53,12 +54,17 @@ router.post('/transactions', (req, res) => {
   res.json({ id: Number(lastInsertRowid) });
 });
 
-// The payment of an invoice or receipt (practice) follows its paid tick: it's changed there, not here.
-const fromInvoice = (id) => need(!db.prepare('SELECT 1 FROM invoices WHERE transaction_id = ?').get(id),
-  'This is the payment of an invoice or receipt: change it there (or untick “paid”)');
+// Money another page owns: the payment of an invoice or receipt (practice) follows its paid tick, changed there.
+// The money of a stock sale follows the sale: it's changed (or deleted) on the Stock page.
+const managedElsewhere = (id) => {
+  need(!db.prepare('SELECT 1 FROM invoices WHERE transaction_id = ?').get(id),
+    'This is the payment of an invoice or receipt: change it there (or untick “paid”)');
+  need(!hasStockSales() || !db.prepare('SELECT 1 FROM stock_sales WHERE transaction_id = ?').get(id),
+    'This is the money of a sale: change it on the Stock page (Sales)');
+};
 
 router.put('/transactions/:id', (req, res) => {
-  fromInvoice(idParam(req));
+  managedElsewhere(idParam(req));
   tx(() => {
     checkVersion('transactions', idParam(req), req.body, 'transaction');
     db.prepare(`
@@ -90,7 +96,7 @@ router.delete('/fund-parts/:id', (req, res) => {
 });
 
 router.delete('/transactions/:id', (req, res) => {
-  fromInvoice(idParam(req));
+  managedElsewhere(idParam(req));
   // A voucher whose cost this was becomes unused again.
   tx(() => {
     db.prepare('UPDATE vouchers SET used_date = NULL, transaction_id = NULL, used_event_id = NULL WHERE transaction_id = ?').run(idParam(req));

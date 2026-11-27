@@ -44,6 +44,8 @@ export function PointsRates() {
         <div className="form-section" style={{ marginTop: 6 }}>{t('Stock purchases')} <span className="hint">{t('— points for whoever bought it')}</span></div>
         <div className="rate-line">{input('itemsPoints')} {t('points per')} {input('itemsStep', 10)} {t('{currency} of usual items / prizes', { currency: CURRENCY })}</div>
         <div className="rate-line">{input('merchPoints')} {t('points per')} {input('merchStep', 10)} {t('{currency} of partnership merchandise', { currency: CURRENCY })}</div>
+        <div className="form-section" style={{ marginTop: 6 }}>{t('Stock sold')} <span className="hint">{t('— points for whoever sold it, from the profit (price − cost)')}</span></div>
+        <div className="rate-line">{input('salesPoints')} {t('points per')} {input('salesStep', 10)} {t('{currency} of profit on sales', { currency: CURRENCY })}</div>
         <div><button className="btn" disabled={!f}>{t('Save rates')}</button></div>
       </form>
     </div>

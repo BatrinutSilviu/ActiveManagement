@@ -1,7 +1,8 @@
 // Stock: products the community buys and uses up at events, held by founders.
-import { db } from '../db/connection.js';
+import { columns, db } from '../db/connection.js';
 import { isDate, need, today } from '../http.js';
 import { toBani } from './money.js';
+import { featureOn } from './business.js';
 
 /** Makes sure every sport has its category and Miscellaneous exists; returns Miscellaneous's id. */
 export function ensureStockCategories() {
@@ -52,10 +53,12 @@ export function purchaseFund(purchaseId, userId = null) {
   db.prepare('UPDATE stock_items SET prepaid = 1 WHERE id = ?').run(p.item_id);
 }
 
-/** A product moved to another category: its purchases are paid by the new category's fund. */
+/** A product moved to another category: its purchases are paid by (and its sales go into) the new category's fund. */
 export function movePurchaseFunds(itemId) {
-  db.prepare('UPDATE transactions SET fund_sport_id = ? WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?)')
-    .run(itemSport(itemId), itemId);
+  const sales = hasStockSales();
+  db.prepare(`UPDATE transactions SET fund_sport_id = ? WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?
+    ${sales ? 'UNION SELECT transaction_id FROM stock_sales WHERE item_id = ?' : ''})`)
+    .run(itemSport(itemId), itemId, ...(sales ? [itemId] : []));
 }
 
 /** Only founders keep stock. */
@@ -71,6 +74,75 @@ export function recordPurchase(itemId, holderId, qty, body, userId) {
   const { lastInsertRowid } = db.prepare(`INSERT INTO stock_purchases (item_id, person_id, holder_id, qty, amount, kind, date, created_by, paid_before)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(itemId, Number(p.person_id), Number(holderId), Number(qty), toBani(p.amount), p.kind, p.date || today(), userId, p.paid_before ? 1 : 0);
   purchaseFund(Number(lastInsertRowid), userId); // spent from the category's fund
+}
+
+/* ------------------------------------------------------------------ sales */
+
+// Selling stock (merch to members): the quantity leaves the founder who had it, the money comes into the fund of the
+// product's category (like its purchases are paid from it), and the seller gets points for the profit — price minus
+// the product's cost (its unit_price), both frozen on the sale (see saleLines in finance.js).
+
+const saleCategory = () => db.prepare("SELECT id FROM categories WHERE name = 'Merchandise' AND kind = 'income'").get()?.id
+  ?? Number(db.prepare("INSERT INTO categories (name, kind, cost_group) VALUES ('Merchandise', 'income', 'organizing')").run().lastInsertRowid);
+
+let salesReady = false;
+/** The sales table and a product's selling price, made on first use (only businesses that use stock have them). */
+export function stockSalesReady() {
+  if (salesReady) return;
+  if (!columns('stock_items').includes('sell_price')) db.exec('ALTER TABLE stock_items ADD COLUMN sell_price INTEGER NOT NULL DEFAULT 0');
+  // Each sale keeps its price and the product's cost then, so its profit (and the seller's points) stay as sold.
+  db.exec(`CREATE TABLE IF NOT EXISTS stock_sales (
+    id INTEGER PRIMARY KEY,
+    item_id INTEGER NOT NULL REFERENCES stock_items(id) ON DELETE CASCADE,
+    seller_id INTEGER NOT NULL REFERENCES people(id),                     -- the founder it was taken from
+    qty REAL NOT NULL CHECK (qty > 0),
+    unit_price INTEGER NOT NULL CHECK (unit_price >= 0),                  -- bani, sold for (each)
+    unit_cost INTEGER NOT NULL DEFAULT 0,                                 -- bani, the product's cost then (each)
+    date TEXT NOT NULL,
+    note TEXT,
+    transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL, -- the income, in the product's fund
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  salesReady = true;
+}
+
+/** Whether this business sells stock (stock is on); makes sure the sales table exists when it does. */
+export function hasStockSales() {
+  if (!featureOn('stock')) return false; // a practice (Kidokinetiq) has no stock: no sales, nor their table
+  stockSalesReady();
+  return true;
+}
+
+/** Records a sale; returns its id. */
+export function recordSale(b, userId) {
+  const item = db.prepare('SELECT * FROM stock_items WHERE id = ?').get(Number(b.item_id));
+  need(item, 'Choose a product');
+  const seller = Number(b.seller_id), qty = Number(b.qty);
+  const name = db.prepare('SELECT name FROM people WHERE id = ?').get(seller)?.name;
+  need(name, 'Choose who sold it');
+  need(qty > 0, 'A quantity is required');
+  need(Number(b.unit_price) >= 0 && b.unit_price !== '' && b.unit_price != null, 'The price can’t be negative');
+  need(!b.date || isDate(b.date), 'Invalid date');
+  takeStock(item, seller, qty);
+  const price = toBani(b.unit_price), date = b.date || today();
+  const note = b.note?.trim() || null;
+  db.prepare('UPDATE stock_holdings SET qty = qty - ? WHERE item_id = ? AND person_id = ?').run(qty, item.id, seller);
+  const total = Math.round(price * qty);
+  const txId = total > 0 ? Number(db.prepare(`INSERT INTO transactions (event_id, kind, category_id, amount, date, description, fund_sport_id, created_by)
+    VALUES (NULL, 'income', ?, ?, ?, ?, ?, ?)`).run(saleCategory(), total, date,
+    `Sold: ${qty} ${item.unit} ${item.name} (by ${name}${note ? ` · ${note}` : ''})`, itemSport(item.id), userId).lastInsertRowid) : null;
+  return Number(db.prepare(`INSERT INTO stock_sales (item_id, seller_id, qty, unit_price, unit_cost, date, note, transaction_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(item.id, seller, qty, price, item.unit_price, date, note, txId, userId).lastInsertRowid);
+}
+
+/** Undoes a sale: the quantity goes back to the seller, its money leaves the fund, its points go. */
+export function deleteSale(id) {
+  const s = db.prepare('SELECT * FROM stock_sales WHERE id = ?').get(id);
+  need(s, 'Sale not found');
+  returnStock({ item_id: s.item_id, person_id: s.seller_id, qty: s.qty });
+  if (s.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(s.transaction_id);
+  db.prepare('DELETE FROM stock_sales WHERE id = ?').run(s.id);
 }
 
 /* --------------------------------------------------------- used at events */

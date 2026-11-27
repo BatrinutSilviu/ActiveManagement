@@ -254,7 +254,7 @@ export default function Payouts() {
                         <div className="row-sub show-sm">{date(l.date)}{l.activity_name ? ` · ${l.activity_name}` : ''}</div>
                       </td>
                       <td className="secondary hide-sm">{l.activity_name || '—'}</td>
-                      <td className="secondary hide-sm">{l.task ? `${TASK_LABELS[l.task]}${l.sharing > 1 ? ` (${t('shared by {n}', { n: l.sharing })})` : ''}` : l.source === 'purchase' ? (l.kind === 'merch' ? t('Bought partnership merchandise') : t('Bought items / prizes')) : t('Contribution')}</td>
+                      <td className="secondary hide-sm">{l.task ? `${TASK_LABELS[l.task]}${l.sharing > 1 ? ` (${t('shared by {n}', { n: l.sharing })})` : ''}` : l.source === 'purchase' ? (l.kind === 'merch' ? t('Bought partnership merchandise') : t('Bought items / prizes')) : l.source === 'sale' ? t('Sold stock (profit)') : t('Contribution')}</td>
                       <td className="r"><strong>{number(l.points)}</strong></td>
                       {canEdit && (
                         <td className="r actions">

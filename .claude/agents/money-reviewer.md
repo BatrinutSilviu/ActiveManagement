@@ -95,7 +95,14 @@ this file gets updated. If neither explains the difference, report it as a possi
 - Stock used at an event is charged to it. kept = 1 (still own it) or 2 (partly used): quantity stays;
   0 (used up): comes off the holder's quantity.
 - Purchases give the buyer points (two kinds, each with its own points-per-RON rate in Settings: usual
-  items/prizes and partnership merchandise). Those points join the month's pool.
+  items/prizes and partnership merchandise). Those points join the month's pool. Merch's rate is 0 by the
+  user's decision (2026-11-27): merch work is given points by hand (new product/partnership 3–8, ordering 1,
+  pick-up and distribution 0.5 each).
+- Sales (`stock_sales`, `saleLines`): selling stock takes it off the founder who had it; the money is income
+  in the fund of the product's category (like its purchases) — never in event profit or the monthly pool.
+  The seller gets points = profit ÷ salesStep × salesPoints (default 1 per 100 RON), profit = (sale price −
+  the product's cost, both frozen on the sale) × qty, none at a loss. Deleting a sale gives the quantity back
+  and removes its income and points. Only where the stock feature is on (not Kidokinetiq).
 
 **Event points** (`eventPoints`): four parts, each × its weight from Settings × the sport's multiplier
 - time = the activity's points from the points table;

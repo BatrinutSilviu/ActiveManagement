@@ -377,6 +377,7 @@ export default {
   'This person still holds stock — move it to someone else first': 'Această persoană încă deține stoc — mută-l mai întâi la altcineva',
   'This person still has equipment — give it to someone else first': 'Această persoană încă are echipament — dă-l mai întâi altcuiva',
   'This person bought stock — mark them inactive instead, so their points history is kept': 'Această persoană a cumpărat stoc — marcheaz-o în schimb ca inactivă, ca să se păstreze istoricul punctelor',
+  'This person sold stock — mark them inactive instead, so their points history is kept': 'Această persoană a vândut stoc — marcheaz-o în schimb ca inactivă, ca să se păstreze istoricul punctelor',
   'This person has organized events — mark them inactive instead, so their points history is kept': 'Această persoană a organizat evenimente — marcheaz-o în schimb ca inactivă, ca să se păstreze istoricul punctelor',
   'Invalid request id': 'ID de cerere nevalid',
   'Enter at least one amount paid': 'Introdu cel puțin o sumă plătită',
@@ -400,4 +401,9 @@ export default {
   'Not set up: pick the person, their git email and the repos': 'Nesetat: alege persoana, email-ul din git și repo-urile',
   'Pick a person from People': 'Alege o persoană din Oameni', 'An email isn’t valid': 'Un email nu este valid',
   'Write each repo as owner/name': 'Scrie fiecare repo ca proprietar/nume', 'Pick the day to count from': 'Alege ziua de la care se numără',
+  // Points from selling stock
+  'Sold stock (profit)': 'Stoc vândut (profit)',
+  'Stock sold': 'Stoc vândut',
+  '— points for whoever sold it, from the profit (price − cost)': '— puncte pentru cine l-a vândut, din profit (preț − cost)',
+  '{currency} of profit on sales': '{currency} profit din vânzări',
 };

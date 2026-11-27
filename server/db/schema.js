@@ -5,9 +5,9 @@
 // New migrations go at the end of migrate().
 import { db, columns, tx } from './connection.js';
 import { IS_MEMBER_SQL } from '../domain/pricing.js';
-import { purchaseFund } from '../domain/stock.js';
+import { purchaseFund, stockSalesReady } from '../domain/stock.js';
 import { log } from '../log.js';
-import { ACTIVE, getBusiness, setBusiness } from '../domain/business.js';
+import { ACTIVE, featureOn, getBusiness, setBusiness } from '../domain/business.js';
 
 // Event "types" are the sports. Older databases had generic Sport/Tournament tags.
 export const SPORTS = ['Football', 'Volleyball', 'Basketball', 'Handball', 'Padel', 'Running', 'Hiking', 'Biking',
@@ -80,7 +80,7 @@ const HELP_ACTIVITIES = [
   ['Ideas & research (per hour)', 1.5], // research, finding new features and ideas
   ['Testing & bugs (per hour)', 1],     // testing the apps and finding bugs
   ['New merch product or partnership', 3, 8], // research, supplier, samples, design
-  ['Merch: taking orders & ordering (per batch)', 2],
+  ['Merch: taking orders & ordering (per batch)', 1],
   ['Merch pick-up', 0.5],
   ['Merch distribution (per session)', 0.5],
 ];
@@ -1078,6 +1078,9 @@ if (!columns('event_attendees').includes('drop_note')) db.exec('ALTER TABLE even
 // The app's own id for a synced attendee (padel player, events-site sign-up): matched before the name, so someone
 // renamed there stays the same attendee here.
 if (!columns('event_attendees').includes('external_ref')) db.exec('ALTER TABLE event_attendees ADD COLUMN external_ref TEXT');
+// Selling stock (domain/stock.js): only where stock is used (Active), so a practice's database (Kidokinetiq) is left as
+// it is; turning stock on later adds them on first use. A brand-new database has no business yet: it gets them too.
+if (!getBusiness() || featureOn('stock')) stockSalesReady();
 // The help activities (HELP_ACTIVITIES) for a community from before them.
 if (community && !db.prepare("SELECT 1 FROM settings WHERE key = 'migrated:help-activities'").get()) addHelpActivities();
 }

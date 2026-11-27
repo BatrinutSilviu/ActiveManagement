@@ -17,6 +17,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { db, toBani, toRon } from '../db.js';
 import { closeMonth, loadEvents } from '../finance.js';
+import { hasStockSales } from '../domain/stock.js';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
@@ -207,7 +208,8 @@ try {
   /* ---- money not tied to an event */
   const appFund = db.prepare(`SELECT t.*, et.name AS fund_name FROM transactions t LEFT JOIN event_types et ON et.id = t.fund_sport_id
     WHERE t.event_id IS NULL AND t.date >= date(?, '-7 days') AND t.date < ?
-      AND t.id NOT IN (SELECT transaction_id FROM stock_purchases WHERE transaction_id IS NOT NULL) ORDER BY t.date, t.id`).all(FROM, BEFORE);
+      AND t.id NOT IN (SELECT transaction_id FROM stock_purchases WHERE transaction_id IS NOT NULL)
+      ${hasStockSales() ? 'AND t.id NOT IN (SELECT transaction_id FROM stock_sales WHERE transaction_id IS NOT NULL)' : ''} ORDER BY t.date, t.id`).all(FROM, BEFORE);
   let pool = appFund;
   const take = (pred) => { const t = pool.find(pred); if (t) pool = pool.filter((x) => x !== t); return t; };
   for (const f of fund) {

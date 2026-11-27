@@ -2,11 +2,14 @@
 import express from 'express';
 import { db, tx } from '../db.js';
 import { r2, toBani, toRon } from '../domain/money.js';
-import { ensureStockCategories, movePurchaseFunds, needFounder, purchaseFund, recordPurchase } from '../domain/stock.js';
-import { purchaseLines } from '../finance.js';
+import { deleteSale, ensureStockCategories, movePurchaseFunds, needFounder, purchaseFund, recordPurchase, recordSale, stockSalesReady } from '../domain/stock.js';
+import { purchaseLines, saleLines } from '../finance.js';
 import { httpError, idParam, need } from '../http.js';
 
 export const router = express.Router({ caseSensitive: true });
+
+// Only reached where stock is on (index.js): its sales table and selling prices exist from the first request.
+router.use((req, res, next) => { stockSalesReady(); next(); });
 
 router.get('/stock', (req, res) => {
   ensureStockCategories();
@@ -18,7 +21,7 @@ router.get('/stock', (req, res) => {
   res.json(items.map((i) => {
     const hs = holdings.filter((h) => h.item_id === i.id).map(({ person_id, name, qty }) => ({ person_id, name, qty }));
     const qty = hs.reduce((s, h) => s + h.qty, 0);
-    return { ...i, unit_price: toRon(i.unit_price), holdings: hs, qty, value: r2(qty * toRon(i.unit_price)),
+    return { ...i, unit_price: toRon(i.unit_price), sell_price: toRon(i.sell_price), holdings: hs, qty, value: r2(qty * toRon(i.unit_price)),
       used: used.find((u) => u.item_id === i.id)?.qty || 0 };
   }));
 });
@@ -67,16 +70,17 @@ router.delete('/stock/categories/:id', (req, res) => {
 function readItem(body) {
   need(body.name?.trim(), 'Item name is required');
   need(Number(body.unit_price) >= 0, 'Price must be 0 or more');
+  need(!body.sell_price || Number(body.sell_price) >= 0, 'The selling price must be 0 or more');
   const category = Number(body.category_id) || ensureStockCategories();
   need(db.prepare('SELECT 1 FROM stock_categories WHERE id = ?').get(category), 'Unknown category');
-  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price), category, body.prepaid ? 1 : 0];
+  return [body.name.trim(), body.unit?.trim() || 'pcs', toBani(body.unit_price), toBani(body.sell_price || 0), category, body.prepaid ? 1 : 0];
 }
 
 router.post('/stock/items', (req, res) => {
   const result = tx(() => {
     let id;
     try {
-      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price, category_id, prepaid) VALUES (?, ?, ?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
+      id = Number(db.prepare('INSERT INTO stock_items (name, unit, unit_price, sell_price, category_id, prepaid) VALUES (?, ?, ?, ?, ?, ?)').run(...readItem(req.body)).lastInsertRowid);
     } catch (e) {
       if (e.status) throw e;
       throw httpError(400, 'An item with this name already exists');
@@ -93,7 +97,7 @@ router.post('/stock/items', (req, res) => {
 
 router.put('/stock/items/:id', (req, res) => {
   tx(() => {
-    db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, category_id = ?, prepaid = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
+    db.prepare('UPDATE stock_items SET name = ?, unit = ?, unit_price = ?, sell_price = ?, category_id = ?, prepaid = ? WHERE id = ?').run(...readItem(req.body), idParam(req));
     movePurchaseFunds(idParam(req));
   });
   res.json({ ok: true });
@@ -114,8 +118,9 @@ router.post('/stock/items/move', (req, res) => {
 router.delete('/stock/items/:id', (req, res) => {
   need(!db.prepare('SELECT 1 FROM event_stock WHERE item_id = ?').get(idParam(req)), 'This item was used at events and cannot be deleted');
   tx(() => {
-    // Its purchases go too, and with them the money they took from the fund.
-    db.prepare('DELETE FROM transactions WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?)').run(idParam(req));
+    // Its purchases and sales go too, and with them the money they took from or brought into the fund.
+    db.prepare(`DELETE FROM transactions WHERE id IN (SELECT transaction_id FROM stock_purchases WHERE item_id = ?
+      UNION SELECT transaction_id FROM stock_sales WHERE item_id = ?)`).run(idParam(req), idParam(req));
     db.prepare('DELETE FROM stock_items WHERE id = ?').run(idParam(req));
   });
   res.json({ ok: true });
@@ -160,6 +165,17 @@ router.post('/stock/purchases/:id/not-bought', (req, res) => {
     if (p.transaction_id) db.prepare('DELETE FROM transactions WHERE id = ?').run(p.transaction_id);
     db.prepare('DELETE FROM stock_purchases WHERE id = ?').run(p.id);
   });
+  res.json({ ok: true });
+});
+
+/* ------------------------------------------------------------------ sales */
+
+router.get('/stock/sales', (req, res) => res.json(saleLines()));
+
+router.post('/stock/sales', (req, res) => res.json({ id: tx(() => recordSale(req.body, req.user.id)) }));
+
+router.delete('/stock/sales/:id', (req, res) => {
+  tx(() => deleteSale(idParam(req)));
   res.json({ ok: true });
 });
 

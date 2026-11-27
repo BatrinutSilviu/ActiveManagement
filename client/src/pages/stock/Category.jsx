@@ -14,7 +14,7 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr>{canEdit && <th className="pick-col"><input type="checkbox" checked={allOn} onChange={(e) => pick(items.map((i) => i.id), e.target.checked)} aria-label={t('Select all products here')} /></th>}<th>{t('Product')}</th><th className="r hide-sm">{t('Price / unit')}</th><th className="hide-sm">{t('Who has it')}</th><th className="r">{t('Total')}</th><th className="r hide-sm">{t('Value')}</th><th className="r hide-sm">{t('Used at events')}</th>{canEdit && <th />}</tr></thead>
+        <thead><tr>{canEdit && <th className="pick-col"><input type="checkbox" checked={allOn} onChange={(e) => pick(items.map((i) => i.id), e.target.checked)} aria-label={t('Select all products here')} /></th>}<th>{t('Product')}</th><th className="r hide-sm">{t('Price / unit')}</th><th className="r hide-sm">{t('Sells for')}</th><th className="hide-sm">{t('Who has it')}</th><th className="r">{t('Total')}</th><th className="r hide-sm">{t('Value')}</th><th className="r hide-sm">{t('Used at events')}</th>{canEdit && <th />}</tr></thead>
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className={selected.has(i.id) ? 'row-picked' : ''}>
@@ -26,11 +26,15 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
                   {i.holdings.map((h) => `${h.name} ${number(h.qty)}`).join(' · ') || t('Nobody holds it')}
                   {canEdit && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>{t('Add')}</button></>}
                   {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>{t('Move')}</button></>}
+                  {canEdit && i.holdings.length > 0 && <> · <button className="link-btn" onClick={() => setForm({ sell: i })}>{t('Sell')}</button></>}
                 </div>
               </td>
               <td className="r hide-sm">
                 <InlineNumber value={i.unit_price} step="0.01" width={90} format={money}
                   onSave={(v) => run(() => api.put(`/stock/items/${i.id}`, { ...i, unit_price: v }))} />
+              </td>
+              <td className="r hide-sm">
+                {i.sell_price > 0 ? <>{money(i.sell_price)}<div className={`row-sub ${i.sell_price < i.unit_price ? 'neg' : ''}`}>{t('{profit} profit each', { profit: money(i.sell_price - i.unit_price) })}</div></> : <span className="muted">—</span>}
               </td>
               <td className="hide-sm holders-cell">
                 <div className="holder-list">
@@ -46,6 +50,7 @@ function ItemsTable({ items, run, setForm, selected, setSelected }) {
                     <div className="holder-actions">
                       <button className="link-btn" onClick={() => setForm({ move: i, mode: 'add' })}>+ {t('Add')}</button>
                       {i.holdings.length > 0 && <button className="link-btn" onClick={() => setForm({ move: i, mode: 'move' })}>{t('Move')}</button>}
+                      {i.holdings.length > 0 && <button className="link-btn" onClick={() => setForm({ sell: i })}>{t('Sell')}</button>}
                     </div>
                   )}
                 </div>

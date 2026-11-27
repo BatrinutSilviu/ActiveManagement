@@ -12,6 +12,8 @@ import { ItemForm } from './stock/ItemForm.jsx';
 import { MoveForm } from './stock/MoveForm.jsx';
 import { InlineNumber } from './stock/InlineNumber.jsx';
 import { Purchases } from './stock/Purchases.jsx';
+import { Sales } from './stock/Sales.jsx';
+import { SellForm } from './stock/SellForm.jsx';
 import { Category } from './stock/Category.jsx';
 
 export default function Stock() {
@@ -29,7 +31,7 @@ export default function Stock() {
   });
   const { data: allPeople, reload: reloadPeople } = useApi('/people');
   const [view, setView] = usePersistentState('am-stock-view', 'items');
-  const [form, setForm] = useState(null); // { item? } | { move: item, mode } | { equipment: item | null }
+  const [form, setForm] = useState(null); // { item? } | { move: item, mode } | { sell: item } | { equipment: item | null }
   const [error, setError] = useState(null);
   const { canEdit } = usePermissions();
   const people = allPeople?.filter((p) => p.active) || [];
@@ -64,10 +66,12 @@ export default function Stock() {
           <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>{t('By product')}</button>
           <button className={view === 'people' ? 'on' : ''} onClick={() => setView('people')}>{t('By person')}</button>
           <button className={view === 'purchases' ? 'on' : ''} onClick={() => setView('purchases')}>{t('Purchases')}</button>
+          <button className={view === 'sales' ? 'on' : ''} onClick={() => setView('sales')}>{t('Sales')}</button>
           <button className={view === 'equipment' ? 'on' : ''} onClick={() => setView('equipment')}>{t('Equipment')}</button>
         </div>
-        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <>{error && <div className="error-box">{error}</div>}<Purchases run={run} founders={founders} onChanged={refresh} /></> : <>
-        {error && <div className="error-box">{error}</div>}
+        {view !== 'equipment' && error && <div className="error-box">{error}</div>}
+        {view === 'equipment' ? <Equipment form={form} setForm={setForm} /> : view === 'purchases' ? <Purchases run={run} founders={founders} onChanged={refresh} />
+          : view === 'sales' ? <Sales run={run} /> : <>
         <div className="grid grid-kpi">
           <Kpi label={t('Stock value')} icon={IconBox} tone="profit" value={money0(totalValue)} sub={tn(items.length, '{n} product', '{n} products')} />
           <Kpi label={t('People holding stock')} icon={IconUsers} value={holders.length} sub={holders.map((h) => h.name.split(' ')[0]).join(', ') || '—'} />
@@ -120,7 +124,8 @@ export default function Stock() {
         {!people.length && <p className="hint">{t('Add people in')} <Link to="/settings">{t('Settings → People')}</Link> {t('to assign stock to them.')}</p>}
       </div>
 
-      {form && !form.move && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form && !form.move && !form.sell && !('equipment' in form) && <ItemForm item={form.item} category={form.category} cats={cats} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
+      {form?.sell && <SellForm item={form.sell} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
       {form?.move && <MoveForm item={form.move} mode={form.mode} people={people} founders={founders} onClose={() => setForm(null)} onSaved={() => { setForm(null); refresh(); }} />}
     </div>
   );
